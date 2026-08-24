@@ -88,3 +88,24 @@ The project is a zero-build static web application:
 - 'supabase-config.js' — Supabase project configuration
 - 'supabase-rbac.sql' — database security and role configuration
 - 'README.md' — project documentation
+
+
+## Finance
+
+The Finance page tracks the football season on a **September–August** basis.
+
+For each season you can configure:
+- Season-ticket price
+- Pay-per-game price
+- Season-ticket purchases by player
+- Scheduled pitch-rental expenses
+- Paid/unpaid status
+
+The Finance dashboard shows:
+- Current balance
+- Outstanding payments
+- Pitch-rental commitments
+- Projected future game income based on recorded attendance
+- Projected end-of-season balance
+
+Run `supabase-finance.sql` once in the Supabase SQL Editor to create the finance tables and seed the 2026/27 pitch-rental schedule.
