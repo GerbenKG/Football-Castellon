@@ -223,7 +223,8 @@ function finance(){
  const expenses=financeData.expenses.filter(x=>x.season_id===s.id);
  const seasonPlayers=state.players.filter(p=>p.model==="season");
  const ticketByPlayer=new Map(tickets.map(x=>[x.player_id,x]));
- const gamePlayers=state.games.flatMap(g=>(g.participants||[]).map(x=>({g,x})));
+ const seasonGames=state.games.filter(g=>g.date>=s.starts_on&&g.date<=s.ends_on);
+ const gamePlayers=seasonGames.flatMap(g=>(g.participants||[]).map(x=>({g,x})));
  const gamePaid=gamePlayers.filter(({x})=>x.paid);
  const actualSeasonIncome=tickets.filter(x=>x.paid).reduce((a,x)=>a+Number(x.amount),0);
  const actualGameIncome=gamePaid.reduce((a,{g,x})=>a+(x.guest||player(x.playerId)?.model==="game"?Number(s.pay_per_game_amount):0),0);
@@ -231,15 +232,13 @@ function finance(){
  const balance=actualSeasonIncome+actualGameIncome-paidExpenses;
  const unpaidSeason=seasonPlayers.filter(p=>!ticketByPlayer.get(p.id)?.paid);
  const unpaidGame=gamePlayers.filter(({g,x})=>g.date<=new Date().toISOString().slice(0,10)&&x.attended&&(!x.guest&&player(x.playerId)?.model==="game"||x.guest)&&!x.paid);
- const pastGames=state.games.filter(g=>g.date<s.starts_on?false:g.date<=new Date().toISOString().slice(0,10));
  const ppPlayers=state.players.filter(p=>p.model==="game");
  let projectedGame=0;
  ppPlayers.forEach(p=>{
    const appearances=state.games.flatMap(g=>(g.participants||[]).filter(x=>!x.guest&&x.playerId===p.id&&x.attended)).length;
-   const gamesCount=state.games.filter(g=>g.date>=s.starts_on&&g.date<=s.ends_on).length;
-   const playedGames=state.games.filter(g=>g.date>=s.starts_on&&g.date<=s.ends_on&&g.date<=new Date().toISOString().slice(0,10)).length;
+     const playedGames=seasonGames.filter(g=>g.date<=new Date().toISOString().slice(0,10)).length;
    const rate=playedGames?appearances/playedGames:0;
-   const futureGames=state.games.filter(g=>g.date>=new Date().toISOString().slice(0,10)&&g.date<=s.ends_on).length;
+   const futureGames=seasonGames.filter(g=>g.date>=new Date().toISOString().slice(0,10)).length;
    projectedGame+=rate*futureGames*Number(s.pay_per_game_amount);
  });
  const outstandingSeason=unpaidSeason.length*Number(s.season_ticket_amount);
@@ -381,7 +380,7 @@ document.querySelectorAll("[data-finance-season-select]").forEach(b=>b.onchange=
 });
 }
 document.addEventListener("click",e=>{const c=e.target.closest("[data-close]");if(c){e.preventDefault();document.getElementById("modal-root").innerHTML="";}});
-console.info("[Football] APP BUILD 20260824-25 loaded");
+console.info("[Football] APP BUILD 20260824-26 loaded");
 document.addEventListener("submit",async e=>{
  console.info("[Football] SUBMIT EVENT", { id:e.target?.id, tag:e.target?.tagName, action:e.submitter?.textContent?.trim() });
  e.preventDefault();const f=new FormData(e.target);
