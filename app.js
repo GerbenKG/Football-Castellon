@@ -58,7 +58,7 @@
     const season = state.players.filter(p=>p.model==="season" && p.seasonPaid).length;
     return '<section class="hero"><div class="hero-pitch"></div><div class="hero-copy"><div class="eyebrow light">NEXT FRIDAY</div><h1>'+dateText(g.date)+'</h1><p>⚽ '+esc(g.time)+' &nbsp; · &nbsp; '+esc(g.location)+'</p><div class="hero-actions"><button class="btn btn-light" data-a="add-player">+ Player</button><button class="btn btn-ghost" data-a="guest">+ Guest</button></div></div><div class="hero-ball">⚽</div></section>'+
       '<div class="stats"><div class="stat"><div class="stat-icon">⚽</div><div><small>PLAYING</small><strong>'+playing+'</strong></div></div><div class="stat"><div class="stat-icon">✓</div><div><small>PRESENT</small><strong>'+present+'</strong></div></div><div class="stat"><div class="stat-icon">€</div><div><small>PAYMENTS DUE</small><strong>'+due+'</strong></div></div><div class="stat"><div class="stat-icon">🎟</div><div><small>SEASON TICKETS</small><strong>'+season+'</strong></div></div></div>'+
-      '<section class="section"><div class="section-head"><div><h2>Friday squad</h2><p>Manage attendance and payment for this match.</p></div><button class="btn btn-secondary" data-view="calendar">Open calendar →</button></div>'+
+      '<section class="section"><div class="section-head"><div><h2>Friday squad</h2><p>Manage attendance and payment for this match.</p></div></div>'+
       '<div class="squad card">'+rows.map(x=>{
         const p=x.guest?null:player(x.playerId); const name=x.guest?x.name:(p?.name||"Player");
         const type=x.guest?"Guest":p?.model==="season"?"🎟 Season":"Per game";
