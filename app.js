@@ -69,7 +69,11 @@
   };
 
   const authScreen = () => {
-    document.getElementById("app").innerHTML='<section class="auth-card card"><div class="ball-logo">⚽</div><div class="eyebrow">ADMIN ACCESS</div><h1>Friday Football</h1><p class="muted">Sign in to manage players, games, attendance and payments.</p><form id="login-form"><label>Email<input name="email" type="email" autocomplete="email" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="btn btn-primary" type="submit">Sign in</button></form><p id="auth-error" class="auth-error"></p></section>';
+    document.getElementById("app").innerHTML='<section class="auth-card card"><div class="ball-logo">⚽</div><div class="eyebrow">ADMIN ACCESS</div><h1>Friday Football</h1><p class="muted">Sign in with your Google account to manage players, games, attendance and payments.</p><button id="google-login" class="btn btn-primary" type="button">Continue with Google</button><p id="auth-error" class="auth-error"></p></section>';
+    document.getElementById("google-login").onclick=async()=>{
+      const {error}=await sb.auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin+window.location.pathname}});
+      if(error) document.getElementById("auth-error").textContent=error.message;
+    };
   };
 
   const boot = async () => {
@@ -191,7 +195,6 @@
 
   document.addEventListener("submit",async e=>{
     e.preventDefault();const f=new FormData(e.target);
-    if(e.target.id==="login-form"){const {error}=await sb.auth.signInWithPassword({email:f.get("email"),password:f.get("password")});if(error){document.getElementById("auth-error").textContent=error.message;return;}return boot();}
     if(e.target.id==="game-form"){const date=f.get("date");const summer=[6,7].includes(new Date(date+"T12:00:00").getMonth());const g={id:crypto.randomUUID(),date,startTime:summer?"20:00":f.get("time"),endTime:summer?"22:00":(()=>{const [h,m]=f.get("time").split(":").map(Number);return String(h+2).padStart(2,"0")+":"+String(m).padStart(2,"0")})(),time:summer?"20:00–22:00":f.get("time")+"–"+(()=>{const [h,m]=f.get("time").split(":").map(Number);return String(h+2).padStart(2,"0")+":"+String(m).padStart(2,"0")})(),location:f.get("location"),participants:[]};state.games.push(g);gameId=g.id;}
     if(e.target.id==="player-form"){let p=player(e.target.dataset.id);if(!p){p={id:crypto.randomUUID()};state.players.push(p);}p.name=f.get("name").trim();p.model=f.get("model");p.seasonPaid=f.has("seasonPaid");}
     if(e.target.id==="pick-form")game().participants.push({playerId:f.get("id"),playing:true,attended:false,paid:false});
