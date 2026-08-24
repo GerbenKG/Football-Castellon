@@ -56,10 +56,13 @@
 .history-list{display:grid;gap:8px;max-height:55vh;overflow:auto}.history-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;border:1px solid #e2e8e5;border-radius:12px;background:#f8faf9}.history-row b{display:block}.history-row small{display:block;margin-top:3px;color:#71807a}.notice{padding:10px 12px;border-radius:10px;background:#f1f6f3;color:#52635c;font-size:13px}
 
 /* Game navigation */
-.game-nav{display:flex;align-items:center;gap:14px;margin-bottom:10px}
-.game-nav>div{min-width:0;flex:1}
-.game-arrow{width:46px;height:46px;border:1px solid rgba(255,255,255,.28);border-radius:14px;background:rgba(255,255,255,.12);color:#fff;font-size:25px;line-height:1;display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.14);transition:transform .16s ease,background .16s ease,border-color .16s ease}
-.game-arrow:hover{transform:translateY(-2px);background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.5)}
-.game-arrow:active{transform:translateY(0) scale(.96)}
+.game-nav{display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:10px;width:100%}
+.game-nav>div{min-width:0;text-align:center;padding:0 64px;width:100%}
+.game-arrow{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border:1px solid rgba(255,255,255,.28);border-radius:14px;background:rgba(255,255,255,.12);color:#fff;font-size:25px;line-height:1;display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.14);transition:transform .16s ease,background .16s ease,border-color .16s ease}
+.game-arrow[data-game-nav="prev"]{left:0}
+.game-arrow[data-game-nav="next"]{right:0}
+.game-arrow:hover{transform:translateY(-50%) scale(1.04)}
+.game-arrow:hover{transform:translateY(-50%) scale(1.04);background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.5)}
+.game-arrow:active{transform:translateY(-50%) scale(.96)}
 .game-arrow:focus-visible{outline:3px solid rgba(255,255,255,.65);outline-offset:3px}
-@media(max-width:600px){.game-nav{gap:8px}.game-arrow{width:40px;height:40px;border-radius:12px;font-size:22px}}
+@media(max-width:600px){.game-nav>div{padding:0 50px}.game-arrow{width:40px;height:40px;border-radius:12px;font-size:22px}}
