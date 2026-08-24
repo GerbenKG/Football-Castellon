@@ -34,7 +34,11 @@
       badge.className = "players-count";
       title.insertAdjacentElement("afterend", badge);
     }
-    badge.textContent = `${count} ${count === 1 ? "player" : "players"}`;
+
+    // Do not rewrite the text when nothing changed. Rewriting textContent
+    // triggers the MutationObserver and can otherwise cause an endless loop.
+    const nextText = `${count} ${count === 1 ? "player" : "players"}`;
+    if (badge.textContent !== nextText) badge.textContent = nextText;
   }
 
   function ensureMobileNavVisible() {
@@ -58,7 +62,16 @@
   }
 
   apply();
-  const observer = new MutationObserver(apply);
+
+  let scheduled = false;
+  const observer = new MutationObserver(() => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      apply();
+    });
+  });
   observer.observe(document.body, { childList: true, subtree: true });
   window.addEventListener("resize", apply);
 })();
