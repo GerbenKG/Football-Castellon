@@ -171,6 +171,7 @@ function gameOverviewCard(g,today){
    '<div class="game-overview-actions">'+
      '<span class="game-status">'+(isPast?"Attendance recorded":"Squad planning")+'</span>'+
      (can("games.view")?'<button class="btn btn-primary" data-game="'+g.id+'">'+(isPast?"Open attendance →":"Manage squad →")+'</button>':"")+
+     (can("games.manage")?'<button class="btn btn-secondary" data-a="edit-game" data-id="'+g.id+'">Edit</button>':"")+
      (can("games.manage")&&can("attendance.manage")&&can("payments.manage")?'<button class="btn btn-secondary" data-a="delete-game" data-id="'+g.id+'">Delete</button>':"")+
    '</div>'+
  '</article>';
@@ -219,7 +220,14 @@ function act(a,id){
 }
  if(a==="delete-player"){if(!can("players.manage")||!can("attendance.manage"))return;const p=player(id);if(!p||!confirm("Delete "+p.name+"? This also removes their game records."))return;state.players=state.players.filter(x=>x.id!==id);state.games.forEach(g=>g.participants=g.participants.filter(x=>x.playerId!==id));save().then(render);return;}
  if(a==="delete-game"){if(!can("games.manage")||!can("attendance.manage")||!can("payments.manage"))return;const t=state.games.find(x=>x.id===id);if(!t||state.games.length<=1)return alert("You must keep at least one game.");if(!confirm("Delete "+dateText(t.date)+"? Attendance and payment records will also be removed."))return;state.games=state.games.filter(x=>x.id!==id);gameId=state.games[0]?.id;save().then(render);return;}
- if(a==="new-game"){return modal("New Game",'<form id="game-form"><label>Date<input name="date" type="date" value="'+nextGameDate()+'" required></label><div class="form-grid"><label>Start time<input name="startTime" type="time" value="20:00" required></label><label>End time<input name="endTime" type="time" value="22:00" required></label></div><label>Location<input name="location" value="Castellón"></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Create Game</button></div></form>');}
+ if(a==="new-game"||a==="edit-game"){
+  if(!can("games.manage"))return;
+  const existing=a==="edit-game"?state.games.find(x=>x.id===id):null;
+  if(a==="edit-game"&&!existing)return;
+  const title=existing?"Edit Game":"New Game";
+  const submit=existing?"Save changes":"Create Game";
+  return modal(title,'<form id="game-form" data-id="'+(existing?.id||"")+'"><label>Date<input name="date" type="date" value="'+esc(existing?.date||nextGameDate())+'" required></label><div class="form-grid"><label>Start time<input name="startTime" type="time" value="'+esc(existing?.startTime||"20:00")+'" required></label><label>End time<input name="endTime" type="time" value="'+esc(existing?.endTime||"22:00")+'" required></label></div><label>Location<input name="location" value="'+esc(existing?.location||"Castellón")+'"></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">'+submit+'</button></div></form>');
+}
  if(a==="new-player"||a==="edit"){const p=a==="edit"?player(id):null;return modal(p?"Edit player":"Add player",'<form id="player-form" data-id="'+(p?.id||"")+'"><label>Name<input name="name" value="'+esc(p?.name||"")+'" required></label><label>Payment model<select name="model"><option value="game" '+(p?.model==="game"?"selected":"")+'>Pay per game</option><option value="season" '+(p?.model==="season"?"selected":"")+'>Season ticket</option></select></label><label class="checkline"><input name="seasonPaid" type="checkbox" '+(p?.seasonPaid?"checked":"")+'> Season ticket paid</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save player</button></div></form>');}
  if(a==="history"){
   const p=player(id);
@@ -268,12 +276,26 @@ function render(){
 });
 }
 document.addEventListener("click",e=>{const c=e.target.closest("[data-close]");if(c){e.preventDefault();document.getElementById("modal-root").innerHTML="";}});
-console.info("[Football] APP BUILD 20260824-23 loaded");
+console.info("[Football] APP BUILD 20260824-24 loaded");
 document.addEventListener("submit",async e=>{
  console.info("[Football] SUBMIT EVENT", { id:e.target?.id, tag:e.target?.tagName, action:e.submitter?.textContent?.trim() });
  e.preventDefault();const f=new FormData(e.target);
  if(e.target.id==="member-form"){const x=await sb.rpc("admin_upsert_access",{p_email:f.get("email").trim().toLowerCase(),p_display_name:f.get("display_name").trim(),p_role:f.get("role"),p_active:f.has("active")});if(x.error){alert(x.error.message);return;}await loadAccess();document.getElementById("modal-root").innerHTML="";render();return;}
- if(e.target.id==="game-form"){const date=f.get("date"),start=f.get("startTime"),end=f.get("endTime");if(!date||!start||!end)return alert("Date, start time and end time are required.");if(end<=start)return alert("End time must be later than start time.");const g={id:crypto.randomUUID(),date,startTime:start,endTime:end,time:start+"–"+end,location:f.get("location"),participants:[]};state.games.push(g);gameId=g.id;}
+ if(e.target.id==="game-form"){
+  const date=f.get("date"),start=f.get("startTime"),end=f.get("endTime");
+  if(!date||!start||!end)return alert("Date, start time and end time are required.");
+  if(end<=start)return alert("End time must be later than start time.");
+  const existingId=e.target.dataset.id;
+  if(existingId){
+    const g=state.games.find(x=>x.id===existingId);
+    if(!g)return alert("Game no longer exists. Refresh and try again.");
+    g.date=date;g.startTime=start;g.endTime=end;g.time=start+"–"+end;g.location=f.get("location").trim();
+    gameId=g.id;
+  }else{
+    const g={id:crypto.randomUUID(),date,startTime:start,endTime:end,time:start+"–"+end,location:f.get("location").trim(),participants:[]};
+    state.games.push(g);gameId=g.id;
+  }
+}
  if(e.target.id==="player-form"){let p=player(e.target.dataset.id);if(!p){p={id:crypto.randomUUID()};state.players.push(p);}p.name=f.get("name").trim();p.model=f.get("model");p.seasonPaid=f.has("seasonPaid");}
  const isPlayerPickForm=e.target?.tagName==="FORM" &&
    !!e.target.dataset.gameId &&
