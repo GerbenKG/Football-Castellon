@@ -195,7 +195,7 @@ begin
     raise exception 'Attendance management permission required';
   end if;
   if not exists (select 1 from public.games where id=p_game_id) then
-    raise exception 'Friday game not found';
+    raise exception 'Game game not found';
   end if;
   if not exists (select 1 from public.players where id=p_player_id) then
     raise exception 'Player not found';
