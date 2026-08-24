@@ -84,6 +84,9 @@
     if(!currentUser){document.getElementById("newGame").style.display="none";document.getElementById("signOut").style.display="none";document.querySelector(".nav").style.display="none";authScreen();return;}
     document.getElementById("newGame").style.display="";document.getElementById("signOut").style.display="";document.querySelector(".nav").style.display="";
     try{await loadRemote();render();}catch(err){document.getElementById("app").innerHTML='<section class="card error-card"><h2>Database access is not configured</h2><p>'+esc(err.message||"Unable to load Supabase data.")+'</p><p class="muted">The database is protected by Row Level Security. Run the SQL setup in <b>supabase-rls.sql</b> from the repository, then refresh.</p><button class="btn btn-primary" onclick="location.reload()">Retry</button></section>';}
+    } catch (err) {
+      showFatal(err.message || "Unexpected startup error.");
+    }
   };
 
 
