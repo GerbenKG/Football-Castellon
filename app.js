@@ -39,8 +39,8 @@ async function loadAccess(){
  }
  return true;
 }
-function friday(){
- const d=new Date(), add=((5-d.getDay())+7)%7||7; d.setDate(d.getDate()+add);
+function nextGameDate(){
+ const d=new Date();
  return d.toISOString().slice(0,10);
 }
 function makeSeasonGames(){
@@ -222,10 +222,10 @@ function act(a,id){
         const x=(g.participants||[]).find(x=>!x.guest&&x.playerId===p.id&&x.attended);
         return '<div class="history-row"><div><b>'+esc(dateText(g.date))+'</b><small>⚽ '+esc(g.time)+' · '+esc(g.location)+'</small></div><span>'+badge(x?.paid?"Paid":"Attended",x?.paid?"green":"slate")+'</span></div>';
       }).join("")+'</div>'
-    : '<p class="muted">No attended Fridays recorded yet.</p>';
+    : '<p class="muted">No attended games recorded yet.</p>';
   return modal("Attendance history — "+esc(p.name),body+'<div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Close</button></div>');
 }
-if(a==="add-player"){const used=new Set(game().participants.filter(x=>!x.guest).map(x=>x.playerId)),av=state.players.filter(p=>!used.has(p.id));return modal("Add player to game",'<form id="pick-form"><label>Player<select name="id">'+av.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join("")+'</select></label>'+(av.length?'':'<p class="notice">Everyone on the roster is already assigned to this Friday.</p>')+'<div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary" '+(!av.length?"disabled":"")+'>Add player</button></div></form>');}
+if(a==="add-player"){const used=new Set(game().participants.filter(x=>!x.guest).map(x=>x.playerId)),av=state.players.filter(p=>!used.has(p.id));return modal("Add player to game",'<form id="pick-form"><label>Player<select name="id">'+av.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join("")+'</select></label>'+(av.length?'':'<p class="notice">Everyone on the roster is already assigned to this game.</p>')+'<div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary" '+(!av.length?"disabled":"")+'>Add player</button></div></form>');}
  if(a==="guest")return modal("Add guest",'<form id="guest-form"><label>Guest name<input name="name" required autofocus></label><p class="notice">Guest payment is tracked for this game only.</p><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Add guest</button></div></form>');
  if(a==="new-member")return modal("Add member",'<form id="member-form"><label>Email<input name="email" type="email" required placeholder="admin@example.com"></label><label>Name<input name="display_name" placeholder="Optional display name"></label><label>Profile<select name="role">'+ROLES.map(r=>'<option value="'+r[0]+'">'+r[1]+'</option>').join("")+'</select></label><label class="checkline"><input name="active" type="checkbox" checked> Active access</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save member</button></div></form>');
  if(a==="edit-member"){const m=access.members.find(x=>x.email===id);if(!m)return;return modal("Edit member",'<form id="member-form" data-email="'+esc(m.email)+'"><label>Email<input name="email" type="email" value="'+esc(m.email)+'" readonly></label><label>Name<input name="display_name" value="'+esc(m.display_name||"")+'"></label><label>Profile<select name="role">'+ROLES.map(r=>'<option value="'+r[0]+'" '+(r[0]===m.role?"selected":"")+'>'+r[1]+'</option>').join("")+'</select></label><label class="checkline"><input name="active" type="checkbox" '+(m.active?"checked":"")+'> Active access</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save member</button></div></form>');}
@@ -306,7 +306,7 @@ document.getElementById("newGame").onclick=()=>{if(can("games.manage"))act("new-
 document.getElementById("signOut").onclick=async()=>{await sb.auth.signOut();location.reload();};
 async function authScreen(){
  document.querySelector(".nav").style.display="none";document.getElementById("newGame").style.display="none";document.getElementById("signOut").style.display="none";
- document.getElementById("app").innerHTML='<section class="auth-card card"><div class="ball-logo">⚽</div><div class="eyebrow">ADMIN ACCESS</div><h1>Friday Football</h1><p class="muted">Sign in with your Google account.</p><button id="google-login" class="btn btn-primary">Continue with Google</button><p id="auth-error" class="auth-error"></p></section>';
+ document.getElementById("app").innerHTML='<section class="auth-card card"><div class="ball-logo">⚽</div><div class="eyebrow">ADMIN ACCESS</div><h1>Football</h1><p class="muted">Sign in with your Google account.</p><button id="google-login" class="btn btn-primary">Continue with Google</button><p id="auth-error" class="auth-error"></p></section>';
  document.getElementById("google-login").onclick=async()=>{const x=await sb.auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin+window.location.pathname}});if(x.error)document.getElementById("auth-error").textContent=x.error.message;};
 }
 async function boot(){
