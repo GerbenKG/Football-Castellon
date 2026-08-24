@@ -126,7 +126,15 @@ function dashboard(){
 function players(){
  return '<div class="page-head"><div><div class="eyebrow">ROSTER</div><h1 class="title">Players</h1><p class="muted">Payment model and season-ticket status.</p></div>'+(can("players.manage")?'<button class="btn btn-primary" data-a="new-player">+ Add player</button>':"")+'</div>'+
  '<div class="card table-card"><table><thead><tr><th>Player</th><th>Payment model</th><th>Season ticket</th><th></th></tr></thead><tbody>'+
- state.players.map(p=>'<tr><td><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><b>'+esc(p.name)+'</b></div></td><td>'+badge(p.model==="season"?"🎟 Season ticket":"Per game",p.model==="season"?"green":"slate")+'</td><td>'+(p.model==="season"?(p.seasonPaid?badge("✓ Paid","green"):badge("Unpaid","red")):"—")+'</td><td><div class="actions">'+<button class="btn btn-secondary" data-a="history" data-id="'+p.id+'">Attendance</button>(can("players.manage")?'<button class="btn btn-secondary" data-a="edit" data-id="'+p.id+'">Edit</button>':"")+(can("players.manage")&&can("attendance.manage")?'<button class="btn btn-secondary" data-a="delete-player" data-id="'+p.id+'">Delete</button>':"")+'</div></td></tr>').join("")+
+ state.players.map(p=>{
+   const actions='<button class="btn btn-secondary" data-a="history" data-id="'+p.id+'">Attendance</button>'+
+     (can("players.manage")?'<button class="btn btn-secondary" data-a="edit" data-id="'+p.id+'">Edit</button>':"")+
+     (can("players.manage")&&can("attendance.manage")?'<button class="btn btn-secondary" data-a="delete-player" data-id="'+p.id+'">Delete</button>':"");
+   return '<tr><td><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><b>'+esc(p.name)+'</b></div></td><td>'+
+     badge(p.model==="season"?"🎟 Season ticket":"Per game",p.model==="season"?"green":"slate")+'</td><td>'+
+     (p.model==="season"?(p.seasonPaid?badge("✓ Paid","green"):badge("Unpaid","red")):"—")+
+     '</td><td><div class="actions">'+actions+'</div></td></tr>';
+ }).join("")+
  '</tbody></table></div>';
 }
 function gameOverviewCard(g,today){
