@@ -149,7 +149,7 @@
     return '<div class="page-head"><div><div class="eyebrow">HISTORY</div><h1 class="title">Friday games</h1><p class="muted">A simple record of every match.</p></div><button class="btn btn-primary" data-a="new-game">+ New Friday</button></div><div class="game-list">'+state.games.map(g=>'<div class="card game-item"><div><div class="eyebrow">'+esc(g.date)+'</div><h3>⚽ Friday Football</h3><p>'+esc(g.time)+' · '+esc(g.location)+'</p></div><div class="actions"><button class="btn btn-primary" data-game="'+g.id+'">Open →</button><button class="btn btn-secondary" data-a="delete-game" data-id="'+g.id+'">Delete</button></div></div>').join("")+'</div>';
   }
 
-  function modal(title,body){document.getElementById("modal-root").innerHTML='<div class="modal-bg" data-close><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><h2>'+title+'</h2><button class="remove" data-close>×</button></div>'+body+'</div></div>';}
+  function modal(title,body){document.getElementById("modal-root").innerHTML='<div class="modal-bg"><div class="modal"><div class="modal-head"><h2>'+title+'</h2><button class="remove" data-close type="button">×</button></div>'+body+'</div></div>';}
 
   function act(a,id){
     if(a==="prev"){month.setMonth(month.getMonth()-1);return render();}
@@ -187,7 +187,6 @@
     document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>act(b.dataset.a,b.dataset.id));
     document.querySelectorAll("[data-game]").forEach(b=>b.onclick=()=>{gameId=b.dataset.game;view="dashboard";render();});
     document.querySelectorAll("[data-t]").forEach(b=>b.onchange=()=>{const p=game().participants.find(x=>x.playerId===b.dataset.id);if(p){p[b.dataset.t]=b.checked;if(b.dataset.t==="attended"&&!b.checked)p.paid=false;save();render();}});
-    document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>document.getElementById("modal-root").innerHTML="");
   }
 
   document.addEventListener("submit",async e=>{
@@ -205,4 +204,3 @@
   boot();
 })();
 
-  document.addEventListener("click",e=>{const close=e.target.closest("[data-close]");if(close){document.getElementById("modal-root").innerHTML="";}});
