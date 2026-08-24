@@ -1,11 +1,22 @@
 (() => {
   "use strict";
-  const KEY = "football-castellon-v5";
+  const KEY = "football-castellon-v6";
   const friday = () => {
     const d = new Date();
     const add = ((5 - d.getDay()) + 7) % 7 || 7;
     d.setDate(d.getDate() + add);
     return d.toISOString().slice(0, 10);
+  };
+  const makeSeasonGames = () => {
+    const games = [];
+    const start = new Date("2026-09-04T12:00:00");
+    const end = new Date("2027-08-31T12:00:00");
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
+      const date = d.toISOString().slice(0,10);
+      const summer = d.getMonth() === 6 || d.getMonth() === 7;
+      games.push({id:"friday-"+date,date,time:summer?"20:00–22:00":"19:30–21:30",location:"Castellón",participants:[]});
+    }
+    return games;
   };
   const seed = {
     players: [
@@ -14,20 +25,17 @@
       {id:"p3",name:"David Costa",model:"game",seasonPaid:false},
       {id:"p4",name:"Luis Martín",model:"season",seasonPaid:true}
     ],
-    games: [{
-      id:"g1",date:friday(),time:"20:00",location:"Castellón",
-      participants:[
-        {playerId:"p1",playing:true,attended:true,paid:false},
-        {playerId:"p2",playing:true,attended:true,paid:true},
-        {playerId:"p3",playing:true,attended:false,paid:false},
-        {playerId:"p4",playing:false,attended:false,paid:false},
-        {playerId:"guest1",guest:true,name:"Carlos",playing:true,attended:true,paid:true}
-      ]
-    }]
+    games: makeSeasonGames()
   };
   let state;
-  try { state = JSON.parse(localStorage.getItem(KEY) || "null") || seed; } catch(e) { state = seed; }
-  if (!state.players || !state.games || !state.games.length) state = seed;
+  try {
+    const stored = JSON.parse(localStorage.getItem(KEY) || "null");
+    state = stored && Array.isArray(stored.players) ? stored : seed;
+  } catch(e) { state = seed; }
+  if (!Array.isArray(state.games)) state.games = [];
+  const schedule = makeSeasonGames();
+  const existingByDate = new Map(state.games.map(g => [g.date, g]));
+  state.games = schedule.map(g => existingByDate.get(g.date) || g);
   let view = "dashboard";
   let gameId = state.games[0].id;
   let month = new Date();
@@ -70,7 +78,7 @@
   }
 
   function games() {
-    return '<div class="page-head"><div><div class="eyebrow">HISTORY</div><h1 class="title">Friday games</h1><p class="muted">A simple record of every match.</p></div><button class="btn btn-primary" data-a="new-game">+ New Friday</button></div><div class="game-list">'+state.games.map(g=>'<div class="card game-item"><div><div class="eyebrow">'+esc(g.date)+'</div><h3>⚽ Friday Football</h3><p>'+esc(g.time)+' · '+esc(g.location)+'</p></div><button class="btn btn-primary" data-game="'+g.id+'">Open →</button></div>').join("")+'</div>';
+    return '<div class="page-head"><div><div class="eyebrow">HISTORY</div><h1 class="title">Friday games</h1><p class="muted">A simple record of every match.</p></div><button class="btn btn-primary" data-a="new-game">+ New Friday</button></div><div class="game-list">'+state.games.map(g=>'<div class="card game-item"><div><div class="eyebrow">'+esc(g.date)+'</div><h3>⚽ Friday Football</h3><p>'+esc(g.time)+' · '+esc(g.location)+'</p></div><div class="actions"><button class="btn btn-primary" data-game="'+g.id+'">Open →</button><button class="btn btn-secondary" data-a="delete-game" data-id="'+g.id+'">Delete</button></div></div>').join("")+'</div>';
   }
 
   function modal(title,body){document.getElementById("modal-root").innerHTML='<div class="modal-bg" data-close><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><h2>'+title+'</h2><button class="remove" data-close>×</button></div>'+body+'</div></div>';}
@@ -79,6 +87,15 @@
     if(a==="prev"){month.setMonth(month.getMonth()-1);return render();}
     if(a==="next"){month.setMonth(month.getMonth()+1);return render();}
     if(a==="remove"){game().participants=game().participants.filter(x=>x.playerId!==id);save();return render();}
+    if(a==="delete-game"){
+      if(state.games.length<=1){alert("You must keep at least one Friday game.");return;}
+      const target=state.games.find(g=>g.id===id);
+      if(!target)return;
+      if(!confirm("Delete Friday "+dateText(target.date)+"? This will also remove its attendance and payment records."))return;
+      state.games=state.games.filter(g=>g.id!==id);
+      gameId=state.games[0].id;
+      save();return render();
+    }
     if(a==="new-game")return modal("New Friday",'<form id="game-form"><label>Date<input name="date" type="date" value="'+friday()+'" required></label><label>Kickoff<input name="time" type="time" value="20:00"></label><label>Location<input name="location" value="Castellón"></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Create Friday</button></div></form>');
     if(a==="new-player"||a==="edit"){const p=a==="edit"?player(id):null;return modal(p?"Edit player":"Add player",'<form id="player-form" data-id="'+(p?.id||"")+'"><label>Name<input name="name" value="'+esc(p?.name||"")+'" required></label><label>Payment model<select name="model"><option value="game" '+(p?.model==="game"?"selected":"")+'>Pay per game</option><option value="season" '+(p?.model==="season"?"selected":"")+'>Season ticket</option></select></label><label class="checkline"><input name="seasonPaid" type="checkbox" '+(p?.seasonPaid?"checked":"")+'> Season ticket paid</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save player</button></div></form>');}
     if(a==="add-player"){const used=new Set(game().participants.filter(x=>!x.guest).map(x=>x.playerId));const av=state.players.filter(p=>!used.has(p.id));return modal("Add player to Friday",'<form id="pick-form"><label>Player<select name="id">'+av.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join("")+'</select></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary" '+(!av.length?"disabled":"")+'>Add player</button></div></form>');}
