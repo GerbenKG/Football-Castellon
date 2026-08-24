@@ -9,6 +9,7 @@
   const money = value => new Intl.NumberFormat("en-GB", { style: "currency", currency: "EUR" }).format(Number(value || 0));
   const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const today = () => new Date().toISOString().slice(0, 10);
+  const dateText = d => new Date(d + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 
   async function refresh() {
     if (busy) return;
@@ -35,13 +36,29 @@
       const games = g.data || [];
       const gamePlayers = gp.data || [];
       const expenses = e.data || [];
-      const current = seasons.find(x => today() >= x.starts_on && today() <= x.ends_on) || seasons[0];
+      const playerById = new Map(players.map(x => [x.id, x]));
+      const gameById = new Map(games.map(x => [x.id, x]));
+
+      // On the dashboard, the financial season belongs to the selected game.
+      // Do not use today's date here: before a new season starts, today's date
+      // can still belong to the previous season while the selected game is in
+      // the new season. This was the reason the dashboard showed 0 tickets.
+      let dashboardSeason = null;
+      let dashboardGame = null;
+      if (isDashboard) {
+        const hero = document.querySelector(".hero .game-nav");
+        const heroDate = hero?.querySelector("h1")?.textContent?.trim() || "";
+        dashboardGame = games.find(x => dateText(x.game_date) === heroDate) || null;
+        if (dashboardGame) {
+          dashboardSeason = seasons.find(x => dashboardGame.game_date >= x.starts_on && dashboardGame.game_date <= x.ends_on) || null;
+        }
+      }
+
+      const current = dashboardSeason || seasons.find(x => today() >= x.starts_on && today() <= x.ends_on) || seasons[0];
       if (!current) return;
 
       const ticketIds = new Set(tickets.filter(x => x.season_id === current.id).map(x => x.player_id));
       const currentTickets = tickets.filter(x => x.season_id === current.id);
-      const playerById = new Map(players.map(x => [x.id, x]));
-      const gameById = new Map(games.map(x => [x.id, x]));
       const currentGameIds = new Set(games.filter(x => x.game_date >= current.starts_on && x.game_date <= current.ends_on).map(x => x.id));
       const currentGameRows = gamePlayers.filter(x => currentGameIds.has(x.game_id));
 
@@ -59,10 +76,22 @@
 
       if (isDashboard) {
         const unpaidTickets = currentTickets.filter(x => !x.paid).length;
-        const due = unpaidTickets + unpaidGameRows.length;
+
+        // The dashboard payment-due KPI is for the selected game, while the
+        // season-ticket KPI is for the selected game's financial season.
+        const selectedGameRows = dashboardGame
+          ? gamePlayers.filter(x => x.game_id === dashboardGame.id)
+          : [];
+        const selectedGamePaymentsDue = selectedGameRows.filter(x => {
+          if (!x.attended) return false;
+          if (x.guest_name) return !x.paid;
+          if (ticketIds.has(x.player_id)) return currentTickets.some(t => t.player_id === x.player_id && !t.paid);
+          return !x.paid;
+        }).length;
+
         const stats = document.querySelectorAll(".stats:not(.finance-stats) .stat");
         if (stats[2]?.querySelector("strong")) stats[2].querySelector("strong").textContent = String(currentTickets.length);
-        if (stats[3]?.querySelector("strong")) stats[3].querySelector("strong").textContent = String(due);
+        if (stats[3]?.querySelector("strong")) stats[3].querySelector("strong").textContent = String(selectedGamePaymentsDue);
         const card = [...document.querySelectorAll(".analytics-card")].find(x => x.querySelector("h3")?.textContent.trim() === "Payments");
         const mini = card?.querySelector(".mini-stats span");
         if (mini) mini.innerHTML = `Season tickets paid <b>${currentTickets.filter(x => x.paid).length}/${currentTickets.length}</b>`;
@@ -136,7 +165,10 @@
     }
   }
 
-  const observer = new MutationObserver(refresh);
+  const observer = new MutationObserver(() => {
+    window.clearTimeout(observer._timer);
+    observer._timer = window.setTimeout(refresh, 50);
+  });
   observer.observe(document.body, { childList: true, subtree: true });
   refresh();
 })();
