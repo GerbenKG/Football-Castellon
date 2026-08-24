@@ -55,7 +55,14 @@
       const paymentByPlayer = new Map(payments.filter(p => p.game_id === game.id && p.payment_type === "game").map(p => [p.player_id, p]));
 
       const rows = [...app.querySelectorAll(".squad-row")];
-      const key = game.id + ":" + season.id + ":" + rows.map(r => r.querySelector(".who b")?.textContent || "").join("|");
+      const financeState = rows.map(r => {
+        const name = r.querySelector(".who b")?.textContent?.trim().toLowerCase() || "";
+        const p = playerByName.get(name);
+        const ticket = p ? ticketByPlayer.get(p.id) : null;
+        const payment = p ? paymentByPlayer.get(p.id) : null;
+        return [p?.id || name, ticket?.id || "", ticket?.paid ? 1 : 0, payment?.id || "", payment?.paid ? 1 : 0].join(":");
+      }).join("|");
+      const key = game.id + ":" + season.id + ":" + financeState;
       if (key === lastKey) return;
       lastKey = key;
 
