@@ -28,19 +28,79 @@
     games: makeSeasonGames(),
     deletedDates: []
   };
-  let state;
-  try {
-    const stored = JSON.parse(localStorage.getItem(KEY) || "null");
-    state = stored && Array.isArray(stored.players) ? stored : seed;
-    if (!Array.isArray(state.deletedDates)) state.deletedDates = [];
-  } catch(e) { state = seed; }
-  if (!Array.isArray(state.games)) state.games = [];
-  const schedule = makeSeasonGames().filter(g => !(state.deletedDates || []).includes(g.date));
-  const existingByDate = new Map(state.games.map(g => [g.date, g]));
-  state.games = schedule.map(g => existingByDate.get(g.date) || g);
+  let state = {players:[], games:[], deletedDates:[]};
   let view = "dashboard";
-  let gameId = state.games[0].id;
+  let gameId = null;
   let month = new Date();
+  let currentUser = null;
+  const sb = window.supabaseClient;
+
+  const makeSeasonGames = () => {
+    const games = [];
+    const start = new Date("2026-09-04T12:00:00");
+    const end = new Date("2027-08-31T12:00:00");
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
+      const date = d.toISOString().slice(0,10);
+      const summer = d.getMonth() === 6 || d.getMonth() === 7;
+      games.push({id:crypto.randomUUID(),date,startTime:summer?"20:00":"19:30",endTime:summer?"22:00":"21:30",time:summer?"20:00–22:00":"19:30–21:30",location:"Castellón",participants:[]});
+    }
+    return games;
+  };
+
+  const save = async () => {
+    if (!currentUser) return;
+    const {data: remotePlayers} = await sb.from("players").select("id");
+    const {data: remoteGames} = await sb.from("games").select("id");
+    const {data: remoteRows} = await sb.from("game_players").select("id");
+    const playerIds = new Set(state.players.map(p=>p.id));
+    const gameIds = new Set(state.games.map(g=>g.id));
+    const rowIds = new Set();
+    if (state.players.length) await sb.from("players").upsert(state.players.map(p=>({id:p.id,name:p.name,model:p.model,season_paid:!!p.seasonPaid})));
+    if (state.games.length) await sb.from("games").upsert(state.games.map(g=>({id:g.id,game_date:g.date,start_time:g.startTime||g.time.slice(0,5),end_time:g.endTime||g.time.slice(-5),location:g.location})));
+    const rows=[];
+    state.games.forEach(g=>(g.participants||[]).forEach(x=>{
+      if(!x.rowId)x.rowId=crypto.randomUUID();
+      rowIds.add(x.rowId);
+      rows.push({id:x.rowId,game_id:g.id,player_id:x.guest?null:x.playerId,guest_name:x.guest?x.name:null,playing:!!x.playing,attended:!!x.attended,paid:!!x.paid});
+    }));
+    if(rows.length) await sb.from("game_players").upsert(rows);
+    await sb.from("payments").delete().neq("id","00000000-0000-0000-0000-000000000000");
+    const payments=[];
+    state.players.filter(p=>p.model==="season"&&p.seasonPaid).forEach(p=>payments.push({id:crypto.randomUUID(),player_id:p.id,payment_type:"season",paid:true}));
+    state.games.forEach(g=>(g.participants||[]).forEach(x=>{
+      if(!x.guest&&x.attended&&x.paid){payments.push({id:crypto.randomUUID(),player_id:x.playerId,game_id:g.id,payment_type:"game",paid:true});}
+    }));
+    if(payments.length) await sb.from("payments").insert(payments);
+    if(remoteRows?.length) for(const r of remoteRows) if(!rowIds.has(r.id)) await sb.from("game_players").delete().eq("id",r.id);
+    if(remoteGames?.length) for(const g of remoteGames) if(!gameIds.has(g.id)) await sb.from("games").delete().eq("id",g.id);
+    if(remotePlayers?.length) for(const p of remotePlayers) if(!playerIds.has(p.id)) await sb.from("players").delete().eq("id",p.id);
+  };
+
+  const loadRemote = async () => {
+    const {data:players,error:pe}=await sb.from("players").select("*").order("name");
+    const {data:games,error:ge}=await sb.from("games").select("*").order("game_date");
+    const {data:rows,error:re}=await sb.from("game_players").select("*");
+    if(pe||ge||re) throw new Error((pe||ge||re).message);
+    state.players=(players||[]).map(p=>({id:p.id,name:p.name,model:p.model,seasonPaid:p.season_paid}));
+    state.games=(games||[]).map(g=>({id:g.id,date:g.game_date,startTime:String(g.start_time).slice(0,5),endTime:String(g.end_time).slice(0,5),time:String(g.start_time).slice(0,5)+"–"+String(g.end_time).slice(0,5),location:g.location,participants:[]}));
+    const byGame=new Map(state.games.map(g=>[g.id,g]));
+    (rows||[]).forEach(r=>{const g=byGame.get(r.game_id);if(!g)return;g.participants.push({rowId:r.id,playerId:r.player_id||r.id,guest:!r.player_id,name:r.guest_name,playing:r.playing,attended:r.attended,paid:r.paid});});
+    if(!state.games.length){state.games=makeSeasonGames();gameId=state.games[0]?.id;await save();}
+    gameId=state.games.find(g=>g.date>=new Date().toISOString().slice(0,10))?.id || state.games[0]?.id;
+  };
+
+  const authScreen = () => {
+    document.getElementById("app").innerHTML='<section class="auth-card card"><div class="ball-logo">⚽</div><div class="eyebrow">ADMIN ACCESS</div><h1>Friday Football</h1><p class="muted">Sign in to manage players, games, attendance and payments.</p><form id="login-form"><label>Email<input name="email" type="email" autocomplete="email" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="btn btn-primary" type="submit">Sign in</button></form><p id="auth-error" class="auth-error"></p></section>';
+  };
+
+  const boot = async () => {
+    const {data:{session}}=await sb.auth.getSession();
+    currentUser=session?.user||null;
+    if(!currentUser){document.getElementById("newGame").style.display="none";authScreen();return;}
+    document.getElementById("newGame").style.display="";
+    try{await loadRemote();render();}catch(err){document.getElementById("app").innerHTML='<section class="card error-card"><h2>Database access is not configured</h2><p>'+esc(err.message||"Unable to load Supabase data.")+'</p><p class="muted">The database is protected by Row Level Security. Run the SQL setup in <b>supabase-rls.sql</b> from the repository, then refresh.</p><button class="btn btn-primary" onclick="location.reload()">Retry</button></section>';}
+  };
+
 
   const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const player = id => state.players.find(p => p.id === id);
@@ -150,17 +210,18 @@
     document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>document.getElementById("modal-root").innerHTML="");
   }
 
-  document.addEventListener("submit",e=>{
+  document.addEventListener("submit",async e=>{
     e.preventDefault();const f=new FormData(e.target);
-    if(e.target.id==="game-form"){const g={id:Date.now().toString(36),date:f.get("date"),time:f.get("time"),location:f.get("location"),participants:[]};state.games.push(g);gameId=g.id;}
-    if(e.target.id==="player-form"){let p=player(e.target.dataset.id);if(!p){p={id:Date.now().toString(36)};state.players.push(p);}p.name=f.get("name").trim();p.model=f.get("model");p.seasonPaid=f.has("seasonPaid");}
+    if(e.target.id==="login-form"){const {error}=await sb.auth.signInWithPassword({email:f.get("email"),password:f.get("password")});if(error){document.getElementById("auth-error").textContent=error.message;return;}return boot();}
+    if(e.target.id==="game-form"){const date=f.get("date");const summer=[6,7].includes(new Date(date+"T12:00:00").getMonth());const g={id:crypto.randomUUID(),date,startTime:summer?"20:00":f.get("time"),endTime:summer?"22:00":(()=>{const [h,m]=f.get("time").split(":").map(Number);return String(h+2).padStart(2,"0")+":"+String(m).padStart(2,"0")})(),time:summer?"20:00–22:00":f.get("time")+"–"+(()=>{const [h,m]=f.get("time").split(":").map(Number);return String(h+2).padStart(2,"0")+":"+String(m).padStart(2,"0")})(),location:f.get("location"),participants:[]};state.games.push(g);gameId=g.id;}
+    if(e.target.id==="player-form"){let p=player(e.target.dataset.id);if(!p){p={id:crypto.randomUUID()};state.players.push(p);}p.name=f.get("name").trim();p.model=f.get("model");p.seasonPaid=f.has("seasonPaid");}
     if(e.target.id==="pick-form")game().participants.push({playerId:f.get("id"),playing:true,attended:false,paid:false});
-    if(e.target.id==="guest-form")game().participants.push({playerId:Date.now().toString(36),guest:true,name:f.get("name").trim(),playing:true,attended:false,paid:false});
-    save();document.getElementById("modal-root").innerHTML="";render();
+    if(e.target.id==="guest-form")game().participants.push({rowId:crypto.randomUUID(),playerId:crypto.randomUUID(),guest:true,name:f.get("name").trim(),playing:true,attended:false,paid:false});
+    await save();document.getElementById("modal-root").innerHTML="";render();
   });
 
   document.getElementById("newGame").onclick=()=>act("new-game");
-  render();
+  boot();
 })();
 
   document.addEventListener("click",e=>{const close=e.target.closest("[data-close]");if(close){document.getElementById("modal-root").innerHTML="";}});
