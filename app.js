@@ -120,13 +120,13 @@ function dashboard(){
   const p=x.guest?null:player(x.playerId),name=x.guest?x.name:(p?.name||"Player"),type=x.guest?"Guest":p?.model==="season"?"🎟 Season":"Per game";
   const payLabel=x.guest?(x.paid?"Paid":"Due"):(p?.model==="season"?(p.seasonPaid?"Season paid":"Season unpaid"):(x.paid?"Paid":"Mark paid"));
   const pc=x.guest||p?.model==="season"?(x.paid||p?.seasonPaid?"green":"amber"):(x.paid?"green":"red");
-  return '<div class="squad-row"><div class="who"><span class="avatar">'+esc(name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(name)+'</b><small>'+type+'</small></div></div>'+(can("attendance.manage")?'<label class="toggle"><input type="checkbox" data-t="playing" data-id="'+x.playerId+'" '+(x.playing?"checked":"")+'><span>Playing</span></label><label class="toggle"><input type="checkbox" data-t="attended" data-id="'+x.playerId+'" '+(x.attended?"checked":"")+'><span>Present</span></label>':'<span>'+badge(x.playing?"Playing":"Not playing",x.playing?"green":"slate")+'</span>')+(can("payments.manage")&&(!x.guest&&p?.model==="game" || x.guest)?'<label class="toggle payment-toggle"><input type="checkbox" data-t="paid" data-id="'+x.rowId+'" '+(x.paid?"checked":"")+'><span>Paid</span></label>':'<span>'+badge(payLabel,pc)+'</span>')+(can("attendance.manage")?'<button class="remove" data-a="remove" data-id="'+x.rowId+'">×</button>':"")+'</div>';
+  return '<div class="squad-row"><div class="who"><span class="avatar">'+esc(name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(name)+'</b><small>'+type+'</small></div></div>'+(can("attendance.manage")?'<label class="toggle"><input type="checkbox" data-t="playing" data-id="'+x.rowId+'" '+(x.playing?"checked":"")+'><span>Playing</span></label><label class="toggle"><input type="checkbox" data-t="attended" data-id="'+x.rowId+'" '+(x.attended?"checked":"")+'><span>Present</span></label>':'<span>'+badge(x.playing?"Playing":"Not playing",x.playing?"green":"slate")+'</span>')+(can("payments.manage")&&(!x.guest&&p?.model==="game" || x.guest)?'<label class="toggle payment-toggle"><input type="checkbox" data-t="paid" data-id="'+x.rowId+'" '+(x.paid?"checked":"")+'><span>Paid</span></label>':'<span>'+badge(payLabel,pc)+'</span>')+(can("attendance.manage")?'<button class="remove" data-a="remove" data-id="'+x.rowId+'">×</button>':"")+'</div>';
  }).join("")+'</div></section>';
 }
 function players(){
  return '<div class="page-head"><div><div class="eyebrow">ROSTER</div><h1 class="title">Players</h1><p class="muted">Payment model and season-ticket status.</p></div>'+(can("players.manage")?'<button class="btn btn-primary" data-a="new-player">+ Add player</button>':"")+'</div>'+
  '<div class="card table-card"><table><thead><tr><th>Player</th><th>Payment model</th><th>Season ticket</th><th></th></tr></thead><tbody>'+
- state.players.map(p=>'<tr><td><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><b>'+esc(p.name)+'</b></div></td><td>'+badge(p.model==="season"?"🎟 Season ticket":"Per game",p.model==="season"?"green":"slate")+'</td><td>'+(p.model==="season"?(p.seasonPaid?badge("✓ Paid","green"):badge("Unpaid","red")):"—")+'</td><td><div class="actions">'+(can("players.manage")?'<button class="btn btn-secondary" data-a="edit" data-id="'+p.id+'">Edit</button>':"")+(can("players.manage")&&can("attendance.manage")?'<button class="btn btn-secondary" data-a="delete-player" data-id="'+p.id+'">Delete</button>':"")+'</div></td></tr>').join("")+
+ state.players.map(p=>'<tr><td><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><b>'+esc(p.name)+'</b></div></td><td>'+badge(p.model==="season"?"🎟 Season ticket":"Per game",p.model==="season"?"green":"slate")+'</td><td>'+(p.model==="season"?(p.seasonPaid?badge("✓ Paid","green"):badge("Unpaid","red")):"—")+'</td><td><div class="actions">'+<button class="btn btn-secondary" data-a="history" data-id="'+p.id+'">Attendance</button>(can("players.manage")?'<button class="btn btn-secondary" data-a="edit" data-id="'+p.id+'">Edit</button>':"")+(can("players.manage")&&can("attendance.manage")?'<button class="btn btn-secondary" data-a="delete-player" data-id="'+p.id+'">Delete</button>':"")+'</div></td></tr>').join("")+
  '</tbody></table></div>';
 }
 function gameOverviewCard(g,today){
@@ -191,12 +191,33 @@ function act(a,id){
  if(a==="exit-preview"){actingAs=null;view="dashboard";render();return;}
  if(a==="login-as"){const m=access.members.find(x=>x.email===id);if(!m)return;actingAs={...m};view="dashboard";render();return;}
  if(isPreview()){alert("Preview mode is read-only. Exit preview to make changes.");return;}
- if(a==="remove"){if(!can("attendance.manage"))return;game().participants=game().participants.filter(x=>x.playerId!==id);save().then(render);return;}
+ if(a==="remove"){
+  if(!can("attendance.manage"))return;
+  const row=game().participants.find(x=>x.rowId===id);
+  if(!row)return;
+  const label=row.guest?(row.name||"Guest"):(player(row.playerId)?.name||"Player");
+  if(!confirm("Remove "+label+" from this Friday squad?"))return;
+  game().participants=game().participants.filter(x=>x.rowId!==id);
+  save().then(()=>loadRemote()).then(render).catch(err=>alert(err.message||"Could not remove squad member."));
+  return;
+}
  if(a==="delete-player"){if(!can("players.manage")||!can("attendance.manage"))return;const p=player(id);if(!p||!confirm("Delete "+p.name+"? This also removes their Friday records."))return;state.players=state.players.filter(x=>x.id!==id);state.games.forEach(g=>g.participants=g.participants.filter(x=>x.playerId!==id));save().then(render);return;}
  if(a==="delete-game"){if(!can("games.manage")||!can("attendance.manage")||!can("payments.manage"))return;const t=state.games.find(x=>x.id===id);if(!t||state.games.length<=1)return alert("You must keep at least one Friday game.");if(!confirm("Delete "+dateText(t.date)+"? Attendance and payment records will also be removed."))return;state.games=state.games.filter(x=>x.id!==id);gameId=state.games[0]?.id;save().then(render);return;}
  if(a==="new-game"){return modal("New Friday",'<form id="game-form"><label>Date<input name="date" type="date" value="'+friday()+'" required></label><label>Kickoff<input name="time" type="time" value="19:30"></label><label>Location<input name="location" value="Castellón"></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Create Friday</button></div></form>');}
  if(a==="new-player"||a==="edit"){const p=a==="edit"?player(id):null;return modal(p?"Edit player":"Add player",'<form id="player-form" data-id="'+(p?.id||"")+'"><label>Name<input name="name" value="'+esc(p?.name||"")+'" required></label><label>Payment model<select name="model"><option value="game" '+(p?.model==="game"?"selected":"")+'>Pay per game</option><option value="season" '+(p?.model==="season"?"selected":"")+'>Season ticket</option></select></label><label class="checkline"><input name="seasonPaid" type="checkbox" '+(p?.seasonPaid?"checked":"")+'> Season ticket paid</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save player</button></div></form>');}
- if(a==="add-player"){const used=new Set(game().participants.filter(x=>!x.guest).map(x=>x.playerId)),av=state.players.filter(p=>!used.has(p.id));return modal("Add player to Friday",'<form id="pick-form"><label>Player<select name="id">'+av.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join("")+'</select></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary" '+(!av.length?"disabled":"")+'>Add player</button></div></form>');}
+ if(a==="history"){
+  const p=player(id);
+  if(!p)return;
+  const attended=state.games.filter(g=>(g.participants||[]).some(x=>!x.guest&&x.playerId===p.id&&x.attended)).sort((a,b)=>b.date.localeCompare(a.date));
+  const body=attended.length
+    ? '<div class="history-list">'+attended.map(g=>{
+        const x=(g.participants||[]).find(x=>!x.guest&&x.playerId===p.id&&x.attended);
+        return '<div class="history-row"><div><b>'+esc(dateText(g.date))+'</b><small>⚽ '+esc(g.time)+' · '+esc(g.location)+'</small></div><span>'+badge(x?.paid?"Paid":"Attended",x?.paid?"green":"slate")+'</span></div>';
+      }).join("")+'</div>'
+    : '<p class="muted">No attended Fridays recorded yet.</p>';
+  return modal("Attendance history — "+esc(p.name),body+'<div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Close</button></div>');
+}
+if(a==="add-player"){const used=new Set(game().participants.filter(x=>!x.guest).map(x=>x.playerId)),av=state.players.filter(p=>!used.has(p.id));return modal("Add player to Friday",'<form id="pick-form"><label>Player<select name="id">'+av.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join("")+'</select></label>'+(av.length?'':'<p class="notice">Everyone on the roster is already assigned to this Friday.</p>')+'<div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary" '+(!av.length?"disabled":"")+'>Add player</button></div></form>');}
  if(a==="guest")return modal("Add guest",'<form id="guest-form"><label>Guest name<input name="name" required autofocus></label><p class="notice">Guest payment is tracked for this Friday only.</p><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Add guest</button></div></form>');
  if(a==="new-member")return modal("Add member",'<form id="member-form"><label>Email<input name="email" type="email" required placeholder="admin@example.com"></label><label>Name<input name="display_name" placeholder="Optional display name"></label><label>Profile<select name="role">'+ROLES.map(r=>'<option value="'+r[0]+'">'+r[1]+'</option>').join("")+'</select></label><label class="checkline"><input name="active" type="checkbox" checked> Active access</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save member</button></div></form>');
  if(a==="edit-member"){const m=access.members.find(x=>x.email===id);if(!m)return;return modal("Edit member",'<form id="member-form" data-email="'+esc(m.email)+'"><label>Email<input name="email" type="email" value="'+esc(m.email)+'" readonly></label><label>Name<input name="display_name" value="'+esc(m.display_name||"")+'"></label><label>Profile<select name="role">'+ROLES.map(r=>'<option value="'+r[0]+'" '+(r[0]===m.role?"selected":"")+'>'+r[1]+'</option>').join("")+'</select></label><label class="checkline"><input name="active" type="checkbox" '+(m.active?"checked":"")+'> Active access</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save member</button></div></form>');}
@@ -233,19 +254,23 @@ document.addEventListener("submit",async e=>{
    const g=game(),pid=f.get("id"),p=player(pid);
    if(!g||!pid)return alert("No Friday or player selected.");
    if(!p)return alert("The selected player is not available in the current roster. Refresh the page and try again.");
-   const existing=g.participants.find(x=>!x.guest&&x.playerId===pid);
-   if(existing){document.getElementById("modal-root").innerHTML="";render();return;}
-   const q=await sb.from("game_players").select("*").eq("game_id",g.id).eq("player_id",pid).maybeSingle();
+   const local=g.participants.find(x=>!x.guest&&x.playerId===pid);
+   if(local){document.getElementById("modal-root").innerHTML="";render();return;}
+   const q=await sb.from("game_players").select("*").eq("game_id",g.id).eq("player_id",pid);
    if(q.error){alert("Could not check the Friday squad: "+q.error.message);return;}
-   if(q.data){
-     g.participants.push({rowId:q.data.id,playerId:q.data.player_id,guest:false,name:p.name,playing:q.data.playing,attended:q.data.attended,paid:q.data.paid});
+   if(q.data?.length){
+     const x=q.data[0];
+     g.participants.push({rowId:x.id,playerId:x.player_id,guest:false,name:p.name,playing:!!x.playing,attended:!!x.attended,paid:!!x.paid});
      document.getElementById("modal-root").innerHTML="";render();return;
    }
    const row={rowId:crypto.randomUUID(),playerId:p.id,guest:false,name:p.name,playing:true,attended:false,paid:false};
    const x=await sb.from("game_players").insert({id:row.rowId,game_id:g.id,player_id:p.id,guest_name:null,playing:true,attended:false,paid:false}).select().single();
    if(x.error){alert("Could not add player to Friday: "+x.error.message);return;}
    g.participants.push(row);
-   document.getElementById("modal-root").innerHTML="";render();return;
+   document.getElementById("modal-root").innerHTML="";render();
+   await loadRemote();
+   render();
+   return;
  }
  if(e.target.id==="guest-form"){
    const g=game(),name=f.get("name").trim(),row={rowId:crypto.randomUUID(),playerId:null,guest:true,name,playing:true,attended:false,paid:false};
