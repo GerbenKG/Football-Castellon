@@ -1,6 +1,6 @@
 (() => {
 "use strict";
-let state={players:[],games:[]}, view="dashboard", gameId=null, currentUser=null;
+let state={players:[],games:[]}, view="dashboard", gameId=null, currentUser=null, gameFilter="upcoming";
 let access={profile:null,permissions:{},members:[],rolePermissions:[]};
 let actingAs=null;
 const isPreview=()=>!!actingAs;
@@ -124,9 +124,51 @@ function players(){
  state.players.map(p=>'<tr><td><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><b>'+esc(p.name)+'</b></div></td><td>'+badge(p.model==="season"?"🎟 Season ticket":"Per game",p.model==="season"?"green":"slate")+'</td><td>'+(p.model==="season"?(p.seasonPaid?badge("✓ Paid","green"):badge("Unpaid","red")):"—")+'</td><td><div class="actions">'+(can("players.manage")?'<button class="btn btn-secondary" data-a="edit" data-id="'+p.id+'">Edit</button>':"")+(can("players.manage")&&can("attendance.manage")?'<button class="btn btn-secondary" data-a="delete-player" data-id="'+p.id+'">Delete</button>':"")+'</div></td></tr>').join("")+
  '</tbody></table></div>';
 }
+function gameOverviewCard(g,today){
+ const rows=g.participants||[];
+ const active=rows.filter(x=>x.playing||x.attended);
+ const present=rows.filter(x=>x.attended);
+ const guests=active.filter(x=>x.guest);
+ const people=active.map(x=>{
+  const p=x.guest?null:player(x.playerId);
+  return {name:x.guest?(x.name||"Guest"):(p?.name||"Player"),guest:!!x.guest,playing:!!x.playing,attended:!!x.attended};
+ });
+ const isPast=g.date<today;
+ const title=dateText(g.date);
+ return '<article class="card game-overview-card '+(isPast?"past":"upcoming")+'">'+
+   '<div class="game-overview-main">'+
+     '<div class="game-overview-date"><span class="game-day">'+esc(new Date(g.date+"T12:00:00").toLocaleDateString("en-GB",{day:"2-digit"}))+'</span><div><div class="eyebrow">'+(isPast?"PLAYED":"UP NEXT")+'</div><h3>'+esc(title.replace(/^.*?, /,""))+'</h3><p>⚽ '+esc(g.time)+' · '+esc(g.location)+'</p></div></div>'+
+     '<div class="game-overview-stats">'+
+       '<div><strong>'+rows.filter(x=>x.playing).length+'</strong><span>Playing</span></div>'+
+       '<div><strong>'+present.length+'</strong><span>Present</span></div>'+
+       '<div><strong>'+guests.length+'</strong><span>Guests</span></div>'+
+     '</div>'+
+   '</div>'+
+   '<div class="game-overview-players">'+
+     (people.length?people.map(x=>'<span class="player-chip '+(x.guest?"guest":"")+' '+(x.attended?"attended":(x.playing?"playing":""))+'"><i>'+esc(x.name).slice(0,1).toUpperCase()+'</i>'+esc(x.name)+(x.guest?'<em>Guest</em>':"")+(x.attended?'<b>✓</b>':"")+'</span>').join(""):'<span class="empty-game-note">No players have been added yet</span>')+
+   '</div>'+
+   '<div class="game-overview-actions">'+
+     '<span class="game-status">'+(isPast?"Attendance recorded":"Squad planning")+'</span>'+
+     (can("games.view")?'<button class="btn btn-primary" data-game="'+g.id+'">'+(isPast?"Open attendance →":"Manage squad →")+'</button>':"")+
+     (can("games.manage")&&can("attendance.manage")&&can("payments.manage")?'<button class="btn btn-secondary" data-a="delete-game" data-id="'+g.id+'">Delete</button>':"")+
+   '</div>'+
+ '</article>';
+}
 function games(){
- return '<div class="page-head"><div><div class="eyebrow">HISTORY</div><h1 class="title">Friday games</h1><p class="muted">Every Friday from September 2026 through August 2027.</p></div>'+(can("games.manage")?'<button class="btn btn-primary" data-a="new-game">+ New Friday</button>':"")+'</div>'+
- '<div class="game-list">'+state.games.map(g=>'<div class="card game-item"><div><div class="eyebrow">'+esc(g.date)+'</div><h3>⚽ Friday Football</h3><p>'+esc(g.time)+' · '+esc(g.location)+'</p></div><div class="actions">'+(can("games.view")?'<button class="btn btn-primary" data-game="'+g.id+'">Open →</button>':"")+(can("games.manage")&&can("attendance.manage")&&can("payments.manage")?'<button class="btn btn-secondary" data-a="delete-game" data-id="'+g.id+'">Delete</button>':"")+'</div></div>').join("")+'</div>';
+ const today=new Date().toISOString().slice(0,10);
+ const upcoming=state.games.filter(g=>g.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+ const past=state.games.filter(g=>g.date<today).sort((a,b)=>b.date.localeCompare(a.date));
+ const list=gameFilter==="upcoming"?upcoming:gameFilter==="past"?past:[...upcoming,...past];
+ const next=upcoming[0];
+ const filterButton=(key,label,count)=>'<button class="game-filter '+(gameFilter===key?"active":"")+'" data-game-filter="'+key+'">'+label+' <span>'+count+'</span></button>';
+ return '<div class="page-head"><div><div class="eyebrow">FRIDAY OVERVIEW</div><h1 class="title">Who is playing?</h1><p class="muted">A quick view of every Friday, who is playing, who attended and which guests joined.</p></div>'+(can("games.manage")?'<button class="btn btn-primary" data-a="new-game">+ New Friday</button>':"")+'</div>'+
+   '<section class="game-overview-hero card">'+
+     '<div><div class="eyebrow">NEXT FRIDAY</div><h2>'+esc(next?dateText(next.date):"No upcoming Friday")+'</h2><p>'+esc(next?next.time+" · "+next.location:"Create a game to get started")+'</p></div>'+
+     '<div class="next-count"><strong>'+((next?.participants||[]).filter(x=>x.playing).length)+'</strong><span>playing</span></div>'+
+     (next&&can("games.view")?'<button class="btn btn-primary" data-game="'+next.id+'">Open squad →</button>':"")+
+   '</section>'+
+   '<div class="game-filter-bar">'+filterButton("upcoming","Upcoming",upcoming.length)+filterButton("past","Played",past.length)+filterButton("all","All Fridays",state.games.length)+'</div>'+
+   '<div class="game-overview-list">'+(list.length?list.map(g=>gameOverviewCard(g,today)).join(""):'<section class="card empty"><h2>No Fridays here</h2><p>Try another filter.</p></section>')+'</div>';
 }
 function admin(){
  if(!can("access.manage"))return '<section class="card empty"><h2>Access management</h2><p>You do not have permission to manage site access.</p></section>';
@@ -165,7 +207,7 @@ function render(){
  app.innerHTML=previewBanner()+(view==="dashboard"?dashboard():view==="players"?players():view==="games"?games():view==="admin"?admin():dashboard());
  document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{view=b.dataset.view;render();});
  document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>act(b.dataset.a,b.dataset.id));
- document.querySelectorAll("[data-game]").forEach(b=>b.onclick=()=>{gameId=b.dataset.game;view="dashboard";render();});
+ document.querySelectorAll("[data-game]").forEach(b=>b.onclick=()=>{gameId=b.dataset.game;view="dashboard";render();});\n document.querySelectorAll("[data-game-filter]").forEach(b=>b.onclick=()=>{gameFilter=b.dataset.gameFilter;render();});
  document.querySelectorAll("[data-perm-role]").forEach(b=>b.onchange=async()=>{const x=await sb.rpc("admin_update_permission",{p_role:b.dataset.permRole,p_permission:b.dataset.perm,p_enabled:b.checked});if(x.error){b.checked=!b.checked;alert(x.error.message);return;}await loadAccess();render();});
  document.querySelectorAll("[data-t]").forEach(b=>b.onchange=()=>{const p=game().participants.find(x=>x.playerId===b.dataset.id);if(p){p[b.dataset.t]=b.checked;if(b.dataset.t==="attended"&&!b.checked)p.paid=false;save().then(render);}});
 }
