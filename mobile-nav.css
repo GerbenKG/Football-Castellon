@@ -19,12 +19,12 @@
   body{padding-bottom:calc(74px + env(safe-area-inset-bottom))}
   .container{padding-bottom:24px}
   .nav{
-    position:fixed;
-    left:10px;
-    right:10px;
-    bottom:calc(10px + env(safe-area-inset-bottom));
-    z-index:15;
-    display:flex;
+    position:fixed !important;
+    left:10px !important;
+    right:10px !important;
+    bottom:calc(10px + env(safe-area-inset-bottom)) !important;
+    z-index:1000 !important;
+    display:flex !important;
     align-items:center;
     justify-content:space-around;
     gap:4px;
