@@ -1,0 +1,77 @@
+/* Mobile navigation: compact icon-only bottom bar */
+.nav-item[data-view="dashboard"]::before{content:"⌂"}
+.nav-item[data-view="players"]::before{content:"♟"}
+.nav-item[data-view="games"]::before{content:"⚽"}
+.nav-item[data-view="finance"]::before{content:"€"}
+.nav-item[data-view="admin"]::before{content:"⚙"}
+
+.nav-item::before{
+  display:inline-grid;
+  place-items:center;
+  width:18px;
+  margin-right:7px;
+  font-size:15px;
+  line-height:1;
+  font-weight:900;
+}
+
+@media(max-width:720px){
+  body{padding-bottom:calc(74px + env(safe-area-inset-bottom))}
+  .container{padding-bottom:24px}
+  .nav{
+    position:fixed;
+    left:10px;
+    right:10px;
+    bottom:calc(10px + env(safe-area-inset-bottom));
+    z-index:15;
+    display:flex;
+    align-items:center;
+    justify-content:space-around;
+    gap:4px;
+    margin:0;
+    padding:7px;
+    background:rgba(255,255,255,.96);
+    border:1px solid #dce7df;
+    border-radius:17px;
+    box-shadow:0 10px 30px rgba(7,27,18,.18),0 2px 8px rgba(7,27,18,.08);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+  }
+
+  .nav-item{
+    flex:1 1 0;
+    min-width:0;
+    width:auto;
+    height:48px;
+    padding:0;
+    border:0;
+    border-radius:12px;
+    display:grid;
+    place-items:center;
+    color:#617168;
+    font-size:0;
+    line-height:1;
+    transition:background .15s ease,color .15s ease,transform .15s ease;
+  }
+
+  .nav-item::before{
+    width:auto;
+    margin:0;
+    font-size:20px;
+    line-height:1;
+  }
+
+  .nav-item:hover{background:#f1f6f2}
+  .nav-item.active{
+    background:#e7f7ec;
+    color:#126733;
+    border:1px solid #ccebd4;
+    box-shadow:none;
+  }
+
+  .nav-item:active{transform:scale(.94)}
+}
+
+@media(min-width:721px){
+  .nav-item{display:inline-flex;align-items:center}
+}
