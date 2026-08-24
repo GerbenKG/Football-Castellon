@@ -1,6 +1,12 @@
 (() => {
   "use strict";
   const KEY = "football-castellon-v6";
+  let state = {players:[], games:[], deletedDates:[]};
+  let view = "dashboard";
+  let gameId = null;
+  let month = new Date();
+  let currentUser = null;
+  const sb = window.supabaseClient;
   const friday = () => {
     const d = new Date();
     const add = ((5 - d.getDay()) + 7) % 7 || 7;
@@ -76,8 +82,7 @@
 
   const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const player = id => state.players.find(p => p.id === id);
-  const game = () => state.games.find(g => g.id === gameId) || state.games[0];
-  const save = () => localStorage.setItem(KEY, JSON.stringify(state));
+  const game = () => state.games.find(g => g.id === gameId) || state.games[0] || {participants:[]};
   const dateText = d => new Date(d+"T12:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
   const badge = (text, cls="slate") => '<span class="badge badge-'+cls+'">'+text+'</span>';
 
