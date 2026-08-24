@@ -1,4 +1,4 @@
--- Friday Football: prevent the same roster player being assigned twice to one Friday.
+-- Game Football: prevent the same roster player being assigned twice to one Game.
 -- Safe to run once in Supabase SQL Editor.
 --
 -- Remove any accidental duplicates first, keeping the oldest record.
