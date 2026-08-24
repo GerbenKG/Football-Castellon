@@ -272,12 +272,12 @@ document.addEventListener("submit",async e=>{
      document.getElementById("modal-root").innerHTML="";render();return;
    }
    const row={rowId:crypto.randomUUID(),playerId:p.id,guest:false,name:p.name,playing:true,attended:false,paid:false};
-   const x=await sb.from("game_players").insert({id:row.rowId,game_id:g.id,player_id:p.id,guest_name:null,playing:true,attended:false,paid:false}).select().single();
+   // Do not chain .select() to the INSERT: with RLS, INSERT may be allowed while
+   // the post-insert SELECT is denied, which makes a successful assignment look failed.
+   const x=await sb.from("game_players").insert({id:row.rowId,game_id:g.id,player_id:p.id,guest_name:null,playing:true,attended:false,paid:false});
    if(x.error){alert("Could not add player to Friday: "+x.error.message);return;}
    g.participants.push(row);
    document.getElementById("modal-root").innerHTML="";render();
-   await loadRemote();
-   render();
    return;
  }
  if(e.target.id==="guest-form"){
