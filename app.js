@@ -233,7 +233,7 @@ function act(a,id){
     : '<p class="muted">No attended games recorded yet.</p>';
   return modal("Attendance history — "+esc(p.name),body+'<div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Close</button></div>');
 }
-if(a==="add-player"){const used=new Set(game().participants.filter(x=>!x.guest).map(x=>x.playerId)),av=state.players.filter(p=>!used.has(p.id));return modal("Add player to game",'<form id="pick-form"><label>Player<select name="id">'+av.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join("")+'</select></label>'+(av.length?'':'<p class="notice">Everyone on the roster is already assigned to this game.</p>')+'<div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary" '+(!av.length?"disabled":"")+'>Add player</button></div></form>');}
+if(a==="add-player"){const selectedGame=game();const used=new Set(selectedGame.participants.filter(x=>!x.guest).map(x=>x.playerId));const av=state.players.filter(p=>!used.has(p.id));return modal("Add player to game",'<form id="pick-form" data-game-id="'+esc(selectedGame.id)+'"><label>Player<select name="id" required>'+av.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("")+'</select></label>'+(av.length?'':'<p class="notice">Everyone on the roster is already assigned to this game.</p>')+'<div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary" '+(!av.length?"disabled":"")+'>Add player</button></div></form>');}
  if(a==="guest")return modal("Add guest",'<form id="guest-form"><label>Guest name<input name="name" required autofocus></label><p class="notice">Guest payment is tracked for this game only.</p><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Add guest</button></div></form>');
  if(a==="new-member")return modal("Add member",'<form id="member-form"><label>Email<input name="email" type="email" required placeholder="admin@example.com"></label><label>Name<input name="display_name" placeholder="Optional display name"></label><label>Profile<select name="role">'+ROLES.map(r=>'<option value="'+r[0]+'">'+r[1]+'</option>').join("")+'</select></label><label class="checkline"><input name="active" type="checkbox" checked> Active access</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save member</button></div></form>');
  if(a==="edit-member"){const m=access.members.find(x=>x.email===id);if(!m)return;return modal("Edit member",'<form id="member-form" data-email="'+esc(m.email)+'"><label>Email<input name="email" type="email" value="'+esc(m.email)+'" readonly></label><label>Name<input name="display_name" value="'+esc(m.display_name||"")+'"></label><label>Profile<select name="role">'+ROLES.map(r=>'<option value="'+r[0]+'" '+(r[0]===m.role?"selected":"")+'>'+r[1]+'</option>').join("")+'</select></label><label class="checkline"><input name="active" type="checkbox" '+(m.active?"checked":"")+'> Active access</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save member</button></div></form>');}
@@ -274,50 +274,48 @@ document.addEventListener("submit",async e=>{
  if(e.target.id==="game-form"){const date=f.get("date"),start=f.get("startTime"),end=f.get("endTime");if(!date||!start||!end)return alert("Date, start time and end time are required.");if(end<=start)return alert("End time must be later than start time.");const g={id:crypto.randomUUID(),date,startTime:start,endTime:end,time:start+"–"+end,location:f.get("location"),participants:[]};state.games.push(g);gameId=g.id;}
  if(e.target.id==="player-form"){let p=player(e.target.dataset.id);if(!p){p={id:crypto.randomUUID()};state.players.push(p);}p.name=f.get("name").trim();p.model=f.get("model");p.seasonPaid=f.has("seasonPaid");}
  if(e.target.id==="pick-form"){
-   const g=game(),pid=f.get("id"),p=player(pid);
+   const selectedGameId=e.target.dataset.gameId;
+   const pid=String(f.get("id")||"");
+   const g=state.games.find(x=>x.id===selectedGameId);
+   const p=player(pid);
    if(!g||!pid)return alert("No game or player selected.");
    if(!p)return alert("The selected player is not available in the current roster. Refresh the page and try again.");
-   const local=g.participants.find(x=>!x.guest&&x.playerId===pid);
-   if(local){document.getElementById("modal-root").innerHTML="";render();return;}
-   const q=await sb.from("game_players").select("*").eq("game_id",g.id).eq("player_id",pid);
-   if(q.error){alert("Could not check the Game squad: "+q.error.message);return;}
-   if(q.data?.length){
-     const x=q.data[0];
-     g.participants.push({rowId:x.id,playerId:x.player_id,guest:false,name:p.name,playing:!!x.playing,attended:!!x.attended,paid:!!x.paid});
-     document.getElementById("modal-root").innerHTML="";render();return;
+   if(g.participants.some(x=>!x.guest&&x.playerId===pid)){
+     document.getElementById("modal-root").innerHTML="";
+     render();
+     return;
    }
-   const row={rowId:crypto.randomUUID(),playerId:p.id,guest:false,name:p.name,playing:true,attended:false,paid:false};
-   // Players are roster records, not user accounts. Assign the roster player
-   // directly to game_players using the normal attendance RLS policy.
-   const x=await sb.from("game_players").insert({
-     id:row.rowId,
-     game_id:g.id,
-     player_id:p.id,
+   const result=await sb.from("game_players").insert({
+     id:crypto.randomUUID(),
+     game_id:selectedGameId,
+     player_id:pid,
      guest_name:null,
      playing:true,
      attended:false,
      paid:false
    }).select("*").single();
-   if(x.error){
-     if(x.error.code==="23505"){
-       await loadRemote();
+   if(result.error){
+     if(result.error.code==="23505"){
+       await loadRemote({resetSelection:false});
+       gameId=selectedGameId;
        document.getElementById("modal-root").innerHTML="";
        render();
        return;
      }
-     alert("Could not add player to game: "+x.error.message);
+     alert("Could not add player to game: "+result.error.message);
      return;
    }
-   const saved=x.data;
+   const saved=result.data;
    g.participants.push({
      rowId:saved.id,
-     playerId:p.id,
+     playerId:saved.player_id,
      guest:false,
      name:p.name,
      playing:!!saved.playing,
      attended:!!saved.attended,
      paid:!!saved.paid
    });
+   gameId=selectedGameId;
    document.getElementById("modal-root").innerHTML="";
    render();
    return;
