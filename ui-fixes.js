@@ -17,6 +17,32 @@
     });
   }
 
+  function removeLegacySeasonPaidColumn() {
+    const title = document.querySelector(".page-head .title");
+    if (!title || title.textContent.trim() !== "Players") return;
+
+    const subtitle = document.querySelector(".page-head .muted");
+    if (subtitle && subtitle.textContent.includes("season-ticket status")) {
+      subtitle.textContent = "Payment model.";
+    }
+
+    const table = document.querySelector(".page-head ~ .card table") || document.querySelector("table");
+    if (!table) return;
+
+    const headers = table.querySelectorAll("thead th");
+    if (headers.length < 4) return;
+
+    const seasonHeader = [...headers].find(th => th.textContent.trim().toLowerCase() === "season ticket");
+    if (!seasonHeader) return;
+    const columnIndex = [...headers].indexOf(seasonHeader);
+
+    seasonHeader.remove();
+    table.querySelectorAll("tbody tr").forEach(row => {
+      const cells = row.querySelectorAll("td");
+      if (cells[columnIndex]) cells[columnIndex].remove();
+    });
+  }
+
   async function refreshDashboardFinanceStats() {
     if (financeRefreshing) return;
     if (!document.querySelector('.hero')) return;
@@ -85,10 +111,12 @@
 
   const observer = new MutationObserver(() => {
     removeLegacySeasonPaidField();
+    removeLegacySeasonPaidColumn();
     refreshDashboardFinanceStats();
   });
 
   observer.observe(document.body, { childList: true, subtree: true });
   removeLegacySeasonPaidField();
+  removeLegacySeasonPaidColumn();
   refreshDashboardFinanceStats();
 })();
