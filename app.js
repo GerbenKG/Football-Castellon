@@ -278,14 +278,18 @@ document.addEventListener("submit",async e=>{
    const pid=String(f.get("id")||"");
    const g=state.games.find(x=>x.id===selectedGameId);
    const p=player(pid);
-   if(!g||!pid)return alert("No game or player selected.");
-   if(!p)return alert("The selected player is not available in the current roster. Refresh the page and try again.");
+   console.groupCollapsed("[Football] Add player to game");
+   console.log("Form data:", { selectedGameId, pid });
+   console.log("Game found:", g ? { id:g.id, date:g.date, participants:g.participants.length } : null);
+   console.log("Player found:", p ? { id:p.id, name:p.name, model:p.model } : null);
+   if(!g||!pid){console.error("Missing game or player", {selectedGameId,pid});console.groupEnd();return alert("No game or player selected.");}
+   if(!p){console.error("Player not found in current roster", {pid, playerIds:state.players.map(x=>x.id)});console.groupEnd();return alert("The selected player is not available in the current roster. Refresh the page and try again.");}
    if(g.participants.some(x=>!x.guest&&x.playerId===pid)){
      document.getElementById("modal-root").innerHTML="";
      render();
      return;
    }
-   const result=await sb.from("game_players").insert({
+   const payload={
      id:crypto.randomUUID(),
      game_id:selectedGameId,
      player_id:pid,
@@ -293,19 +297,35 @@ document.addEventListener("submit",async e=>{
      playing:true,
      attended:false,
      paid:false
-   }).select("*").single();
+   };
+   console.log("Insert payload:", payload);
+   const result=await sb.from("game_players").insert(payload).select("*").single();
+   console.log("Supabase insert result:", {
+     data:result.data,
+     error:result.error ? {
+       message:result.error.message,
+       code:result.error.code,
+       details:result.error.details,
+       hint:result.error.hint
+     } : null
+   });
    if(result.error){
      if(result.error.code==="23505"){
+       console.warn("Player already assigned according to Supabase (23505). Reloading game.", result.error);
        await loadRemote({resetSelection:false});
        gameId=selectedGameId;
        document.getElementById("modal-root").innerHTML="";
        render();
        return;
      }
+     console.error("Player assignment failed.", result.error);
+     console.groupEnd();
      alert("Could not add player to game: "+result.error.message);
      return;
    }
    const saved=result.data;
+   console.log("Player assignment succeeded:", saved);
+   console.groupEnd();
    g.participants.push({
      rowId:saved.id,
      playerId:saved.player_id,
