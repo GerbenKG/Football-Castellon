@@ -1,6 +1,6 @@
 # ⚽ Football Castellón — Admin
 
-A lightweight admin website for managing our Friday evening football.
+A lightweight admin website for managing our football.
 
 The site is intentionally simple: **admins manage the players and games**. Players do not register themselves.
 
@@ -16,12 +16,12 @@ Each player has:
 - **Season Ticket** or **Pay per game** payment model
 - Season Ticket payment status
 
-### Friday games
+### Games
 
-Each Friday is a separate game record.
+Each game is a separate game record.
 
 For every game, admins can:
-- Create the Friday
+- Create the game
 - Add regular players
 - Add guest players
 - Mark who is **Playing**
@@ -34,7 +34,7 @@ The payment rules are deliberately simple:
 
 **Season Ticket**
 - Payment is made once for the season.
-- The player's season payment status is shown on every Friday.
+- The player's season payment status is shown on every game.
 - Attendance does not create another payment obligation.
 
 **Pay per game**
@@ -42,7 +42,7 @@ The payment rules are deliberately simple:
 - Payment only matters when the player actually attended.
 
 **Guests**
-- Guests are attached directly to the Friday they played.
+- Guests are attached directly to the game they played.
 - Their payment is tracked for that game only.
 - Guests do not need to be added to the permanent player roster.
 
@@ -59,7 +59,7 @@ Access is allow-list based:
 Built-in profiles:
 - **Super Admin** — full access, including access management.
 - **Admin** — full football administration, but no access-management controls.
-- **Attendance** — can view players/games and manage Friday attendance and guests.
+- **Attendance** — can view players/games and manage game attendance and guests.
 - **Finance** — can view players/games and manage payment records.
 - **Viewer** — read-only access.
 
