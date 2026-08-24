@@ -1,4 +1,4 @@
--- Fix registered-player Friday assignment.
+-- Fix registered-player Game assignment.
 -- Run this once in the Supabase SQL Editor after the application update.
 
 create or replace function public.add_game_player(p_game_id uuid, p_player_id uuid)
@@ -18,7 +18,7 @@ begin
   end if;
 
   if not exists (select 1 from public.games where id=p_game_id) then
-    raise exception 'Friday game not found';
+    raise exception 'Game game not found';
   end if;
 
   if not exists (select 1 from public.players where id=p_player_id) then
