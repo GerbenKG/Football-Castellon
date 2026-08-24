@@ -119,7 +119,7 @@ function dashboard(){
  const payable=state.games.reduce((a,x)=>a+(x.participants||[]).filter(p=>p.attended&&!p.guest&&player(p.playerId)?.model==="game").length,0);
  const collection=payable?paid/payable*100:0;
  const leaders=[...state.players].sort((a,b)=>att(b)-att(a)).slice(0,5);
- return '<section class="hero"><div class="hero-pitch"></div><div class="hero-copy"><div class="eyebrow light">NEXT GAME</div><h1>'+dateText(g.date)+'</h1><p>⚽ '+esc(g.time)+' · '+esc(g.location)+'</p><div class="hero-actions">'+(can("attendance.manage")?'<button class="btn btn-light" data-a="add-player">+ Player</button>':"")+(can("attendance.manage")?'<button class="btn btn-ghost" data-a="guest">+ Guest</button>':"")+'</div></div><div class="hero-ball">⚽</div></section>'+
+ return '<section class="hero"><div class="hero-pitch"></div><div class="hero-copy"><div class="game-nav"><button class="game-arrow" data-game-nav="prev" title="Previous game" aria-label="Previous game">←</button><div><div class="eyebrow light">GAME</div><h1>'+dateText(g.date)+'</h1><p>⚽ '+esc(g.time)+' · '+esc(g.location)+'</p></div><button class="game-arrow" data-game-nav="next" title="Next game" aria-label="Next game">→</button></div><div class="hero-actions">'+(can("attendance.manage")?'<button class="btn btn-light" data-a="add-player">+ Player</button>':"")+(can("attendance.manage")?'<button class="btn btn-ghost" data-a="guest">+ Guest</button>':"")+'</div></div><div class="hero-ball">⚽</div></section>'+
  '<div class="stats"><div class="stat"><div class="stat-icon">⚽</div><div><small>PLAYING</small><strong>'+playing+'</strong></div></div><div class="stat"><div class="stat-icon">✓</div><div><small>PRESENT</small><strong>'+present+'</strong></div></div><div class="stat"><div class="stat-icon">🎟</div><div><small>SEASON TICKETS</small><strong>'+season.length+'</strong></div></div><div class="stat"><div class="stat-icon">€</div><div><small>PAYMENTS DUE</small><strong>'+due+'</strong></div></div></div>'+
  '<section class="analytics-grid"><div class="card analytics-card"><div class="card-title"><div><h3>Attendance overview</h3><p>Average attendance across recorded appearances.</p></div></div><div class="metric-row"><div><small>ALL PLAYERS</small><strong>'+all.toFixed(0)+'%</strong></div><div><small>PAY PER GAME</small><strong>'+payAvg.toFixed(0)+'%</strong></div><div><small>AVG PRESENT / GAME</small><strong>'+avg.toFixed(1)+'</strong></div></div></div>'+
  '<div class="card analytics-card"><div class="card-title"><div><h3>Payments</h3><p>Collection performance.</p></div></div><div class="progress-value"><strong>'+collection.toFixed(0)+'%</strong><span>'+paid+' of '+payable+' game payments collected</span></div><div class="progress"><i style="width:'+collection+'%"></i></div><div class="mini-stats"><span>Season tickets paid <b>'+season.filter(p=>p.seasonPaid).length+'/'+season.length+'</b></span><span>Games with attendance <b>'+completed+'</b></span></div></div></section>'+
@@ -250,6 +250,13 @@ function render(){
  document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{view=b.dataset.view;render();});
  document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>act(b.dataset.a,b.dataset.id));
  document.querySelectorAll("[data-game]").forEach(b=>b.onclick=()=>{gameId=b.dataset.game;view="dashboard";render();});
+ document.querySelectorAll("[data-game-nav]").forEach(b=>b.onclick=()=>{
+   const ordered=[...state.games].sort((a,b)=>a.date.localeCompare(b.date)||a.startTime.localeCompare(b.startTime));
+   const i=ordered.findIndex(x=>x.id===gameId);
+   if(i<0)return;
+   const next=b.dataset.gameNav==="next"?ordered[i+1]:ordered[i-1];
+   if(next){gameId=next.id;render();}
+ });
  document.querySelectorAll("[data-game-filter]").forEach(b=>b.onclick=()=>{gameFilter=b.dataset.gameFilter;render();});
  document.querySelectorAll("[data-perm-role]").forEach(b=>b.onchange=async()=>{const x=await sb.rpc("admin_update_permission",{p_role:b.dataset.permRole,p_permission:b.dataset.perm,p_enabled:b.checked});if(x.error){b.checked=!b.checked;alert(x.error.message);return;}await loadAccess();render();});
  document.querySelectorAll("[data-t]").forEach(b=>b.onchange=async()=>{
