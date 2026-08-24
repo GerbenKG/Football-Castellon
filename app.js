@@ -272,20 +272,22 @@ document.addEventListener("submit",async e=>{
      document.getElementById("modal-root").innerHTML="";render();return;
    }
    const row={rowId:crypto.randomUUID(),playerId:p.id,guest:false,name:p.name,playing:true,attended:false,paid:false};
-   // Insert only. Do not request the inserted row back: the INSERT policy can
-   // allow the write while a SELECT policy may reject the RETURNING/representation.
-   // We already know the complete row because the client generated its id.
-   const x=await sb.from("game_players").insert({
-     id:row.rowId,
-     game_id:g.id,
-     player_id:p.id,
-     guest_name:null,
-     playing:true,
-     attended:false,
-     paid:false
-   });
+   // Use the security-definer RPC for registered players. This avoids the
+   // browser-side RLS INSERT path and atomically prevents duplicate assignments.
+   const x=await sb.rpc("add_game_player",{p_game_id:g.id,p_player_id:p.id});
    if(x.error){alert("Could not add player to Friday: "+x.error.message);return;}
-   g.participants.push(row);
+   // The RPC returns the existing/new record, but we intentionally use our
+   // local model so the squad updates immediately without another SELECT.
+   const saved=Array.isArray(x.data)?x.data[0]:x.data;
+   g.participants.push({
+     rowId:saved?.id||row.rowId,
+     playerId:p.id,
+     guest:false,
+     name:p.name,
+     playing:saved?.playing===undefined?true:!!saved.playing,
+     attended:!!saved?.attended,
+     paid:!!saved?.paid
+   });
    document.getElementById("modal-root").innerHTML="";
    render();
    return;
