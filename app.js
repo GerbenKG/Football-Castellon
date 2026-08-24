@@ -108,3 +108,5 @@
   document.getElementById("newGame").onclick=()=>act("new-game");
   render();
 })();
+
+  document.addEventListener("click",e=>{const close=e.target.closest("[data-close]");if(close){document.getElementById("modal-root").innerHTML="";}});
