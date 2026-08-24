@@ -14,34 +14,6 @@
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
       const date = d.toISOString().slice(0,10);
       const summer = d.getMonth() === 6 || d.getMonth() === 7;
-      games.push({id:"friday-"+date,date,time:summer?"20:00–22:00":"19:30–21:30",location:"Castellón",participants:[]});
-    }
-    return games;
-  };
-  const seed = {
-    players: [
-      {id:"p1",name:"João Silva",model:"season",seasonPaid:true},
-      {id:"p2",name:"Marco Ruiz",model:"game",seasonPaid:false},
-      {id:"p3",name:"David Costa",model:"game",seasonPaid:false},
-      {id:"p4",name:"Luis Martín",model:"season",seasonPaid:true}
-    ],
-    games: makeSeasonGames(),
-    deletedDates: []
-  };
-  let state = {players:[], games:[], deletedDates:[]};
-  let view = "dashboard";
-  let gameId = null;
-  let month = new Date();
-  let currentUser = null;
-  const sb = window.supabaseClient;
-
-  const makeSeasonGames = () => {
-    const games = [];
-    const start = new Date("2026-09-04T12:00:00");
-    const end = new Date("2027-08-31T12:00:00");
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
-      const date = d.toISOString().slice(0,10);
-      const summer = d.getMonth() === 6 || d.getMonth() === 7;
       games.push({id:crypto.randomUUID(),date,startTime:summer?"20:00":"19:30",endTime:summer?"22:00":"21:30",time:summer?"20:00–22:00":"19:30–21:30",location:"Castellón",participants:[]});
     }
     return games;
