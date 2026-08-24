@@ -7,6 +7,7 @@
   let month = new Date();
   let currentUser = null;
   const sb = window.supabaseClient;
+  const showFatal = (message) => { const el=document.getElementById("app"); if(el) el.innerHTML='<section class="card error-card"><h2>Friday Football could not start</h2><p>'+esc(message)+'</p><p class="muted">Please refresh once more. If this persists, the message above tells us exactly which component is failing.</p></section>'; };
   const friday = () => {
     const d = new Date();
     const add = ((5 - d.getDay()) + 7) % 7 || 7;
@@ -72,6 +73,8 @@
   };
 
   const boot = async () => {
+    if (!sb) { showFatal(window.supabaseInitError?.message || "Supabase client is unavailable."); return; }
+    try {
     const {data:{session}}=await sb.auth.getSession();
     currentUser=session?.user||null;
     if(!currentUser){document.getElementById("newGame").style.display="none";document.getElementById("signOut").style.display="none";document.querySelector(".nav").style.display="none";authScreen();return;}
