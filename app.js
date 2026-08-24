@@ -268,12 +268,15 @@ function render(){
 });
 }
 document.addEventListener("click",e=>{const c=e.target.closest("[data-close]");if(c){e.preventDefault();document.getElementById("modal-root").innerHTML="";}});
+console.info("[Football] APP BUILD 20260824-23 loaded");
 document.addEventListener("submit",async e=>{
+ console.info("[Football] SUBMIT EVENT", { id:e.target?.id, tag:e.target?.tagName, action:e.submitter?.textContent?.trim() });
  e.preventDefault();const f=new FormData(e.target);
  if(e.target.id==="member-form"){const x=await sb.rpc("admin_upsert_access",{p_email:f.get("email").trim().toLowerCase(),p_display_name:f.get("display_name").trim(),p_role:f.get("role"),p_active:f.has("active")});if(x.error){alert(x.error.message);return;}await loadAccess();document.getElementById("modal-root").innerHTML="";render();return;}
  if(e.target.id==="game-form"){const date=f.get("date"),start=f.get("startTime"),end=f.get("endTime");if(!date||!start||!end)return alert("Date, start time and end time are required.");if(end<=start)return alert("End time must be later than start time.");const g={id:crypto.randomUUID(),date,startTime:start,endTime:end,time:start+"–"+end,location:f.get("location"),participants:[]};state.games.push(g);gameId=g.id;}
  if(e.target.id==="player-form"){let p=player(e.target.dataset.id);if(!p){p={id:crypto.randomUUID()};state.players.push(p);}p.name=f.get("name").trim();p.model=f.get("model");p.seasonPaid=f.has("seasonPaid");}
  if(e.target.id==="pick-form"){
+   console.info("[Football] PICK-FORM REACHED");
    const selectedGameId=e.target.dataset.gameId;
    const pid=String(f.get("id")||"");
    const g=state.games.find(x=>x.id===selectedGameId);
