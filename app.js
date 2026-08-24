@@ -2,6 +2,9 @@
 "use strict";
 let state={players:[],games:[]}, view="dashboard", gameId=null, currentUser=null;
 let access={profile:null,permissions:{},members:[],rolePermissions:[]};
+let actingAs=null;
+const isPreview=()=>!!actingAs;
+const effectivePermissions=()=>actingAs?(actingAs.role==="super_admin"?Object.fromEntries(PERMISSIONS.map(x=>[x[0],true])):Object.fromEntries((access.rolePermissions||[]).filter(x=>x.role===actingAs.role&&x.enabled).map(x=>[x.permission,true]))):access.permissions;
 const sb=window.supabaseClient;
 const ROLES=[["super_admin","Super Admin"],["admin","Admin"],["attendance","Attendance"],["finance","Finance"],["viewer","Viewer"]];
 const PERMISSIONS=[
@@ -11,7 +14,7 @@ const PERMISSIONS=[
  ["access.manage","Manage access"]
 ];
 const roleName=r=>(ROLES.find(x=>x[0]===r)||["",r])[1];
-const can=p=>access.permissions?.[p]===true;
+const can=p=>effectivePermissions()?.[p]===true;
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const player=id=>state.players.find(p=>p.id===id);
 const game=()=>state.games.find(g=>g.id===gameId)||state.games[0]||{participants:[]};
@@ -131,13 +134,16 @@ function admin(){
  const enabled=(role,p)=>rp.some(x=>x.role===role&&x.permission===p&&x.enabled);
  return '<div class="page-head"><div><div class="eyebrow">CONTROL CENTRE</div><h1 class="title">Admin & Access</h1><p class="muted">Manage invited members and what each profile can see or do.</p></div><button class="btn btn-primary" data-a="new-member">+ Add member</button></div>'+
  '<section class="card access-card"><div class="section-head"><div><h2>Members</h2><p>Add an email to allow that Google account into the site.</p></div></div><div class="member-list">'+
- members.map(m=>'<div class="member-row"><div class="who"><span class="avatar">'+esc((m.display_name||m.email).slice(0,1).toUpperCase())+'</span><div><b>'+esc(m.display_name||m.email)+'</b><small>'+esc(m.email)+(m.user_id?" · linked":" · pending")+'</small></div></div><div class="member-role">'+badge(roleName(m.role),m.role==="super_admin"?"green":"slate")+' '+(m.active?badge("Active","green"):badge("Disabled","red"))+'</div><div class="actions"><button class="btn btn-secondary" data-a="edit-member" data-id="'+esc(m.email)+'">Edit</button>'+(m.email.toLowerCase()!==String(currentUser?.email||"").toLowerCase()?'<button class="btn btn-secondary" data-a="delete-member" data-id="'+esc(m.email)+'">Remove</button>':"")+'</div></div>').join("")+
+ members.map(m=>'<div class="member-row"><div class="who"><span class="avatar">'+esc((m.display_name||m.email).slice(0,1).toUpperCase())+'</span><div><b>'+esc(m.display_name||m.email)+'</b><small>'+esc(m.email)+(m.user_id?" · linked":" · pending")+'</small></div></div><div class="member-role">'+badge(roleName(m.role),m.role==="super_admin"?"green":"slate")+' '+(m.active?badge("Active","green"):badge("Disabled","red"))+'</div><div class="actions"><button class="btn btn-secondary" data-a="login-as" data-id="'+esc(m.email)+'">Login as</button><button class="btn btn-secondary" data-a="edit-member" data-id="'+esc(m.email)+'">Edit</button>'+(m.email.toLowerCase()!==String(currentUser?.email||"").toLowerCase()?'<button class="btn btn-secondary" data-a="delete-member" data-id="'+esc(m.email)+'">Remove</button>':"")+'</div></div>').join("")+
  '</div></section><section class="card access-card"><div class="section-head"><div><h2>Profile permissions</h2><p>Super Admin is fixed. Other profiles can be tailored below.</p></div></div><div class="permission-table"><div class="permission-head"><span>Permission</span>'+roles.map(r=>'<b>'+r[1]+'</b>').join("")+'</div>'+
  PERMISSIONS.map(x=>'<div class="permission-row"><span><b>'+esc(x[1])+'</b><small>'+esc(x[0])+'</small></span>'+roles.map(r=>'<label class="perm-toggle"><input type="checkbox" data-perm-role="'+r[0]+'" data-perm="'+x[0]+'" '+(enabled(r[0],x[0])?"checked":"")+'><span></span></label>').join("")+'</div>').join("")+
  '</div></section>';
 }
 function modal(title,body){document.getElementById("modal-root").innerHTML='<div class="modal-bg"><div class="modal"><div class="modal-head"><h2>'+title+'</h2><button class="remove" data-close type="button">×</button></div>'+body+'</div></div>';}
 function act(a,id){
+ if(a==="exit-preview"){actingAs=null;view="dashboard";render();return;}
+ if(a==="login-as"){const m=access.members.find(x=>x.email===id);if(!m)return;actingAs={...m};view="dashboard";render();return;}
+ if(isPreview()){alert("Preview mode is read-only. Exit preview to make changes.");return;}
  if(a==="remove"){if(!can("attendance.manage"))return;game().participants=game().participants.filter(x=>x.playerId!==id);save().then(render);return;}
  if(a==="delete-player"){if(!can("players.manage")||!can("attendance.manage"))return;const p=player(id);if(!p||!confirm("Delete "+p.name+"? This also removes their Friday records."))return;state.players=state.players.filter(x=>x.id!==id);state.games.forEach(g=>g.participants=g.participants.filter(x=>x.playerId!==id));save().then(render);return;}
  if(a==="delete-game"){if(!can("games.manage")||!can("attendance.manage")||!can("payments.manage"))return;const t=state.games.find(x=>x.id===id);if(!t||state.games.length<=1)return alert("You must keep at least one Friday game.");if(!confirm("Delete "+dateText(t.date)+"? Attendance and payment records will also be removed."))return;state.games=state.games.filter(x=>x.id!==id);gameId=state.games[0]?.id;save().then(render);return;}
@@ -149,10 +155,14 @@ function act(a,id){
  if(a==="edit-member"){const m=access.members.find(x=>x.email===id);if(!m)return;return modal("Edit member",'<form id="member-form" data-email="'+esc(m.email)+'"><label>Email<input name="email" type="email" value="'+esc(m.email)+'" readonly></label><label>Name<input name="display_name" value="'+esc(m.display_name||"")+'"></label><label>Profile<select name="role">'+ROLES.map(r=>'<option value="'+r[0]+'" '+(r[0]===m.role?"selected":"")+'>'+r[1]+'</option>').join("")+'</select></label><label class="checkline"><input name="active" type="checkbox" '+(m.active?"checked":"")+'> Active access</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save member</button></div></form>');}
  if(a==="delete-member"){const m=access.members.find(x=>x.email===id);if(!m||!confirm("Remove "+m.email+" from site access?"))return;sb.rpc("admin_delete_access",{p_email:m.email}).then(x=>x.error?alert(x.error.message):loadAccess().then(render));}
 }
+function previewBanner(){
+ if(!actingAs)return "";
+ return '<div class="preview-banner"><div><b>Preview mode</b> · Viewing the site as '+esc(actingAs.display_name||actingAs.email)+' ('+esc(roleName(actingAs.role))+')</div><button class="btn btn-secondary" data-a="exit-preview">Exit preview</button></div>';
+}
 function render(){
  const app=document.getElementById("app");
  document.querySelectorAll(".nav-item").forEach(b=>{b.classList.toggle("active",b.dataset.view===view);b.style.display=b.dataset.permission&&!can(b.dataset.permission)?"none":"";});
- app.innerHTML=view==="dashboard"?dashboard():view==="players"?players():view==="games"?games():view==="admin"?admin():dashboard();
+ app.innerHTML=previewBanner()+(view==="dashboard"?dashboard():view==="players"?players():view==="games"?games():view==="admin"?admin():dashboard());
  document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{view=b.dataset.view;render();});
  document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>act(b.dataset.a,b.dataset.id));
  document.querySelectorAll("[data-game]").forEach(b=>b.onclick=()=>{gameId=b.dataset.game;view="dashboard";render();});
