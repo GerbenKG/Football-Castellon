@@ -103,6 +103,22 @@ alter table public.game_players enable row level security;
 alter table public.payments enable row level security;
 
 drop policy if exists "admins can read players" on public.players;
+drop policy if exists "authenticated admins can read players" on public.players;
+drop policy if exists "authenticated admins can insert players" on public.players;
+drop policy if exists "authenticated admins can update players" on public.players;
+drop policy if exists "authenticated admins can delete players" on public.players;
+drop policy if exists "authenticated admins can read games" on public.games;
+drop policy if exists "authenticated admins can insert games" on public.games;
+drop policy if exists "authenticated admins can update games" on public.games;
+drop policy if exists "authenticated admins can delete games" on public.games;
+drop policy if exists "authenticated admins can read game players" on public.game_players;
+drop policy if exists "authenticated admins can insert game players" on public.game_players;
+drop policy if exists "authenticated admins can update game players" on public.game_players;
+drop policy if exists "authenticated admins can delete game players" on public.game_players;
+drop policy if exists "authenticated admins can read payments" on public.payments;
+drop policy if exists "authenticated admins can insert payments" on public.payments;
+drop policy if exists "authenticated admins can delete payments" on public.payments;
+
 drop policy if exists "admins can insert players" on public.players;
 drop policy if exists "admins can update players" on public.players;
 drop policy if exists "admins can delete players" on public.players;
