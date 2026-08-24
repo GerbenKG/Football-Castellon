@@ -1,10 +1,10 @@
-const KEY="football-castellon-admin-v3";
+const KEY="football-castellon-admin-v4";
 const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 const nextFriday=()=>{const d=new Date(),n=(5-d.getDay()+7)%7||7;d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
 const fmt=d=>new Date(d+"T12:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"short",year:"numeric"});
 const esc=v=>String(v==null?"":v).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const seed={players:[{id:"p1",name:"João Silva",active:true,payment:"season",seasonPaid:true},{id:"p2",name:"Marco Ruiz",active:true,payment:"game",seasonPaid:false},{id:"p3",name:"David Costa",active:true,payment:"game",seasonPaid:false},{id:"p4",name:"Luis Martín",active:true,payment:"season",seasonPaid:false}],games:[{id:"g1",date:nextFriday(),time:"20:00",location:"Castellón",participants:[{playerId:"p1",playing:true,attended:true,paid:false},{playerId:"p2",playing:true,attended:true,paid:true},{playerId:"p3",playing:true,attended:false,paid:false},{playerId:"p4",playing:false,attended:false,paid:false},{playerId:"guest-demo",guest:true,name:"Carlos",playing:true,attended:true,paid:true}]}]};
-let state=JSON.parse(localStorage.getItem(KEY)||"null")||seed,currentView="dashboard",currentGameId=state.games[0]&&state.games[0].id,calendarDate=new Date();
+let state;try{state=JSON.parse(localStorage.getItem(KEY)||"null")||seed}catch(e){state=seed}if(!Array.isArray(state.players))state.players=seed.players;if(!Array.isArray(state.games))state.games=seed.games;if(!state.games.length)state.games=seed.games;state.games.forEach(g=>{if(!Array.isArray(g.participants))g.participants=[]});let currentView="dashboard",currentGameId=state.games[0].id,calendarDate=new Date();
 const save=()=>localStorage.setItem(KEY,JSON.stringify(state));
 const game=()=>state.games.find(g=>g.id===currentGameId);
 const player=id=>state.players.find(p=>p.id===id);
@@ -21,5 +21,5 @@ function bind(){document.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>
 document.addEventListener("click",e=>{if(e.target.closest("[data-close]"))document.getElementById("modal-root").innerHTML=""});
 document.addEventListener("submit",e=>{e.preventDefault();const f=new FormData(e.target);if(e.target.id==="game-form"){const g={id:uid(),date:f.get("date"),time:f.get("time"),location:f.get("location"),participants:[]};state.games.push(g);currentGameId=g.id}if(e.target.id==="player-form"){let p=player(e.target.dataset.id);if(!p){p={id:uid(),active:true};state.players.push(p)}p.name=f.get("name").trim();p.payment=f.get("payment");p.seasonPaid=f.has("seasonPaid");p.active=f.has("active")}if(e.target.id==="pick-form")game().participants.push({playerId:f.get("id"),playing:true,attended:false,paid:false});if(e.target.id==="guest-form")game().participants.push({playerId:uid(),guest:true,name:f.get("name").trim(),playing:true,attended:false,paid:false});save();document.getElementById("modal-root").innerHTML="";render()});
 document.getElementById("newGame").onclick=()=>action("new-game");
-function render(){document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===currentView));document.getElementById("app").innerHTML=currentView==="dashboard"?dashboard():currentView==="calendar"?calendar():currentView==="players"?players():games();bind()}
-render();
+function render(){const root=document.getElementById("app");try{document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===currentView));root.innerHTML=currentView==="dashboard"?dashboard():currentView==="calendar"?calendar():currentView==="players"?players():games();bind()}catch(e){root.innerHTML="<section class=\"card fallback\"><div class=\"fallback-icon\">⚽</div><h1>Friday Football</h1><p>Ready for kickoff. Your admin dashboard is loading with a clean local workspace.</p><button class=\"btn btn-primary\" onclick=\"location.reload()\">Reload dashboard</button></section>"}}
+render();save();
