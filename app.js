@@ -55,9 +55,35 @@
     const playing = rows.filter(x=>x.playing).length;
     const present = rows.filter(x=>x.attended).length;
     const due = rows.filter(x=>x.attended && !x.guest && player(x.playerId)?.model==="game" && !x.paid).length;
-    const season = state.players.filter(p=>p.model==="season" && p.seasonPaid).length;
+    const seasonPlayers = state.players.filter(p=>p.model==="season");
+    const seasonPaid = seasonPlayers.filter(p=>p.seasonPaid).length;
+    const regularPlayers = state.players.filter(p=>p.model==="game");
+
+    const attendanceFor = p => {
+      const appearances = state.games.flatMap(x => x.participants || []).filter(x => !x.guest && x.playerId === p.id);
+      return appearances.length ? (appearances.filter(x => x.attended).length / appearances.length) * 100 : 0;
+    };
+    const allAttendance = state.players.length ? state.players.reduce((sum,p)=>sum+attendanceFor(p),0) / state.players.length : 0;
+    const payAttendance = regularPlayers.length ? regularPlayers.reduce((sum,p)=>sum+attendanceFor(p),0) / regularPlayers.length : 0;
+    const completedGames = state.games.filter(x => (x.participants||[]).some(p => p.attended)).length;
+    const totalPresent = state.games.reduce((sum,x)=>sum+(x.participants||[]).filter(p=>p.attended).length,0);
+    const avgPresent = completedGames ? totalPresent / completedGames : 0;
+    const paidGames = state.games.reduce((sum,x)=>sum+(x.participants||[]).filter(p=>p.attended && !p.guest && player(p.playerId)?.model==="game" && p.paid).length,0);
+    const payableGames = state.games.reduce((sum,x)=>sum+(x.participants||[]).filter(p=>p.attended && !p.guest && player(p.playerId)?.model==="game").length,0);
+    const collection = payableGames ? (paidGames/payableGames)*100 : 0;
+    const leaders = [...state.players].sort((a,b)=>attendanceFor(b)-attendanceFor(a)).slice(0,5);
+
     return '<section class="hero"><div class="hero-pitch"></div><div class="hero-copy"><div class="eyebrow light">NEXT FRIDAY</div><h1>'+dateText(g.date)+'</h1><p>⚽ '+esc(g.time)+' &nbsp; · &nbsp; '+esc(g.location)+'</p><div class="hero-actions"><button class="btn btn-light" data-a="add-player">+ Player</button><button class="btn btn-ghost" data-a="guest">+ Guest</button></div></div><div class="hero-ball">⚽</div></section>'+
-      '<div class="stats"><div class="stat"><div class="stat-icon">⚽</div><div><small>PLAYING</small><strong>'+playing+'</strong></div></div><div class="stat"><div class="stat-icon">✓</div><div><small>PRESENT</small><strong>'+present+'</strong></div></div><div class="stat"><div class="stat-icon">€</div><div><small>PAYMENTS DUE</small><strong>'+due+'</strong></div></div><div class="stat"><div class="stat-icon">🎟</div><div><small>SEASON TICKETS</small><strong>'+season+'</strong></div></div></div>'+
+      '<div class="stats">'+
+      '<div class="stat"><div class="stat-icon">⚽</div><div><small>PLAYING FRIDAY</small><strong>'+playing+'</strong></div></div>'+
+      '<div class="stat"><div class="stat-icon">✓</div><div><small>PRESENT FRIDAY</small><strong>'+present+'</strong></div></div>'+
+      '<div class="stat"><div class="stat-icon">🎟</div><div><small>SEASON TICKETS</small><strong>'+seasonPlayers.length+'</strong></div></div>'+
+      '<div class="stat"><div class="stat-icon">€</div><div><small>PAYMENTS DUE</small><strong>'+due+'</strong></div></div></div>'+
+      '<section class="analytics-grid">'+
+        '<div class="card analytics-card"><div class="card-title"><div><h3>Attendance overview</h3><p>Based on recorded games for each player.</p></div></div><div class="metric-row"><div><small>ALL PLAYERS</small><strong>'+allAttendance.toFixed(0)+'%</strong></div><div><small>PAY PER GAME</small><strong>'+payAttendance.toFixed(0)+'%</strong></div><div><small>AVG PLAYERS / GAME</small><strong>'+avgPresent.toFixed(1)+'</strong></div></div></div>'+
+        '<div class="card analytics-card"><div class="card-title"><div><h3>Payments</h3><p>Collection performance for pay-per-game players.</p></div></div><div class="progress-value"><strong>'+collection.toFixed(0)+'%</strong><span>'+paidGames+' of '+payableGames+' game payments collected</span></div><div class="progress"><i style="width:'+collection+'%"></i></div><div class="mini-stats"><span>Season tickets paid <b>'+seasonPaid+'/'+seasonPlayers.length+'</b></span><span>Games with attendance <b>'+completedGames+'</b></span></div></div>'+
+      '</section>'+
+      '<section class="section"><div class="section-head"><div><h2>Attendance leaders</h2><p>Top players by attendance rate.</p></div><button class="btn btn-secondary" data-view="players">View players →</button></div><div class="card leaders">'+leaders.map(p=>'<div class="leader-row"><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(p.name)+'</b><small>'+ (p.model==="season"?"🎟 Season ticket":"Per game")+'</small></div></div><strong>'+attendanceFor(p).toFixed(0)+'%</strong></div>').join("")+'</div></section>'+
       '<section class="section"><div class="section-head"><div><h2>Friday squad</h2><p>Manage attendance and payment for this match.</p></div></div>'+
       '<div class="squad card">'+rows.map(x=>{
         const p=x.guest?null:player(x.playerId); const name=x.guest?x.name:(p?.name||"Player");
