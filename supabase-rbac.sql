@@ -64,9 +64,11 @@ begin
  if not public.is_super_admin() then raise exception 'Super Admin access required'; end if;
  if p_role not in('super_admin','admin','attendance','finance','viewer') then raise exception 'Invalid role'; end if;
  if lower(trim(p_email))='' then raise exception 'Email is required'; end if;
- if p_active=false and p_role='super_admin' then
+ if p_role<>'super_admin' or p_active=false then
    select count(*) into n from public.access_profiles where role='super_admin' and active=true and email<>lower(trim(p_email));
-   if n=0 then raise exception 'At least one active Super Admin is required'; end if;
+   if n=0 and exists(select 1 from public.access_profiles where email=lower(trim(p_email)) and role='super_admin' and active=true) then
+     raise exception 'At least one active Super Admin is required';
+   end if;
  end if;
  insert into public.access_profiles(email,display_name,role,active) values(lower(trim(p_email)),nullif(trim(p_display_name),''),p_role,p_active)
  on conflict(email) do update set display_name=excluded.display_name,role=excluded.role,active=excluded.active,updated_at=now()
