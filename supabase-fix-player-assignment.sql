@@ -10,7 +10,10 @@ as $$
 declare
   r public.game_players;
 begin
-  if not public.has_permission('attendance.manage') then
+  -- Keep the application permission check, but allow the privileged Supabase SQL
+  -- editor role to execute the RPC for administration/maintenance.
+  if current_user <> 'postgres'
+     and not public.has_permission('attendance.manage') then
     raise exception 'Attendance management permission required';
   end if;
 
