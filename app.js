@@ -25,15 +25,17 @@
       {id:"p3",name:"David Costa",model:"game",seasonPaid:false},
       {id:"p4",name:"Luis Martín",model:"season",seasonPaid:true}
     ],
-    games: makeSeasonGames()
+    games: makeSeasonGames(),
+    deletedDates: []
   };
   let state;
   try {
     const stored = JSON.parse(localStorage.getItem(KEY) || "null");
     state = stored && Array.isArray(stored.players) ? stored : seed;
+    if (!Array.isArray(state.deletedDates)) state.deletedDates = [];
   } catch(e) { state = seed; }
   if (!Array.isArray(state.games)) state.games = [];
-  const schedule = makeSeasonGames();
+  const schedule = makeSeasonGames().filter(g => !(state.deletedDates || []).includes(g.date));
   const existingByDate = new Map(state.games.map(g => [g.date, g]));
   state.games = schedule.map(g => existingByDate.get(g.date) || g);
   let view = "dashboard";
@@ -93,6 +95,7 @@
       if(!target)return;
       if(!confirm("Delete Friday "+dateText(target.date)+"? This will also remove its attendance and payment records."))return;
       state.games=state.games.filter(g=>g.id!==id);
+      if(target.date && !state.deletedDates.includes(target.date)) state.deletedDates.push(target.date);
       gameId=state.games[0].id;
       save();return render();
     }
