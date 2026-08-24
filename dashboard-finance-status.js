@@ -5,10 +5,11 @@
   if (!sb) return;
 
   // Dashboard financial KPIs are owned by the Finance module. Hide the
-  // dashboard values while the Finance source of truth is being loaded so
-  // the local player model can never flash incorrect values first.
+  // dashboard values only while a newly rendered dashboard is being resolved.
+  // Do not toggle visibility on every observer pass: that causes a visible
+  // blink whenever another part of the dashboard changes.
   const style = document.createElement("style");
-  style.textContent = ".hero + .stats{visibility:hidden}.hero + .stats.finance-ready{visibility:visible}";
+  style.textContent = ".hero + .stats.finance-loading{visibility:hidden}.hero + .stats.finance-ready{visibility:visible}";
   document.head.appendChild(style);
 
   const dateText = date => new Date(date + "T12:00:00").toLocaleDateString("en-GB", {
@@ -17,6 +18,8 @@
 
   let running = false;
   let lastKey = "";
+  let currentStats = null;
+  let currentGameKey = "";
 
   async function syncDashboardFinance() {
     if (running) return;
@@ -26,16 +29,23 @@
     const hero = app?.querySelector(".hero .game-nav");
     if (!stats || !hero) return;
 
-    stats.classList.remove("finance-ready");
-
     const heroDate = hero.querySelector("h1")?.textContent?.trim();
     const heroMeta = hero.querySelector("p")?.textContent?.trim() || "";
     if (!heroDate) return;
 
+    // A new dashboard render (or a different selected game) gets a single
+    // loading state. Existing rendered stats stay visible during refreshes.
+    const renderChanged = currentStats !== stats;
+    if (renderChanged) {
+      currentStats = stats;
+      currentGameKey = "";
+      lastKey = "";
+      stats.classList.remove("finance-ready");
+      stats.classList.add("finance-loading");
+    }
+
     running = true;
     try {
-      // These are the same Finance-module tables used by the Finance page.
-      // The dashboard does not use players.model or players.season_paid.
       const [gamesResult, seasonsResult, ticketsResult, squadResult, paymentsResult] = await Promise.all([
         sb.from("games").select("id,game_date,start_time,end_time,location"),
         sb.from("finance_seasons").select("id,name,starts_on,ends_on"),
@@ -59,11 +69,16 @@
       });
       if (!game) return;
 
-      // Financial season is determined by the game's date, not calendar year.
       const season = (seasonsResult.data || []).find(s =>
         game.game_date >= s.starts_on && game.game_date <= s.ends_on
       );
       if (!season) return;
+
+      const gameKey = `${game.id}:${season.id}`;
+      if (currentGameKey !== gameKey) {
+        currentGameKey = gameKey;
+        lastKey = "";
+      }
 
       const tickets = (ticketsResult.data || []).filter(t => t.season_id === season.id);
       const ticketByPlayer = new Map(tickets.map(t => [t.player_id, t]));
@@ -73,21 +88,12 @@
       );
       const paidByPlayer = new Map(gamePayments.map(p => [p.player_id, !!p.paid]));
 
-      // Finance source of truth:
-      // - Season Tickets = number of tickets recorded for this season.
-      // - Payments Due = attended people in this game who have an outstanding
-      //   financial obligation: unpaid season ticket, or unpaid game payment
-      //   when they do not hold a season ticket for this season.
       const seasonTicketCount = tickets.length;
       const due = squad.filter(row => {
         if (!row.attended) return false;
-
-        // Guests are always pay-per-game.
         if (!row.player_id) return !paidByPlayer.get(null);
-
         const ticket = ticketByPlayer.get(row.player_id);
         if (ticket) return !ticket.paid;
-
         return !paidByPlayer.get(row.player_id);
       }).length;
 
@@ -101,15 +107,12 @@
 
       if (key !== lastKey) {
         lastKey = key;
-
         const values = stats.querySelectorAll("strong");
-        // Dashboard stat order: Playing, Present, Season Tickets, Payments Due.
         if (values[2]) values[2].textContent = String(seasonTicketCount);
         if (values[3]) values[3].textContent = String(due);
       }
 
-      // Only reveal the financial KPIs after Finance data has been successfully
-      // resolved. This prevents the old 5 -> 0 / 1 -> 0 visual glitch.
+      stats.classList.remove("finance-loading");
       stats.classList.add("finance-ready");
     } catch (error) {
       console.warn("[Football] Dashboard Finance sync failed:", error);
