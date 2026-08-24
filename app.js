@@ -274,9 +274,10 @@ document.addEventListener("submit",async e=>{
    const row={rowId:crypto.randomUUID(),playerId:p.id,guest:false,name:p.name,playing:true,attended:false,paid:false};
    // Do not chain .select() to the INSERT: with RLS, INSERT may be allowed while
    // the post-insert SELECT is denied, which makes a successful assignment look failed.
-   const x=await sb.from("game_players").insert({id:row.rowId,game_id:g.id,player_id:p.id,guest_name:null,playing:true,attended:false,paid:false});
+   const x=await sb.rpc("add_game_player",{p_game_id:g.id,p_player_id:p.id});
    if(x.error){alert("Could not add player to Friday: "+x.error.message);return;}
-   g.participants.push(row);
+   const saved=x.data;
+   g.participants.push({rowId:saved.id,playerId:saved.player_id,guest:false,name:p.name,playing:!!saved.playing,attended:!!saved.attended,paid:!!saved.paid});
    document.getElementById("modal-root").innerHTML="";render();
    return;
  }
