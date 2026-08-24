@@ -120,7 +120,7 @@ function dashboard(){
   const p=x.guest?null:player(x.playerId),name=x.guest?x.name:(p?.name||"Player"),type=x.guest?"Guest":p?.model==="season"?"🎟 Season":"Per game";
   const payLabel=x.guest?(x.paid?"Paid":"Due"):(p?.model==="season"?(p.seasonPaid?"Season paid":"Season unpaid"):(x.paid?"Paid":"Mark paid"));
   const pc=x.guest||p?.model==="season"?(x.paid||p?.seasonPaid?"green":"amber"):(x.paid?"green":"red");
-  return '<div class="squad-row"><div class="who"><span class="avatar">'+esc(name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(name)+'</b><small>'+type+'</small></div></div>'+(can("attendance.manage")?'<label class="toggle"><input type="checkbox" data-t="playing" data-id="'+x.playerId+'" '+(x.playing?"checked":"")+'><span>Playing</span></label><label class="toggle"><input type="checkbox" data-t="attended" data-id="'+x.playerId+'" '+(x.attended?"checked":"")+'><span>Present</span></label>':'<span>'+badge(x.playing?"Playing":"Not playing",x.playing?"green":"slate")+'</span>')+'<span>'+badge(payLabel,pc)+'</span>'+(can("attendance.manage")?'<button class="remove" data-a="remove" data-id="'+x.playerId+'">×</button>':"")+'</div>';
+  return '<div class="squad-row"><div class="who"><span class="avatar">'+esc(name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(name)+'</b><small>'+type+'</small></div></div>'+(can("attendance.manage")?'<label class="toggle"><input type="checkbox" data-t="playing" data-id="'+x.playerId+'" '+(x.playing?"checked":"")+'><span>Playing</span></label><label class="toggle"><input type="checkbox" data-t="attended" data-id="'+x.playerId+'" '+(x.attended?"checked":"")+'><span>Present</span></label>':'<span>'+badge(x.playing?"Playing":"Not playing",x.playing?"green":"slate")+'</span>')+(can("payments.manage")&&(!x.guest&&p?.model==="game" || x.guest)?'<label class="toggle payment-toggle"><input type="checkbox" data-t="paid" data-id="'+x.rowId+'" '+(x.paid?"checked":"")+'><span>Paid</span></label>':'<span>'+badge(payLabel,pc)+'</span>')+(can("attendance.manage")?'<button class="remove" data-a="remove" data-id="'+x.rowId+'">×</button>':"")+'</div>';
  }).join("")+'</div></section>';
 }
 function players(){
@@ -215,7 +215,13 @@ function render(){
  document.querySelectorAll("[data-game]").forEach(b=>b.onclick=()=>{gameId=b.dataset.game;view="dashboard";render();});
  document.querySelectorAll("[data-game-filter]").forEach(b=>b.onclick=()=>{gameFilter=b.dataset.gameFilter;render();});
  document.querySelectorAll("[data-perm-role]").forEach(b=>b.onchange=async()=>{const x=await sb.rpc("admin_update_permission",{p_role:b.dataset.permRole,p_permission:b.dataset.perm,p_enabled:b.checked});if(x.error){b.checked=!b.checked;alert(x.error.message);return;}await loadAccess();render();});
- document.querySelectorAll("[data-t]").forEach(b=>b.onchange=()=>{const p=game().participants.find(x=>x.playerId===b.dataset.id);if(p){p[b.dataset.t]=b.checked;if(b.dataset.t==="attended"&&!b.checked)p.paid=false;save().then(render);}});
+ document.querySelectorAll("[data-t]").forEach(b=>b.onchange=async()=>{
+  const p=game().participants.find(x=>x.rowId===b.dataset.id);
+  if(!p)return;
+  p[b.dataset.t]=b.checked;
+  if(b.dataset.t==="attended"&&!b.checked)p.paid=false;
+  try{await save();await loadRemote();render();}catch(err){alert(err.message||"Could not save change.");render();}
+});
 }
 document.addEventListener("click",e=>{const c=e.target.closest("[data-close]");if(c){e.preventDefault();document.getElementById("modal-root").innerHTML="";}});
 document.addEventListener("submit",async e=>{
@@ -224,10 +230,19 @@ document.addEventListener("submit",async e=>{
  if(e.target.id==="game-form"){const date=f.get("date"),summer=[6,7].includes(new Date(date+"T12:00:00").getMonth()),start=summer?"20:00":f.get("time"),end=summer?"22:00":(()=>{const z=start.split(":").map(Number);return String(z[0]+2).padStart(2,"0")+":"+String(z[1]).padStart(2,"0")})();const g={id:crypto.randomUUID(),date,startTime:start,endTime:end,time:start+"–"+end,location:f.get("location"),participants:[]};state.games.push(g);gameId=g.id;}
  if(e.target.id==="player-form"){let p=player(e.target.dataset.id);if(!p){p={id:crypto.randomUUID()};state.players.push(p);}p.name=f.get("name").trim();p.model=f.get("model");p.seasonPaid=f.has("seasonPaid");}
  if(e.target.id==="pick-form"){
-   const g=game(),p=player(f.get("id"));
-   if(!g||!p)return alert("No Friday or player selected.");
+   const g=game(),pid=f.get("id"),p=player(pid);
+   if(!g||!pid)return alert("No Friday or player selected.");
+   if(!p)return alert("The selected player is not available in the current roster. Refresh the page and try again.");
+   const existing=g.participants.find(x=>!x.guest&&x.playerId===pid);
+   if(existing){document.getElementById("modal-root").innerHTML="";render();return;}
+   const q=await sb.from("game_players").select("*").eq("game_id",g.id).eq("player_id",pid).maybeSingle();
+   if(q.error){alert("Could not check the Friday squad: "+q.error.message);return;}
+   if(q.data){
+     g.participants.push({rowId:q.data.id,playerId:q.data.player_id,guest:false,name:p.name,playing:q.data.playing,attended:q.data.attended,paid:q.data.paid});
+     document.getElementById("modal-root").innerHTML="";render();return;
+   }
    const row={rowId:crypto.randomUUID(),playerId:p.id,guest:false,name:p.name,playing:true,attended:false,paid:false};
-   const x=await sb.from("game_players").insert({id:row.rowId,game_id:g.id,player_id:p.id,guest_name:null,playing:true,attended:false,paid:false});
+   const x=await sb.from("game_players").insert({id:row.rowId,game_id:g.id,player_id:p.id,guest_name:null,playing:true,attended:false,paid:false}).select().single();
    if(x.error){alert("Could not add player to Friday: "+x.error.message);return;}
    g.participants.push(row);
    document.getElementById("modal-root").innerHTML="";render();return;
