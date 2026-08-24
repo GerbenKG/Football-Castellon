@@ -1,6 +1,7 @@
 (() => {
 "use strict";
 let state={players:[],games:[]}, view="dashboard", gameId=null, currentUser=null, gameFilter="upcoming";
+let financeData={seasons:[],tickets:[],expenses:[]}, financeLoaded=false, financeLoading=false, financeSeasonId=null;
 let access={profile:null,permissions:{},members:[],rolePermissions:[]};
 let actingAs=null;
 const isPreview=()=>!!actingAs;
@@ -192,6 +193,78 @@ function games(){
    '<div class="game-filter-bar">'+filterButton("upcoming","Upcoming",upcoming.length)+filterButton("past","Played",past.length)+filterButton("all","All games",state.games.length)+'</div>'+
    '<div class="game-overview-list">'+(list.length?list.map(g=>gameOverviewCard(g,today)).join(""):'<section class="card empty"><h2>No games here</h2><p>Try another filter.</p></section>')+'</div>';
 }
+
+const money=v=>new Intl.NumberFormat("en-GB",{style:"currency",currency:"EUR"}).format(Number(v||0));
+const seasonForDate=d=>financeData.seasons.find(s=>d>=s.starts_on&&d<=s.ends_on);
+async function loadFinance(){
+  if(financeLoading)return;
+  financeLoading=true;
+  try{
+    const [s,t,e]=await Promise.all([
+      sb.from("finance_seasons").select("*").order("starts_on",{ascending:false}),
+      sb.from("finance_season_tickets").select("*"),
+      sb.from("finance_expenses").select("*").order("due_date")
+    ]);
+    if(s.error||t.error||e.error)throw(s.error||t.error||e.error);
+    financeData={seasons:s.data||[],tickets:t.data||[],expenses:e.data||[]};
+    if(!financeSeasonId||!financeData.seasons.some(x=>x.id===financeSeasonId))financeSeasonId=financeData.seasons[0]?.id||null;
+    financeLoaded=true;
+  }finally{financeLoading=false;}
+}
+function finance(){
+ if(!can("payments.view"))return '<section class="card empty"><h2>Finance</h2><p>You do not have permission to view finances.</p></section>';
+ if(!financeLoaded){
+   if(!financeLoading)loadFinance().then(render).catch(e=>{financeLoading=false;document.getElementById("app").innerHTML=previewBanner()+'<section class="card error-card"><h2>Finance setup required</h2><p>'+esc(e.message||"Could not load finance data.")+'</p><p class="muted">Run <b>supabase-finance.sql</b> once in Supabase, then reload this page.</p></section>';});
+   return '<section class="card empty"><h2>Loading finances…</h2><p>Preparing the season, payments and forecast.</p></section>';
+ }
+ const s=financeData.seasons.find(x=>x.id===financeSeasonId)||financeData.seasons[0];
+ if(!s)return '<section class="card empty"><h2>No season configured</h2><p>Create your first season to start tracking finances.</p></section>';
+ const tickets=financeData.tickets.filter(x=>x.season_id===s.id);
+ const expenses=financeData.expenses.filter(x=>x.season_id===s.id);
+ const seasonPlayers=state.players.filter(p=>p.model==="season");
+ const ticketByPlayer=new Map(tickets.map(x=>[x.player_id,x]));
+ const gamePlayers=state.games.flatMap(g=>(g.participants||[]).map(x=>({g,x})));
+ const gamePaid=gamePlayers.filter(({x})=>x.paid);
+ const actualSeasonIncome=tickets.filter(x=>x.paid).reduce((a,x)=>a+Number(x.amount),0);
+ const actualGameIncome=gamePaid.reduce((a,{g,x})=>a+(x.guest||player(x.playerId)?.model==="game"?Number(s.pay_per_game_amount):0),0);
+ const paidExpenses=expenses.filter(x=>x.paid).reduce((a,x)=>a+Number(x.amount),0);
+ const balance=actualSeasonIncome+actualGameIncome-paidExpenses;
+ const unpaidSeason=seasonPlayers.filter(p=>!ticketByPlayer.get(p.id)?.paid);
+ const unpaidGame=gamePlayers.filter(({g,x})=>g.date<=new Date().toISOString().slice(0,10)&&x.attended&&(!x.guest&&player(x.playerId)?.model==="game"||x.guest)&&!x.paid);
+ const pastGames=state.games.filter(g=>g.date<s.starts_on?false:g.date<=new Date().toISOString().slice(0,10));
+ const ppPlayers=state.players.filter(p=>p.model==="game");
+ let projectedGame=0;
+ ppPlayers.forEach(p=>{
+   const appearances=state.games.flatMap(g=>(g.participants||[]).filter(x=>!x.guest&&x.playerId===p.id&&x.attended)).length;
+   const gamesCount=state.games.filter(g=>g.date>=s.starts_on&&g.date<=s.ends_on).length;
+   const playedGames=state.games.filter(g=>g.date>=s.starts_on&&g.date<=s.ends_on&&g.date<=new Date().toISOString().slice(0,10)).length;
+   const rate=playedGames?appearances/playedGames:0;
+   const futureGames=state.games.filter(g=>g.date>=new Date().toISOString().slice(0,10)&&g.date<=s.ends_on).length;
+   projectedGame+=rate*futureGames*Number(s.pay_per_game_amount);
+ });
+ const outstandingSeason=unpaidSeason.length*Number(s.season_ticket_amount);
+ const unpaidGameAmount=unpaidGame.reduce((a,{})=>a+Number(s.pay_per_game_amount),0);
+ const futureExpenses=expenses.filter(x=>!x.paid&&x.due_date>=new Date().toISOString().slice(0,10)).reduce((a,x)=>a+Number(x.amount),0);
+ const projectedEnd=balance+outstandingSeason+unpaidGameAmount+projectedGame-futureExpenses;
+ const seasonTicketRows=seasonPlayers.map(p=>{
+   const t=ticketByPlayer.get(p.id);
+   return '<tr><td><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><b>'+esc(p.name)+'</b></div></td><td>'+money(t?.amount??s.season_ticket_amount)+'</td><td>'+badge(t?.paid?"Paid":"Needs payment",t?.paid?"green":"red")+'</td><td>'+(can("payments.manage")?'<button class="btn btn-secondary" data-fin-ticket="'+p.id+'" data-paid="'+(t?.paid?"true":"false")+'">'+(t?.paid?"Mark unpaid":"Mark paid")+'</button>':"")+'</td></tr>';
+ }).join("");
+ const dueRows=[
+   ...unpaidSeason.map(p=>'<tr><td>'+esc(p.name)+'</td><td>Season ticket</td><td>'+money(s.season_ticket_amount)+'</td><td>'+badge("Due","red")+'</td></tr>'),
+   ...unpaidGame.map(({g,x})=>'<tr><td>'+esc(x.guest?(x.name||"Guest"):(player(x.playerId)?.name||"Player"))+'</td><td>'+esc(dateText(g.date))+'</td><td>'+money(s.pay_per_game_amount)+'</td><td>'+badge("Due","red")+'</td></tr>')
+ ].join("");
+ const expenseRows=expenses.map(x=>'<tr><td>'+esc(new Date(x.due_date+"T12:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}))+'</td><td>'+esc(x.description)+'</td><td>'+money(x.amount)+'</td><td>'+badge(x.paid?"Paid":"Upcoming",x.paid?"green":x.due_date<new Date().toISOString().slice(0,10)?"red":"amber")+'</td><td>'+(can("payments.manage")?'<button class="btn btn-secondary" data-fin-expense="'+x.id+'">'+(x.paid?"Mark unpaid":"Mark paid")+'</button>':"")+'</td></tr>').join("");
+ const forecastRows=expenses.filter(x=>!x.paid).reduce((m,x)=>{const k=x.due_date.slice(0,7);m[k]=(m[k]||0)+Number(x.amount);return m;},{});
+ return '<div class="page-head"><div><div class="eyebrow">FINANCE</div><h1 class="title">Finances</h1><p class="muted">Season income, pitch costs, outstanding payments and forward balance.</p></div><div class="actions">'+(can("payments.manage")?'<button class="btn btn-secondary" data-a="new-finance-season">+ Season</button><button class="btn btn-primary" data-a="edit-finance-season" data-id="'+s.id+'">Edit pricing</button>':"")+'</div></div>'+
+ '<section class="card finance-toolbar"><div><label>Season<select id="finance-season-select">'+financeData.seasons.map(x=>'<option value="'+x.id+'" '+(x.id===s.id?"selected":"")+'>'+esc(x.name)+'</option>').join("")+'</select></label></div><div class="finance-rates"><span>Season ticket <b>'+money(s.season_ticket_amount)+'</b></span><span>Pay per game <b>'+money(s.pay_per_game_amount)+'</b></span></div></section>'+
+ '<div class="stats finance-stats"><div class="stat"><div class="stat-icon">€</div><div><small>CURRENT BALANCE</small><strong>'+money(balance)+'</strong></div></div><div class="stat"><div class="stat-icon">↑</div><div><small>EXPECTED INCOME</small><strong>'+money(outstandingSeason+unpaidGameAmount+projectedGame)+'</strong></div></div><div class="stat"><div class="stat-icon">↓</div><div><small>FUTURE PITCH COSTS</small><strong>'+money(futureExpenses)+'</strong></div></div><div class="stat"><div class="stat-icon">◎</div><div><small>PROJECTED END BALANCE</small><strong>'+money(projectedEnd)+'</strong></div></div></div>'+
+ '<section class="analytics-grid"><div class="card analytics-card"><div class="card-title"><div><h3>Season ticket holders</h3><p>Who purchased a ticket and for which season.</p></div></div><div class="table-card finance-table"><table><thead><tr><th>Player</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>'+(seasonTicketRows||'<tr><td colspan="4" class="empty">No season-ticket players.</td></tr>')+'</tbody></table></div></div>'+
+ '<div class="card analytics-card"><div class="card-title"><div><h3>Who still needs to pay?</h3><p>Outstanding season tickets and attended pay-per-game matches.</p></div></div><div class="table-card finance-table"><table><thead><tr><th>Person</th><th>For</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+(dueRows||'<tr><td colspan="4" class="empty">Nothing outstanding.</td></tr>')+'</tbody></table></div></div></section>'+
+ '<section class="card finance-card"><div class="section-head"><div><h2>Pitch rental payments</h2><p>Scheduled costs for '+esc(s.name)+'.</p></div>'+(can("payments.manage")?'<button class="btn btn-primary" data-a="new-finance-expense">+ Add payment</button>':"")+'</div><div class="table-card finance-table"><table><thead><tr><th>Due</th><th>Description</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>'+expenseRows+'</tbody></table></div></section>'+
+ '<section class="card finance-card"><div class="section-head"><div><h2>Financial outlook</h2><p>Projection assumes all outstanding dues are collected and uses current pay-per-game attendance rates for future games.</p></div></div><div class="finance-outlook"><div><span>Collected so far</span><b>'+money(actualSeasonIncome+actualGameIncome)+'</b></div><div><span>Pitch costs paid</span><b>'+money(paidExpenses)+'</b></div><div><span>Projected game income</span><b>'+money(projectedGame)+'</b></div><div><span>Projected end balance</span><b>'+money(projectedEnd)+'</b></div></div><div class="forecast-list">'+Object.keys(forecastRows).sort().map(k=>'<div><span>'+esc(k)+'</span><b>'+money(forecastRows[k])+'</b></div>').join("")+'</div></section>';
+}
+
 function admin(){
  if(!can("access.manage"))return '<section class="card empty"><h2>Access management</h2><p>You do not have permission to manage site access.</p></section>';
  const members=access.members||[],rp=access.rolePermissions||[],roles=ROLES.filter(x=>x[0]!=="super_admin");
@@ -243,6 +316,19 @@ function act(a,id){
 }
 if(a==="add-player"){const selectedGame=game();const used=new Set(selectedGame.participants.filter(x=>!x.guest).map(x=>x.playerId));const av=state.players.filter(p=>!used.has(p.id));return modal("Add player to game",'<form id="pick-form" data-game-id="'+esc(selectedGame.id)+'"><label>Player<select name="id" required>'+av.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("")+'</select></label>'+(av.length?'':'<p class="notice">Everyone on the roster is already assigned to this game.</p>')+'<div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary" '+(!av.length?"disabled":"")+'>Add player</button></div></form>');}
  if(a==="guest")return modal("Add guest",'<form id="guest-form"><label>Guest name<input name="name" required autofocus></label><p class="notice">Guest payment is tracked for this game only.</p><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Add guest</button></div></form>');
+ if(a==="new-finance-season"){
+  if(!can("payments.manage"))return;
+  return modal("New season",'<form id="finance-season-form"><label>Name<input name="name" required placeholder="2027/28"></label><div class="form-grid"><label>Starts<input name="starts_on" type="date" required></label><label>Ends<input name="ends_on" type="date" required></label></div><label>Season ticket amount<input name="season_ticket_amount" type="number" min="0" step="0.01" value="0"></label><label>Pay per game amount<input name="pay_per_game_amount" type="number" min="0" step="0.01" value="0"></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Create season</button></div></form>');
+}
+ if(a==="edit-finance-season"){
+  if(!can("payments.manage"))return;
+  const s=financeData.seasons.find(x=>x.id===id);if(!s)return;
+  return modal("Edit season pricing",'<form id="finance-season-form" data-id="'+esc(s.id)+'"><label>Name<input name="name" value="'+esc(s.name)+'" required></label><div class="form-grid"><label>Starts<input name="starts_on" type="date" value="'+esc(s.starts_on)+'" required></label><label>Ends<input name="ends_on" type="date" value="'+esc(s.ends_on)+'" required></label></div><label>Season ticket amount<input name="season_ticket_amount" type="number" min="0" step="0.01" value="'+esc(s.season_ticket_amount)+'"></label><label>Pay per game amount<input name="pay_per_game_amount" type="number" min="0" step="0.01" value="'+esc(s.pay_per_game_amount)+'"></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save changes</button></div></form>');
+ }
+ if(a==="new-finance-expense"){
+  if(!can("payments.manage"))return;
+  return modal("Schedule pitch payment",'<form id="finance-expense-form"><label>Due date<input name="due_date" type="date" required></label><label>Description<input name="description" value="Pitch rental" required></label><label>Amount<input name="amount" type="number" min="0" step="0.01" required></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Schedule payment</button></div></form>');
+ } 
  if(a==="new-member")return modal("Add member",'<form id="member-form"><label>Email<input name="email" type="email" required placeholder="admin@example.com"></label><label>Name<input name="display_name" placeholder="Optional display name"></label><label>Profile<select name="role">'+ROLES.map(r=>'<option value="'+r[0]+'">'+r[1]+'</option>').join("")+'</select></label><label class="checkline"><input name="active" type="checkbox" checked> Active access</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save member</button></div></form>');
  if(a==="edit-member"){const m=access.members.find(x=>x.email===id);if(!m)return;return modal("Edit member",'<form id="member-form" data-email="'+esc(m.email)+'"><label>Email<input name="email" type="email" value="'+esc(m.email)+'" readonly></label><label>Name<input name="display_name" value="'+esc(m.display_name||"")+'"></label><label>Profile<select name="role">'+ROLES.map(r=>'<option value="'+r[0]+'" '+(r[0]===m.role?"selected":"")+'>'+r[1]+'</option>').join("")+'</select></label><label class="checkline"><input name="active" type="checkbox" '+(m.active?"checked":"")+'> Active access</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save member</button></div></form>');}
  if(a==="delete-member"){const m=access.members.find(x=>x.email===id);if(!m||!confirm("Remove "+m.email+" from site access?"))return;sb.rpc("admin_delete_access",{p_email:m.email}).then(x=>x.error?alert(x.error.message):loadAccess().then(render));}
@@ -254,7 +340,7 @@ function previewBanner(){
 function render(){
  const app=document.getElementById("app");
  document.querySelectorAll(".nav-item").forEach(b=>{b.classList.toggle("active",b.dataset.view===view);b.style.display=b.dataset.permission&&!can(b.dataset.permission)?"none":"";});
- app.innerHTML=previewBanner()+(view==="dashboard"?dashboard():view==="players"?players():view==="games"?games():view==="admin"?admin():dashboard());
+ app.innerHTML=previewBanner()+(view==="dashboard"?dashboard():view==="players"?players():view==="games"?games():view==="finance"?finance():view==="admin"?admin():dashboard());
  document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{view=b.dataset.view;render();});
  document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>act(b.dataset.a,b.dataset.id));
  document.querySelectorAll("[data-game]").forEach(b=>b.onclick=()=>{gameId=b.dataset.game;view="dashboard";render();});
@@ -266,6 +352,25 @@ function render(){
    if(next){gameId=next.id;render();}
  });
  document.querySelectorAll("[data-game-filter]").forEach(b=>b.onclick=()=>{gameFilter=b.dataset.gameFilter;render();});
+ document.getElementById("finance-season-select")?.addEventListener("change",e=>{financeSeasonId=e.target.value;render();});
+
+document.querySelectorAll("[data-fin-ticket]").forEach(b=>b.onclick=async()=>{
+ const pid=b.dataset.finTicket, paid=b.dataset.paid==="true";
+ if(!can("payments.manage"))return;
+ const existing=financeData.tickets.find(x=>x.season_id===financeSeasonId&&x.player_id===pid);
+ let q;
+ if(existing) q=await sb.from("finance_season_tickets").update({amount:Number(financeData.seasons.find(x=>x.id===financeSeasonId)?.season_ticket_amount||0),paid:!paid,paid_on:!paid?new Date().toISOString().slice(0,10):null}).eq("id",existing.id);
+ else q=await sb.from("finance_season_tickets").insert({season_id:financeSeasonId,player_id:pid,amount:Number(financeData.seasons.find(x=>x.id===financeSeasonId)?.season_ticket_amount||0),paid:true,paid_on:new Date().toISOString().slice(0,10)});
+ if(q.error){alert(q.error.message);return;}await loadFinance();render();
+});
+document.querySelectorAll("[data-fin-expense]").forEach(b=>b.onclick=async()=>{
+ const id=b.dataset.finExpense, x=financeData.expenses.find(x=>x.id===id);
+ if(!x||!can("payments.manage"))return;
+ const q=await sb.from("finance_expenses").update({paid:!x.paid,paid_on:!x.paid?new Date().toISOString().slice(0,10):null}).eq("id",id);
+ if(q.error){alert(q.error.message);return;}await loadFinance();render();
+});
+document.querySelectorAll("[data-finance-season-select]").forEach(b=>b.onchange=()=>{financeSeasonId=b.value;render();});
+
  document.querySelectorAll("[data-perm-role]").forEach(b=>b.onchange=async()=>{const x=await sb.rpc("admin_update_permission",{p_role:b.dataset.permRole,p_permission:b.dataset.perm,p_enabled:b.checked});if(x.error){b.checked=!b.checked;alert(x.error.message);return;}await loadAccess();render();});
  document.querySelectorAll("[data-t]").forEach(b=>b.onchange=async()=>{
   const p=game().participants.find(x=>x.rowId===b.dataset.id);
@@ -276,11 +381,25 @@ function render(){
 });
 }
 document.addEventListener("click",e=>{const c=e.target.closest("[data-close]");if(c){e.preventDefault();document.getElementById("modal-root").innerHTML="";}});
-console.info("[Football] APP BUILD 20260824-24 loaded");
+console.info("[Football] APP BUILD 20260824-25 loaded");
 document.addEventListener("submit",async e=>{
  console.info("[Football] SUBMIT EVENT", { id:e.target?.id, tag:e.target?.tagName, action:e.submitter?.textContent?.trim() });
  e.preventDefault();const f=new FormData(e.target);
- if(e.target.id==="member-form"){const x=await sb.rpc("admin_upsert_access",{p_email:f.get("email").trim().toLowerCase(),p_display_name:f.get("display_name").trim(),p_role:f.get("role"),p_active:f.has("active")});if(x.error){alert(x.error.message);return;}await loadAccess();document.getElementById("modal-root").innerHTML="";render();return;}
+ if(e.target.id==="finance-season-form"){
+  if(!can("payments.manage"))return;
+  const payload={name:f.get("name").trim(),starts_on:f.get("starts_on"),ends_on:f.get("ends_on"),season_ticket_amount:Number(f.get("season_ticket_amount")||0),pay_per_game_amount:Number(f.get("pay_per_game_amount")||0)};
+  if(payload.ends_on<=payload.starts_on)return alert("Season end must be after season start.");
+  const q=e.target.dataset.id?await sb.from("finance_seasons").update(payload).eq("id",e.target.dataset.id):await sb.from("finance_seasons").insert(payload);
+  if(q.error){alert(q.error.message);return;}
+  await loadFinance();document.getElementById("modal-root").innerHTML="";render();return;
+}
+if(e.target.id==="finance-expense-form"){
+  if(!can("payments.manage"))return;
+  const q=await sb.from("finance_expenses").insert({season_id:financeSeasonId,due_date:f.get("due_date"),description:f.get("description").trim(),category:"Pitch rental",amount:Number(f.get("amount")||0),paid:false});
+  if(q.error){alert(q.error.message);return;}
+  await loadFinance();document.getElementById("modal-root").innerHTML="";render();return;
+}
+if(e.target.id==="member-form"){const x=await sb.rpc("admin_upsert_access",{p_email:f.get("email").trim().toLowerCase(),p_display_name:f.get("display_name").trim(),p_role:f.get("role"),p_active:f.has("active")});if(x.error){alert(x.error.message);return;}await loadAccess();document.getElementById("modal-root").innerHTML="";render();return;}
  if(e.target.id==="game-form"){
   const date=f.get("date"),start=f.get("startTime"),end=f.get("endTime");
   if(!date||!start||!end)return alert("Date, start time and end time are required.");
