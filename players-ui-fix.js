@@ -50,9 +50,8 @@
     if (badge.textContent !== nextText) badge.textContent = nextText;
   }
 
-  // The Players page no longer owns finance settings. The underlying player
-  // record still needs its existing finance values preserved when a player is
-  // edited, so keep them as hidden form values while removing them visually.
+  // Finance settings are no longer editable on the Players page. Preserve the
+  // existing values invisibly so editing a player's name cannot overwrite them.
   function removeFinanceFieldsFromPlayerModal() {
     const form = document.getElementById("player-form");
     if (!form) return;
@@ -69,8 +68,8 @@
         form.appendChild(hiddenModel);
       }
 
-      // Only add the hidden payment flag when it was actually checked. This
-      // preserves the existing value without turning an unpaid ticket into paid.
+      // Only preserve the checkbox when it was checked. Absence means false to
+      // the existing save handler, so unpaid players stay unpaid.
       if (seasonPaid?.checked) {
         const hiddenPaid = document.createElement("input");
         hiddenPaid.type = "hidden";
@@ -111,6 +110,12 @@
     removeFinanceFieldsFromPlayerModal();
     ensureMobileNavVisible();
   }
+
+  // Capture the submit before app.js handles the form, covering the small
+  // window between opening the modal and the MutationObserver callback.
+  document.addEventListener("submit", event => {
+    if (event.target?.id === "player-form") removeFinanceFieldsFromPlayerModal();
+  }, true);
 
   apply();
 
