@@ -14,7 +14,8 @@ Each player has:
 - Name
 - Active / inactive status
 - **Season Ticket** or **Pay per game** payment model
-- Season Ticket payment status
+
+Season-ticket purchases are managed separately in Finance and are tied to a specific **player + season**. A player can therefore have season tickets for multiple seasons.
 
 ### Games
 
@@ -24,7 +25,6 @@ For every game, admins can:
 - Create the game
 - Add regular players
 - Add guest players
-- Mark who is **Playing**
 - Mark who was **Present**
 - Track payment
 
@@ -33,8 +33,8 @@ For every game, admins can:
 The payment rules are deliberately simple:
 
 **Season Ticket**
-- Payment is made once for the season.
-- The player's season payment status is shown on every game.
+- Payment is made once for a specific season.
+- The player's season-ticket purchase and paid status are managed in Finance.
 - Attendance does not create another payment obligation.
 
 **Pay per game**
@@ -86,7 +86,6 @@ The project is a zero-build static web application:
 - 'style.css' — responsive UI
 - 'app.js' — application logic, authentication and RBAC
 - 'supabase-config.js' — Supabase project configuration
-- 'supabase-rbac.sql' — database security and role configuration
 - 'README.md' — project documentation
 
 
@@ -101,6 +100,8 @@ For each season you can configure:
 - Scheduled pitch-rental expenses
 - Paid/unpaid status
 
+Each season-ticket purchase is stored against its player and season, so historical seasons remain independent.
+
 The Finance dashboard shows:
 - Current balance
 - Outstanding payments
@@ -109,3 +110,5 @@ The Finance dashboard shows:
 - Projected end-of-season balance
 
 Run `supabase-finance.sql` once in the Supabase SQL Editor to create the finance tables and seed the 2026/27 pitch-rental schedule.
+
+Run `supabase-finance-season-tickets.sql` to migrate legacy season-ticket status into the per-player/per-season model.
