@@ -85,7 +85,8 @@ async function save(){
  }
 }
 
-async function loadRemote(){
+async function loadRemote(options={}){
+ const preserveGameId=gameId;
  const p=await sb.from("players").select("*").order("name");
  const g=await sb.from("games").select("*").order("game_date");
  const r=await sb.from("game_players").select("*");
@@ -95,7 +96,14 @@ async function loadRemote(){
  const map=new Map(state.games.map(x=>[x.id,x]));
  (r.data||[]).forEach(x=>{const g=map.get(x.game_id);if(g)g.participants.push({rowId:x.id,playerId:x.player_id,guest:!x.player_id,name:x.guest_name,playing:x.playing,attended:x.attended,paid:x.paid});});
  if(!state.games.length&&can("games.manage")){state.games=makeSeasonGames();gameId=state.games[0]?.id;await save();}
- gameId=state.games.find(x=>x.date>=new Date().toISOString().slice(0,10))?.id||state.games[0]?.id;
+ if(!state.games.length){gameId=null;return;}
+ // Keep the game the user is currently working on. Only pick the next upcoming
+ // game when there is no valid selection (e.g. the initial page load).
+ if(!options.resetSelection && preserveGameId && state.games.some(x=>x.id===preserveGameId)){
+   gameId=preserveGameId;
+ }else{
+   gameId=state.games.find(x=>x.date>=new Date().toISOString().slice(0,10))?.id||state.games[0]?.id;
+ }
 }
 function dashboard(){
  const g=game(),rows=g.participants||[],playing=rows.filter(x=>x.playing).length,present=rows.filter(x=>x.attended).length;
@@ -112,7 +120,7 @@ function dashboard(){
  const collection=payable?paid/payable*100:0;
  const leaders=[...state.players].sort((a,b)=>att(b)-att(a)).slice(0,5);
  return '<section class="hero"><div class="hero-pitch"></div><div class="hero-copy"><div class="eyebrow light">NEXT GAME</div><h1>'+dateText(g.date)+'</h1><p>⚽ '+esc(g.time)+' · '+esc(g.location)+'</p><div class="hero-actions">'+(can("attendance.manage")?'<button class="btn btn-light" data-a="add-player">+ Player</button>':"")+(can("attendance.manage")?'<button class="btn btn-ghost" data-a="guest">+ Guest</button>':"")+'</div></div><div class="hero-ball">⚽</div></section>'+
- '<div class="stats"><div class="stat"><div class="stat-icon">⚽</div><div><small>PLAYING FRIDAY</small><strong>'+playing+'</strong></div></div><div class="stat"><div class="stat-icon">✓</div><div><small>PRESENT FRIDAY</small><strong>'+present+'</strong></div></div><div class="stat"><div class="stat-icon">🎟</div><div><small>SEASON TICKETS</small><strong>'+season.length+'</strong></div></div><div class="stat"><div class="stat-icon">€</div><div><small>PAYMENTS DUE</small><strong>'+due+'</strong></div></div></div>'+
+ '<div class="stats"><div class="stat"><div class="stat-icon">⚽</div><div><small>PLAYING</small><strong>'+playing+'</strong></div></div><div class="stat"><div class="stat-icon">✓</div><div><small>PRESENT</small><strong>'+present+'</strong></div></div><div class="stat"><div class="stat-icon">🎟</div><div><small>SEASON TICKETS</small><strong>'+season.length+'</strong></div></div><div class="stat"><div class="stat-icon">€</div><div><small>PAYMENTS DUE</small><strong>'+due+'</strong></div></div></div>'+
  '<section class="analytics-grid"><div class="card analytics-card"><div class="card-title"><div><h3>Attendance overview</h3><p>Average attendance across recorded appearances.</p></div></div><div class="metric-row"><div><small>ALL PLAYERS</small><strong>'+all.toFixed(0)+'%</strong></div><div><small>PAY PER GAME</small><strong>'+payAvg.toFixed(0)+'%</strong></div><div><small>AVG PRESENT / GAME</small><strong>'+avg.toFixed(1)+'</strong></div></div></div>'+
  '<div class="card analytics-card"><div class="card-title"><div><h3>Payments</h3><p>Collection performance.</p></div></div><div class="progress-value"><strong>'+collection.toFixed(0)+'%</strong><span>'+paid+' of '+payable+' game payments collected</span></div><div class="progress"><i style="width:'+collection+'%"></i></div><div class="mini-stats"><span>Season tickets paid <b>'+season.filter(p=>p.seasonPaid).length+'/'+season.length+'</b></span><span>Games with attendance <b>'+completed+'</b></span></div></div></section>'+
  '<section class="section"><div class="section-head"><div><h2>Attendance leaders</h2><p>Top players by attendance rate.</p></div><button class="btn btn-secondary" data-view="players">View players →</button></div><div class="card leaders">'+leaders.map(p=>'<div class="leader-row"><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(p.name)+'</b><small>'+((p.model==="season")?"🎟 Season ticket":"Per game")+'</small></div></div><strong>'+att(p).toFixed(0)+'%</strong></div>').join("")+'</div></section>'+
@@ -272,21 +280,36 @@ document.addEventListener("submit",async e=>{
      document.getElementById("modal-root").innerHTML="";render();return;
    }
    const row={rowId:crypto.randomUUID(),playerId:p.id,guest:false,name:p.name,playing:true,attended:false,paid:false};
-   // Use the security-definer RPC for registered players. This avoids the
-   // browser-side RLS INSERT path and atomically prevents duplicate assignments.
-   const x=await sb.rpc("add_game_player",{p_game_id:g.id,p_player_id:p.id});
-   if(x.error){alert("Could not add player to game: "+x.error.message);return;}
-   // The RPC returns the existing/new record, but we intentionally use our
-   // local model so the squad updates immediately without another SELECT.
-   const saved=Array.isArray(x.data)?x.data[0]:x.data;
+   // Players are roster records, not user accounts. Assign the roster player
+   // directly to game_players using the normal attendance RLS policy.
+   const x=await sb.from("game_players").insert({
+     id:row.rowId,
+     game_id:g.id,
+     player_id:p.id,
+     guest_name:null,
+     playing:true,
+     attended:false,
+     paid:false
+   }).select("*").single();
+   if(x.error){
+     if(x.error.code==="23505"){
+       await loadRemote();
+       document.getElementById("modal-root").innerHTML="";
+       render();
+       return;
+     }
+     alert("Could not add player to game: "+x.error.message);
+     return;
+   }
+   const saved=x.data;
    g.participants.push({
-     rowId:saved?.id||row.rowId,
+     rowId:saved.id,
      playerId:p.id,
      guest:false,
      name:p.name,
-     playing:saved?.playing===undefined?true:!!saved.playing,
-     attended:!!saved?.attended,
-     paid:!!saved?.paid
+     playing:!!saved.playing,
+     attended:!!saved.attended,
+     paid:!!saved.paid
    });
    document.getElementById("modal-root").innerHTML="";
    render();
