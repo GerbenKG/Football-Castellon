@@ -223,8 +223,23 @@ document.addEventListener("submit",async e=>{
  if(e.target.id==="member-form"){const x=await sb.rpc("admin_upsert_access",{p_email:f.get("email").trim().toLowerCase(),p_display_name:f.get("display_name").trim(),p_role:f.get("role"),p_active:f.has("active")});if(x.error){alert(x.error.message);return;}await loadAccess();document.getElementById("modal-root").innerHTML="";render();return;}
  if(e.target.id==="game-form"){const date=f.get("date"),summer=[6,7].includes(new Date(date+"T12:00:00").getMonth()),start=summer?"20:00":f.get("time"),end=summer?"22:00":(()=>{const z=start.split(":").map(Number);return String(z[0]+2).padStart(2,"0")+":"+String(z[1]).padStart(2,"0")})();const g={id:crypto.randomUUID(),date,startTime:start,endTime:end,time:start+"–"+end,location:f.get("location"),participants:[]};state.games.push(g);gameId=g.id;}
  if(e.target.id==="player-form"){let p=player(e.target.dataset.id);if(!p){p={id:crypto.randomUUID()};state.players.push(p);}p.name=f.get("name").trim();p.model=f.get("model");p.seasonPaid=f.has("seasonPaid");}
- if(e.target.id==="pick-form")game().participants.push({playerId:f.get("id"),playing:true,attended:false,paid:false});
- if(e.target.id==="guest-form")game().participants.push({rowId:crypto.randomUUID(),playerId:crypto.randomUUID(),guest:true,name:f.get("name").trim(),playing:true,attended:false,paid:false});
+ if(e.target.id==="pick-form"){
+   const g=game(),p=player(f.get("id"));
+   if(!g||!p)return alert("No Friday or player selected.");
+   const row={rowId:crypto.randomUUID(),playerId:p.id,guest:false,name:p.name,playing:true,attended:false,paid:false};
+   const x=await sb.from("game_players").insert({id:row.rowId,game_id:g.id,player_id:p.id,guest_name:null,playing:true,attended:false,paid:false});
+   if(x.error){alert("Could not add player to Friday: "+x.error.message);return;}
+   g.participants.push(row);
+   document.getElementById("modal-root").innerHTML="";render();return;
+ }
+ if(e.target.id==="guest-form"){
+   const g=game(),name=f.get("name").trim(),row={rowId:crypto.randomUUID(),playerId:null,guest:true,name,playing:true,attended:false,paid:false};
+   if(!g||!name)return alert("No Friday or guest name supplied.");
+   const x=await sb.from("game_players").insert({id:row.rowId,game_id:g.id,player_id:null,guest_name:name,playing:true,attended:false,paid:false});
+   if(x.error){alert("Could not add guest: "+x.error.message);return;}
+   g.participants.push(row);
+   document.getElementById("modal-root").innerHTML="";render();return;
+ }
  try{await save();await loadRemote();document.getElementById("modal-root").innerHTML="";render();}catch(err){alert(err.message||"Could not save changes.");}
 });
 document.getElementById("newGame").onclick=()=>{if(can("games.manage"))act("new-game");};
