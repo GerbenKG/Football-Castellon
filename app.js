@@ -53,33 +53,38 @@ function makeSeasonGames(){
 }
 async function save(){
  if(!currentUser)return;
+ const check=async(q,label)=>{if(q.error)throw new Error(label+": "+q.error.message);return q;};
  if(can("players.manage")){
-  const rp=await sb.from("players").select("id"), ids=new Set(state.players.map(p=>p.id));
-  if(state.players.length)await sb.from("players").upsert(state.players.map(p=>({id:p.id,name:p.name,model:p.model,season_paid:!!p.seasonPaid})));
-  for(const p of rp.data||[])if(!ids.has(p.id))await sb.from("players").delete().eq("id",p.id);
+  const rp=await check(await sb.from("players").select("id"),"Loading players");
+  const ids=new Set(state.players.map(p=>p.id));
+  if(state.players.length)await check(await sb.from("players").upsert(state.players.map(p=>({id:p.id,name:p.name,model:p.model,season_paid:!!p.seasonPaid}))),"Saving players");
+  for(const p of rp.data||[])if(!ids.has(p.id))await check(await sb.from("players").delete().eq("id",p.id),"Deleting player");
  }
  if(can("games.manage")){
-  const rg=await sb.from("games").select("id"),ids=new Set(state.games.map(g=>g.id));
-  if(state.games.length)await sb.from("games").upsert(state.games.map(g=>({id:g.id,game_date:g.date,start_time:g.startTime,end_time:g.endTime,location:g.location})));
-  for(const g of rg.data||[])if(!ids.has(g.id))await sb.from("games").delete().eq("id",g.id);
+  const rg=await check(await sb.from("games").select("id"),"Loading games");
+  const ids=new Set(state.games.map(g=>g.id));
+  if(state.games.length)await check(await sb.from("games").upsert(state.games.map(g=>({id:g.id,game_date:g.date,start_time:g.startTime,end_time:g.endTime,location:g.location}))),"Saving games");
+  for(const g of rg.data||[])if(!ids.has(g.id))await check(await sb.from("games").delete().eq("id",g.id),"Deleting game");
  }
  if(can("attendance.manage")){
-  const rr=await sb.from("game_players").select("id"),ids=new Set(),rows=[];
+  const rr=await check(await sb.from("game_players").select("id"),"Loading Friday squad");
+  const ids=new Set(),rows=[];
   state.games.forEach(g=>(g.participants||[]).forEach(x=>{
    if(!x.rowId)x.rowId=crypto.randomUUID();ids.add(x.rowId);
    rows.push({id:x.rowId,game_id:g.id,player_id:x.guest?null:x.playerId,guest_name:x.guest?x.name:null,playing:!!x.playing,attended:!!x.attended,paid:!!x.paid});
   }));
-  if(rows.length)await sb.from("game_players").upsert(rows);
-  for(const x of rr.data||[])if(!ids.has(x.id))await sb.from("game_players").delete().eq("id",x.id);
+  if(rows.length)await check(await sb.from("game_players").upsert(rows),"Saving Friday squad");
+  for(const x of rr.data||[])if(!ids.has(x.id))await check(await sb.from("game_players").delete().eq("id",x.id),"Deleting Friday squad record");
  }
  if(can("payments.manage")){
-  await sb.from("payments").delete().neq("id","00000000-0000-0000-0000-000000000000");
+  await check(await sb.from("payments").delete().neq("id","00000000-0000-0000-0000-000000000000"),"Resetting payments");
   const ps=[];
   state.players.filter(p=>p.model==="season"&&p.seasonPaid).forEach(p=>ps.push({id:crypto.randomUUID(),player_id:p.id,payment_type:"season",paid:true}));
   state.games.forEach(g=>(g.participants||[]).forEach(x=>{if(!x.guest&&x.attended&&x.paid)ps.push({id:crypto.randomUUID(),player_id:x.playerId,game_id:g.id,payment_type:"game",paid:true});}));
-  if(ps.length)await sb.from("payments").insert(ps);
+  if(ps.length)await check(await sb.from("payments").insert(ps),"Saving payments");
  }
 }
+
 async function loadRemote(){
  const p=await sb.from("players").select("*").order("name");
  const g=await sb.from("games").select("*").order("game_date");
@@ -88,7 +93,7 @@ async function loadRemote(){
  state.players=(p.data||[]).map(x=>({id:x.id,name:x.name,model:x.model,seasonPaid:x.season_paid}));
  state.games=(g.data||[]).map(x=>({id:x.id,date:x.game_date,startTime:String(x.start_time).slice(0,5),endTime:String(x.end_time).slice(0,5),time:String(x.start_time).slice(0,5)+"–"+String(x.end_time).slice(0,5),location:x.location,participants:[]}));
  const map=new Map(state.games.map(x=>[x.id,x]));
- (r.data||[]).forEach(x=>{const g=map.get(x.game_id);if(g)g.participants.push({rowId:x.id,playerId:x.player_id||x.id,guest:!x.player_id,name:x.guest_name,playing:x.playing,attended:x.attended,paid:x.paid});});
+ (r.data||[]).forEach(x=>{const g=map.get(x.game_id);if(g)g.participants.push({rowId:x.id,playerId:x.player_id,guest:!x.player_id,name:x.guest_name,playing:x.playing,attended:x.attended,paid:x.paid});});
  if(!state.games.length&&can("games.manage")){state.games=makeSeasonGames();gameId=state.games[0]?.id;await save();}
  gameId=state.games.find(x=>x.date>=new Date().toISOString().slice(0,10))?.id||state.games[0]?.id;
 }
@@ -220,7 +225,7 @@ document.addEventListener("submit",async e=>{
  if(e.target.id==="player-form"){let p=player(e.target.dataset.id);if(!p){p={id:crypto.randomUUID()};state.players.push(p);}p.name=f.get("name").trim();p.model=f.get("model");p.seasonPaid=f.has("seasonPaid");}
  if(e.target.id==="pick-form")game().participants.push({playerId:f.get("id"),playing:true,attended:false,paid:false});
  if(e.target.id==="guest-form")game().participants.push({rowId:crypto.randomUUID(),playerId:crypto.randomUUID(),guest:true,name:f.get("name").trim(),playing:true,attended:false,paid:false});
- await save();document.getElementById("modal-root").innerHTML="";render();
+ try{await save();await loadRemote();document.getElementById("modal-root").innerHTML="";render();}catch(err){alert(err.message||"Could not save changes.");}
 });
 document.getElementById("newGame").onclick=()=>{if(can("games.manage"))act("new-game");};
 document.getElementById("signOut").onclick=async()=>{await sb.auth.signOut();location.reload();};
