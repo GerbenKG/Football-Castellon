@@ -21,7 +21,7 @@ const game=()=>state.games.find(g=>g.id===gameId)||state.games[0]||{participants
 const dateText=d=>new Date(d+"T12:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
 const badge=(t,c="slate")=>'<span class="badge badge-'+c+'">'+t+"</span>";
 
-function showFatal(m){document.getElementById("app").innerHTML='<section class="card error-card"><h2>Friday Football could not start</h2><p>'+esc(m)+'</p></section>';}
+function showFatal(m){document.getElementById("app").innerHTML='<section class="card error-card"><h2>Football could not start</h2><p>'+esc(m)+'</p></section>';}
 function accessDenied(){
  const e=currentUser?.email||"";
  document.getElementById("app").innerHTML='<section class="auth-card card access-denied"><div class="ball-logo">🔒</div><div class="eyebrow">ACCESS CONTROLLED</div><h1>Access pending</h1><p class="muted">The Google account <b>'+esc(e)+'</b> is not on the admin list.</p><p class="muted">Ask a Super Admin to add this email under <b>Admin & Access</b>, then sign in again.</p><button id="denied-out" class="btn btn-secondary">Sign out</button></section>';
@@ -67,14 +67,14 @@ async function save(){
   for(const g of rg.data||[])if(!ids.has(g.id))await check(await sb.from("games").delete().eq("id",g.id),"Deleting game");
  }
  if(can("attendance.manage")){
-  const rr=await check(await sb.from("game_players").select("id"),"Loading Friday squad");
+  const rr=await check(await sb.from("game_players").select("id"),"Loading Game squad");
   const ids=new Set(),rows=[];
   state.games.forEach(g=>(g.participants||[]).forEach(x=>{
    if(!x.rowId)x.rowId=crypto.randomUUID();ids.add(x.rowId);
    rows.push({id:x.rowId,game_id:g.id,player_id:x.guest?null:x.playerId,guest_name:x.guest?x.name:null,playing:!!x.playing,attended:!!x.attended,paid:!!x.paid});
   }));
-  if(rows.length)await check(await sb.from("game_players").upsert(rows),"Saving Friday squad");
-  for(const x of rr.data||[])if(!ids.has(x.id))await check(await sb.from("game_players").delete().eq("id",x.id),"Deleting Friday squad record");
+  if(rows.length)await check(await sb.from("game_players").upsert(rows),"Saving Game squad");
+  for(const x of rr.data||[])if(!ids.has(x.id))await check(await sb.from("game_players").delete().eq("id",x.id),"Deleting Game squad record");
  }
  if(can("payments.manage")){
   await check(await sb.from("payments").delete().neq("id","00000000-0000-0000-0000-000000000000"),"Resetting payments");
@@ -111,12 +111,12 @@ function dashboard(){
  const payable=state.games.reduce((a,x)=>a+(x.participants||[]).filter(p=>p.attended&&!p.guest&&player(p.playerId)?.model==="game").length,0);
  const collection=payable?paid/payable*100:0;
  const leaders=[...state.players].sort((a,b)=>att(b)-att(a)).slice(0,5);
- return '<section class="hero"><div class="hero-pitch"></div><div class="hero-copy"><div class="eyebrow light">NEXT FRIDAY</div><h1>'+dateText(g.date)+'</h1><p>⚽ '+esc(g.time)+' · '+esc(g.location)+'</p><div class="hero-actions">'+(can("attendance.manage")?'<button class="btn btn-light" data-a="add-player">+ Player</button>':"")+(can("attendance.manage")?'<button class="btn btn-ghost" data-a="guest">+ Guest</button>':"")+'</div></div><div class="hero-ball">⚽</div></section>'+
+ return '<section class="hero"><div class="hero-pitch"></div><div class="hero-copy"><div class="eyebrow light">NEXT GAME</div><h1>'+dateText(g.date)+'</h1><p>⚽ '+esc(g.time)+' · '+esc(g.location)+'</p><div class="hero-actions">'+(can("attendance.manage")?'<button class="btn btn-light" data-a="add-player">+ Player</button>':"")+(can("attendance.manage")?'<button class="btn btn-ghost" data-a="guest">+ Guest</button>':"")+'</div></div><div class="hero-ball">⚽</div></section>'+
  '<div class="stats"><div class="stat"><div class="stat-icon">⚽</div><div><small>PLAYING FRIDAY</small><strong>'+playing+'</strong></div></div><div class="stat"><div class="stat-icon">✓</div><div><small>PRESENT FRIDAY</small><strong>'+present+'</strong></div></div><div class="stat"><div class="stat-icon">🎟</div><div><small>SEASON TICKETS</small><strong>'+season.length+'</strong></div></div><div class="stat"><div class="stat-icon">€</div><div><small>PAYMENTS DUE</small><strong>'+due+'</strong></div></div></div>'+
  '<section class="analytics-grid"><div class="card analytics-card"><div class="card-title"><div><h3>Attendance overview</h3><p>Average attendance across recorded appearances.</p></div></div><div class="metric-row"><div><small>ALL PLAYERS</small><strong>'+all.toFixed(0)+'%</strong></div><div><small>PAY PER GAME</small><strong>'+payAvg.toFixed(0)+'%</strong></div><div><small>AVG PRESENT / GAME</small><strong>'+avg.toFixed(1)+'</strong></div></div></div>'+
  '<div class="card analytics-card"><div class="card-title"><div><h3>Payments</h3><p>Collection performance.</p></div></div><div class="progress-value"><strong>'+collection.toFixed(0)+'%</strong><span>'+paid+' of '+payable+' game payments collected</span></div><div class="progress"><i style="width:'+collection+'%"></i></div><div class="mini-stats"><span>Season tickets paid <b>'+season.filter(p=>p.seasonPaid).length+'/'+season.length+'</b></span><span>Games with attendance <b>'+completed+'</b></span></div></div></section>'+
  '<section class="section"><div class="section-head"><div><h2>Attendance leaders</h2><p>Top players by attendance rate.</p></div><button class="btn btn-secondary" data-view="players">View players →</button></div><div class="card leaders">'+leaders.map(p=>'<div class="leader-row"><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(p.name)+'</b><small>'+((p.model==="season")?"🎟 Season ticket":"Per game")+'</small></div></div><strong>'+att(p).toFixed(0)+'%</strong></div>').join("")+'</div></section>'+
- '<section class="section"><div class="section-head"><div><h2>Friday squad</h2><p>Manage attendance and payment for this match.</p></div></div><div class="squad card">'+rows.map(x=>{
+ '<section class="section"><div class="section-head"><div><h2>Game squad</h2><p>Manage attendance and payment for this match.</p></div></div><div class="squad card">'+rows.map(x=>{
   const p=x.guest?null:player(x.playerId),name=x.guest?x.name:(p?.name||"Player"),type=x.guest?"Guest":p?.model==="season"?"🎟 Season":"Per game";
   const payLabel=x.guest?(x.paid?"Paid":"Due"):(p?.model==="season"?(p.seasonPaid?"Season paid":"Season unpaid"):(x.paid?"Paid":"Mark paid"));
   const pc=x.guest||p?.model==="season"?(x.paid||p?.seasonPaid?"green":"amber"):(x.paid?"green":"red");
@@ -174,14 +174,14 @@ function games(){
  const list=gameFilter==="upcoming"?upcoming:gameFilter==="past"?past:[...upcoming,...past];
  const next=upcoming[0];
  const filterButton=(key,label,count)=>'<button class="game-filter '+(gameFilter===key?"active":"")+'" data-game-filter="'+key+'">'+label+' <span>'+count+'</span></button>';
- return '<div class="page-head"><div><div class="eyebrow">FRIDAY OVERVIEW</div><h1 class="title">Who is playing?</h1><p class="muted">A quick view of every Friday, who is playing, who attended and which guests joined.</p></div>'+(can("games.manage")?'<button class="btn btn-primary" data-a="new-game">+ New Friday</button>':"")+'</div>'+
+ return '<div class="page-head"><div><div class="eyebrow">GAME OVERVIEW</div><h1 class="title">Who is playing?</h1><p class="muted">A quick view of every game, who is playing, who attended and which guests joined.</p></div>'+(can("games.manage")?'<button class="btn btn-primary" data-a="new-game">+ New Game</button>':"")+'</div>'+
    '<section class="game-overview-hero card">'+
-     '<div><div class="eyebrow">NEXT FRIDAY</div><h2>'+esc(next?dateText(next.date):"No upcoming Friday")+'</h2><p>'+esc(next?next.time+" · "+next.location:"Create a game to get started")+'</p></div>'+
+     '<div><div class="eyebrow">NEXT GAME</div><h2>'+esc(next?dateText(next.date):"No upcoming game")+'</h2><p>'+esc(next?next.time+" · "+next.location:"Create a game to get started")+'</p></div>'+
      '<div class="next-count"><strong>'+((next?.participants||[]).filter(x=>x.playing).length)+'</strong><span>playing</span></div>'+
      (next&&can("games.view")?'<button class="btn btn-primary" data-game="'+next.id+'">Open squad →</button>':"")+
    '</section>'+
-   '<div class="game-filter-bar">'+filterButton("upcoming","Upcoming",upcoming.length)+filterButton("past","Played",past.length)+filterButton("all","All Fridays",state.games.length)+'</div>'+
-   '<div class="game-overview-list">'+(list.length?list.map(g=>gameOverviewCard(g,today)).join(""):'<section class="card empty"><h2>No Fridays here</h2><p>Try another filter.</p></section>')+'</div>';
+   '<div class="game-filter-bar">'+filterButton("upcoming","Upcoming",upcoming.length)+filterButton("past","Played",past.length)+filterButton("all","All games",state.games.length)+'</div>'+
+   '<div class="game-overview-list">'+(list.length?list.map(g=>gameOverviewCard(g,today)).join(""):'<section class="card empty"><h2>No games here</h2><p>Try another filter.</p></section>')+'</div>';
 }
 function admin(){
  if(!can("access.manage"))return '<section class="card empty"><h2>Access management</h2><p>You do not have permission to manage site access.</p></section>';
@@ -204,14 +204,14 @@ function act(a,id){
   const row=game().participants.find(x=>x.rowId===id);
   if(!row)return;
   const label=row.guest?(row.name||"Guest"):(player(row.playerId)?.name||"Player");
-  if(!confirm("Remove "+label+" from this Friday squad?"))return;
+  if(!confirm("Remove "+label+" from this Game squad?"))return;
   game().participants=game().participants.filter(x=>x.rowId!==id);
   save().then(()=>loadRemote()).then(render).catch(err=>alert(err.message||"Could not remove squad member."));
   return;
 }
- if(a==="delete-player"){if(!can("players.manage")||!can("attendance.manage"))return;const p=player(id);if(!p||!confirm("Delete "+p.name+"? This also removes their Friday records."))return;state.players=state.players.filter(x=>x.id!==id);state.games.forEach(g=>g.participants=g.participants.filter(x=>x.playerId!==id));save().then(render);return;}
- if(a==="delete-game"){if(!can("games.manage")||!can("attendance.manage")||!can("payments.manage"))return;const t=state.games.find(x=>x.id===id);if(!t||state.games.length<=1)return alert("You must keep at least one Friday game.");if(!confirm("Delete "+dateText(t.date)+"? Attendance and payment records will also be removed."))return;state.games=state.games.filter(x=>x.id!==id);gameId=state.games[0]?.id;save().then(render);return;}
- if(a==="new-game"){return modal("New Friday",'<form id="game-form"><label>Date<input name="date" type="date" value="'+friday()+'" required></label><label>Kickoff<input name="time" type="time" value="19:30"></label><label>Location<input name="location" value="Castellón"></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Create Friday</button></div></form>');}
+ if(a==="delete-player"){if(!can("players.manage")||!can("attendance.manage"))return;const p=player(id);if(!p||!confirm("Delete "+p.name+"? This also removes their game records."))return;state.players=state.players.filter(x=>x.id!==id);state.games.forEach(g=>g.participants=g.participants.filter(x=>x.playerId!==id));save().then(render);return;}
+ if(a==="delete-game"){if(!can("games.manage")||!can("attendance.manage")||!can("payments.manage"))return;const t=state.games.find(x=>x.id===id);if(!t||state.games.length<=1)return alert("You must keep at least one game.");if(!confirm("Delete "+dateText(t.date)+"? Attendance and payment records will also be removed."))return;state.games=state.games.filter(x=>x.id!==id);gameId=state.games[0]?.id;save().then(render);return;}
+ if(a==="new-game"){return modal("New Game",'<form id="game-form"><label>Date<input name="date" type="date" value="'+nextGameDate()+'" required></label><div class="form-grid"><label>Start time<input name="startTime" type="time" value="20:00" required></label><label>End time<input name="endTime" type="time" value="22:00" required></label></div><label>Location<input name="location" value="Castellón"></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Create Game</button></div></form>');}
  if(a==="new-player"||a==="edit"){const p=a==="edit"?player(id):null;return modal(p?"Edit player":"Add player",'<form id="player-form" data-id="'+(p?.id||"")+'"><label>Name<input name="name" value="'+esc(p?.name||"")+'" required></label><label>Payment model<select name="model"><option value="game" '+(p?.model==="game"?"selected":"")+'>Pay per game</option><option value="season" '+(p?.model==="season"?"selected":"")+'>Season ticket</option></select></label><label class="checkline"><input name="seasonPaid" type="checkbox" '+(p?.seasonPaid?"checked":"")+'> Season ticket paid</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save player</button></div></form>');}
  if(a==="history"){
   const p=player(id);
@@ -225,8 +225,8 @@ function act(a,id){
     : '<p class="muted">No attended Fridays recorded yet.</p>';
   return modal("Attendance history — "+esc(p.name),body+'<div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Close</button></div>');
 }
-if(a==="add-player"){const used=new Set(game().participants.filter(x=>!x.guest).map(x=>x.playerId)),av=state.players.filter(p=>!used.has(p.id));return modal("Add player to Friday",'<form id="pick-form"><label>Player<select name="id">'+av.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join("")+'</select></label>'+(av.length?'':'<p class="notice">Everyone on the roster is already assigned to this Friday.</p>')+'<div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary" '+(!av.length?"disabled":"")+'>Add player</button></div></form>');}
- if(a==="guest")return modal("Add guest",'<form id="guest-form"><label>Guest name<input name="name" required autofocus></label><p class="notice">Guest payment is tracked for this Friday only.</p><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Add guest</button></div></form>');
+if(a==="add-player"){const used=new Set(game().participants.filter(x=>!x.guest).map(x=>x.playerId)),av=state.players.filter(p=>!used.has(p.id));return modal("Add player to game",'<form id="pick-form"><label>Player<select name="id">'+av.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join("")+'</select></label>'+(av.length?'':'<p class="notice">Everyone on the roster is already assigned to this Friday.</p>')+'<div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary" '+(!av.length?"disabled":"")+'>Add player</button></div></form>');}
+ if(a==="guest")return modal("Add guest",'<form id="guest-form"><label>Guest name<input name="name" required autofocus></label><p class="notice">Guest payment is tracked for this game only.</p><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Add guest</button></div></form>');
  if(a==="new-member")return modal("Add member",'<form id="member-form"><label>Email<input name="email" type="email" required placeholder="admin@example.com"></label><label>Name<input name="display_name" placeholder="Optional display name"></label><label>Profile<select name="role">'+ROLES.map(r=>'<option value="'+r[0]+'">'+r[1]+'</option>').join("")+'</select></label><label class="checkline"><input name="active" type="checkbox" checked> Active access</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save member</button></div></form>');
  if(a==="edit-member"){const m=access.members.find(x=>x.email===id);if(!m)return;return modal("Edit member",'<form id="member-form" data-email="'+esc(m.email)+'"><label>Email<input name="email" type="email" value="'+esc(m.email)+'" readonly></label><label>Name<input name="display_name" value="'+esc(m.display_name||"")+'"></label><label>Profile<select name="role">'+ROLES.map(r=>'<option value="'+r[0]+'" '+(r[0]===m.role?"selected":"")+'>'+r[1]+'</option>').join("")+'</select></label><label class="checkline"><input name="active" type="checkbox" '+(m.active?"checked":"")+'> Active access</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save member</button></div></form>');}
  if(a==="delete-member"){const m=access.members.find(x=>x.email===id);if(!m||!confirm("Remove "+m.email+" from site access?"))return;sb.rpc("admin_delete_access",{p_email:m.email}).then(x=>x.error?alert(x.error.message):loadAccess().then(render));}
@@ -256,16 +256,16 @@ document.addEventListener("click",e=>{const c=e.target.closest("[data-close]");i
 document.addEventListener("submit",async e=>{
  e.preventDefault();const f=new FormData(e.target);
  if(e.target.id==="member-form"){const x=await sb.rpc("admin_upsert_access",{p_email:f.get("email").trim().toLowerCase(),p_display_name:f.get("display_name").trim(),p_role:f.get("role"),p_active:f.has("active")});if(x.error){alert(x.error.message);return;}await loadAccess();document.getElementById("modal-root").innerHTML="";render();return;}
- if(e.target.id==="game-form"){const date=f.get("date"),summer=[6,7].includes(new Date(date+"T12:00:00").getMonth()),start=summer?"20:00":f.get("time"),end=summer?"22:00":(()=>{const z=start.split(":").map(Number);return String(z[0]+2).padStart(2,"0")+":"+String(z[1]).padStart(2,"0")})();const g={id:crypto.randomUUID(),date,startTime:start,endTime:end,time:start+"–"+end,location:f.get("location"),participants:[]};state.games.push(g);gameId=g.id;}
+ if(e.target.id==="game-form"){const date=f.get("date"),start=f.get("startTime"),end=f.get("endTime");if(!date||!start||!end)return alert("Date, start time and end time are required.");if(end<=start)return alert("End time must be later than start time.");const g={id:crypto.randomUUID(),date,startTime:start,endTime:end,time:start+"–"+end,location:f.get("location"),participants:[]};state.games.push(g);gameId=g.id;}
  if(e.target.id==="player-form"){let p=player(e.target.dataset.id);if(!p){p={id:crypto.randomUUID()};state.players.push(p);}p.name=f.get("name").trim();p.model=f.get("model");p.seasonPaid=f.has("seasonPaid");}
  if(e.target.id==="pick-form"){
    const g=game(),pid=f.get("id"),p=player(pid);
-   if(!g||!pid)return alert("No Friday or player selected.");
+   if(!g||!pid)return alert("No game or player selected.");
    if(!p)return alert("The selected player is not available in the current roster. Refresh the page and try again.");
    const local=g.participants.find(x=>!x.guest&&x.playerId===pid);
    if(local){document.getElementById("modal-root").innerHTML="";render();return;}
    const q=await sb.from("game_players").select("*").eq("game_id",g.id).eq("player_id",pid);
-   if(q.error){alert("Could not check the Friday squad: "+q.error.message);return;}
+   if(q.error){alert("Could not check the Game squad: "+q.error.message);return;}
    if(q.data?.length){
      const x=q.data[0];
      g.participants.push({rowId:x.id,playerId:x.player_id,guest:false,name:p.name,playing:!!x.playing,attended:!!x.attended,paid:!!x.paid});
@@ -275,7 +275,7 @@ document.addEventListener("submit",async e=>{
    // Use the security-definer RPC for registered players. This avoids the
    // browser-side RLS INSERT path and atomically prevents duplicate assignments.
    const x=await sb.rpc("add_game_player",{p_game_id:g.id,p_player_id:p.id});
-   if(x.error){alert("Could not add player to Friday: "+x.error.message);return;}
+   if(x.error){alert("Could not add player to game: "+x.error.message);return;}
    // The RPC returns the existing/new record, but we intentionally use our
    // local model so the squad updates immediately without another SELECT.
    const saved=Array.isArray(x.data)?x.data[0]:x.data;
@@ -294,7 +294,7 @@ document.addEventListener("submit",async e=>{
  }
  if(e.target.id==="guest-form"){
    const g=game(),name=f.get("name").trim(),row={rowId:crypto.randomUUID(),playerId:null,guest:true,name,playing:true,attended:false,paid:false};
-   if(!g||!name)return alert("No Friday or guest name supplied.");
+   if(!g||!name)return alert("No game or guest name supplied.");
    const x=await sb.from("game_players").insert({id:row.rowId,game_id:g.id,player_id:null,guest_name:name,playing:true,attended:false,paid:false});
    if(x.error){alert("Could not add guest: "+x.error.message);return;}
    g.participants.push(row);
