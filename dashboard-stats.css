@@ -1,0 +1,15 @@
+/* Dashboard stats: render only the final three-card layout. */
+.hero + .stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  opacity: 1;
+}
+
+.hero + .stats:not(.stats-ready) {
+  visibility: hidden;
+}
+
+@media (max-width: 760px) {
+  .hero + .stats {
+    grid-template-columns: 1fr;
+  }
+}
