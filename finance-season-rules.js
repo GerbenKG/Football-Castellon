@@ -1,15 +1,13 @@
 (() => {
   "use strict";
-
   const sb = window.supabaseClient;
   if (!sb) return;
 
   let busy = false;
-
   const money = value => new Intl.NumberFormat("en-GB", { style: "currency", currency: "EUR" }).format(Number(value || 0));
-  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
   const today = () => new Date().toISOString().slice(0, 10);
-  const dateText = d => new Date(d + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  const dateText = d => new Date(d + "T12:00:00").toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long" });
 
   async function refresh() {
     if (busy) return;
@@ -20,9 +18,9 @@
     busy = true;
     try {
       const [s, t, p, g, gp, e] = await Promise.all([
-        sb.from("finance_seasons").select("id,name,starts_on,ends_on,season_ticket_amount,pay_per_game_amount").order("starts_on", { ascending: false }),
+        sb.from("finance_seasons").select("id,name,starts_on,ends_on,season_ticket_amount,pay_per_game_amount").order("starts_on", { ascending:false }),
         sb.from("finance_season_tickets").select("id,season_id,player_id,amount,paid"),
-        sb.from("players").select("id,name,model"),
+        sb.from("players").select("id,name"),
         sb.from("games").select("id,game_date"),
         sb.from("game_players").select("game_id,player_id,guest_name,attended,paid"),
         sb.from("finance_expenses").select("season_id,amount,paid,due_date")
@@ -39,56 +37,36 @@
       const playerById = new Map(players.map(x => [x.id, x]));
       const gameById = new Map(games.map(x => [x.id, x]));
 
-      // On the dashboard, the financial season belongs to the selected game.
-      // Do not use today's date here: before a new season starts, today's date
-      // can still belong to the previous season while the selected game is in
-      // the new season. This was the reason the dashboard showed 0 tickets.
       let dashboardSeason = null;
       let dashboardGame = null;
       if (isDashboard) {
         const hero = document.querySelector(".hero .game-nav");
         const heroDate = hero?.querySelector("h1")?.textContent?.trim() || "";
         dashboardGame = games.find(x => dateText(x.game_date) === heroDate) || null;
-        if (dashboardGame) {
-          dashboardSeason = seasons.find(x => dashboardGame.game_date >= x.starts_on && dashboardGame.game_date <= x.ends_on) || null;
-        }
+        if (dashboardGame) dashboardSeason = seasons.find(x => dashboardGame.game_date >= x.starts_on && dashboardGame.game_date <= x.ends_on) || null;
       }
 
       const current = dashboardSeason || seasons.find(x => today() >= x.starts_on && today() <= x.ends_on) || seasons[0];
       if (!current) return;
 
-      const ticketIds = new Set(tickets.filter(x => x.season_id === current.id).map(x => x.player_id));
       const currentTickets = tickets.filter(x => x.season_id === current.id);
+      const ticketIds = new Set(currentTickets.map(x => x.player_id));
       const currentGameIds = new Set(games.filter(x => x.game_date >= current.starts_on && x.game_date <= current.ends_on).map(x => x.id));
       const currentGameRows = gamePlayers.filter(x => currentGameIds.has(x.game_id));
 
-      const gameIncomeRows = currentGameRows.filter(x => {
-        if (!x.paid) return false;
-        if (x.guest_name) return true;
-        return !ticketIds.has(x.player_id) && playerById.get(x.player_id)?.model === "game";
-      });
+      const gameIncomeRows = currentGameRows.filter(x => x.paid && (x.guest_name || !ticketIds.has(x.player_id)));
       const unpaidGameRows = currentGameRows.filter(x => {
         const game = gameById.get(x.game_id);
         if (!game || game.game_date > today() || !x.attended || x.paid) return false;
-        if (x.guest_name) return true;
-        return !ticketIds.has(x.player_id) && playerById.get(x.player_id)?.model === "game";
+        return !!x.guest_name || !ticketIds.has(x.player_id);
       });
 
       if (isDashboard) {
-        const unpaidTickets = currentTickets.filter(x => !x.paid).length;
-
-        // The dashboard payment-due KPI is for the selected game, while the
-        // season-ticket KPI is for the selected game's financial season.
-        const selectedGameRows = dashboardGame
-          ? gamePlayers.filter(x => x.game_id === dashboardGame.id)
-          : [];
+        const selectedGameRows = dashboardGame ? gamePlayers.filter(x => x.game_id === dashboardGame.id) : [];
         const selectedGamePaymentsDue = selectedGameRows.filter(x => {
-          if (!x.attended) return false;
-          if (x.guest_name) return !x.paid;
-          if (ticketIds.has(x.player_id)) return currentTickets.some(t => t.player_id === x.player_id && !t.paid);
+          if (x.player_id && ticketIds.has(x.player_id)) return !currentTickets.find(t => t.player_id === x.player_id)?.paid;
           return !x.paid;
         }).length;
-
         const stats = document.querySelectorAll(".stats:not(.finance-stats) .stat");
         if (stats[2]?.querySelector("strong")) stats[2].querySelector("strong").textContent = String(currentTickets.length);
         if (stats[3]?.querySelector("strong")) stats[3].querySelector("strong").textContent = String(selectedGamePaymentsDue);
@@ -104,28 +82,25 @@
         const seasonTicketIds = new Set(seasonTickets.map(x => x.player_id));
         const seasonGameIds = new Set(games.filter(x => x.game_date >= season.starts_on && x.game_date <= season.ends_on).map(x => x.id));
         const seasonRows = gamePlayers.filter(x => seasonGameIds.has(x.game_id));
-        const paidGameRows = seasonRows.filter(x => x.paid && (x.guest_name || (!seasonTicketIds.has(x.player_id) && playerById.get(x.player_id)?.model === "game")));
+        const paidGameRows = seasonRows.filter(x => x.paid && (x.guest_name || !seasonTicketIds.has(x.player_id)));
         const unpaidRows = seasonRows.filter(x => {
           const game = gameById.get(x.game_id);
           if (!game || game.game_date > today() || !x.attended || x.paid) return false;
-          return !!x.guest_name || (!seasonTicketIds.has(x.player_id) && playerById.get(x.player_id)?.model === "game");
+          return !!x.guest_name || !seasonTicketIds.has(x.player_id);
         });
         const seasonExpenses = expenses.filter(x => x.season_id === season.id);
-        const paidTicketIncome = seasonTickets.filter(x => x.paid).reduce((a, x) => a + Number(x.amount || 0), 0);
+        const paidTicketIncome = seasonTickets.filter(x => x.paid).reduce((a,x) => a + Number(x.amount || 0), 0);
         const paidGameIncome = paidGameRows.length * Number(season.pay_per_game_amount || 0);
-        const outstandingTickets = seasonTickets.filter(x => !x.paid).reduce((a, x) => a + Number(x.amount || 0), 0);
-        const paidExpenses = seasonExpenses.filter(x => x.paid).reduce((a, x) => a + Number(x.amount || 0), 0);
-        const futureExpenses = seasonExpenses.filter(x => !x.paid && x.due_date >= today()).reduce((a, x) => a + Number(x.amount || 0), 0);
+        const outstandingTickets = seasonTickets.filter(x => !x.paid).reduce((a,x) => a + Number(x.amount || 0), 0);
+        const paidExpenses = seasonExpenses.filter(x => x.paid).reduce((a,x) => a + Number(x.amount || 0), 0);
+        const futureExpenses = seasonExpenses.filter(x => !x.paid && x.due_date >= today()).reduce((a,x) => a + Number(x.amount || 0), 0);
         const balance = paidTicketIncome + paidGameIncome - paidExpenses;
-
         const futureGames = games.filter(x => x.game_date >= today() && x.game_date <= season.ends_on).length;
         const pastGames = games.filter(x => x.game_date >= season.starts_on && x.game_date < today()).length;
         const appearances = new Map();
-        seasonRows.forEach(x => {
-          if (x.player_id && x.attended) appearances.set(x.player_id, (appearances.get(x.player_id) || 0) + 1);
-        });
+        seasonRows.forEach(x => { if (x.player_id && x.attended) appearances.set(x.player_id, (appearances.get(x.player_id) || 0) + 1); });
         let projectedGameIncome = 0;
-        players.filter(x => x.model === "game" && !seasonTicketIds.has(x.id)).forEach(x => {
+        players.filter(x => !seasonTicketIds.has(x.id)).forEach(x => {
           const rate = pastGames ? (appearances.get(x.id) || 0) / pastGames : 0;
           projectedGameIncome += rate * futureGames * Number(season.pay_per_game_amount || 0);
         });
@@ -150,13 +125,6 @@
           ];
           body.innerHTML = rows.join("") || '<tr><td colspan="4" class="empty">Nothing outstanding.</td></tr>';
         }
-
-        const outlook = document.querySelector(".finance-outlook");
-        const cells = outlook?.querySelectorAll("div");
-        if (cells?.[0]?.querySelector("b")) cells[0].querySelector("b").textContent = money(paidTicketIncome + paidGameIncome);
-        if (cells?.[1]?.querySelector("b")) cells[1].querySelector("b").textContent = money(paidExpenses);
-        if (cells?.[2]?.querySelector("b")) cells[2].querySelector("b").textContent = money(projectedGameIncome);
-        if (cells?.[3]?.querySelector("b")) cells[3].querySelector("b").textContent = money(projectedEnd);
       }
     } catch (error) {
       console.warn("[Football] Season-specific finance rule refresh failed", error);
@@ -169,6 +137,6 @@
     window.clearTimeout(observer._timer);
     observer._timer = window.setTimeout(refresh, 50);
   });
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.body, { childList:true, subtree:true });
   refresh();
 })();
