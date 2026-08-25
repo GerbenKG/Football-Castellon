@@ -6,32 +6,62 @@
   const card=(icon,label,value)=>`<div class="stat"><div class="stat-icon">${icon}</div><div><small>${esc(label)}</small><strong>${esc(value)}</strong></div></div>`;
   let seasonTickets=null, running=false, queued=false;
 
-  async function getSeasonTickets(){
-    if(seasonTickets!==null)return seasonTickets;
-    if(!sb)return 0;
-
+  async function getSeasonContext(){
+    if(!sb)return {seasonId:null,tickets:[],players:[],gamePlayers:[]};
     const heroDate=(app.querySelector(".hero h1")?.textContent||"").trim();
-    const [games,seasons,tickets]=await Promise.all([
+    const [games,seasons,tickets,players,gamePlayers]=await Promise.all([
       sb.from("games").select("id,game_date"),
       sb.from("finance_seasons").select("id,starts_on,ends_on").order("starts_on",{ascending:false}),
-      sb.from("finance_season_tickets").select("id,season_id")
+      sb.from("finance_season_tickets").select("id,season_id,player_id,paid"),
+      sb.from("players").select("id,name,model"),
+      sb.from("game_players").select("id,game_id,player_id,guest_name,paid")
     ]);
-    if(games.error||seasons.error||tickets.error)return 0;
-
-    // Resolve the season from the date of the game currently shown on the Dashboard,
-    // rather than from today's date. This keeps the stat correct when navigating
-    // between games from different seasons.
+    if(games.error||seasons.error||tickets.error||players.error||gamePlayers.error){
+      return {seasonId:null,tickets:[],players:[],gamePlayers:[]};
+    }
     const selectedGame=(games.data||[]).find(g=>{
       const d=new Date(g.game_date+"T12:00:00");
       const label=d.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
       return label===heroDate;
     });
+    if(!selectedGame)return {seasonId:null,tickets:tickets.data||[],players:players.data||[],gamePlayers:[]};
+    const season=(seasons.data||[]).find(s=>selectedGame.game_date>=s.starts_on&&selectedGame.game_date<=s.ends_on);
+    return {
+      gameId:selectedGame.id,
+      seasonId:season?.id||null,
+      tickets:tickets.data||[],
+      players:players.data||[],
+      gamePlayers:(gamePlayers.data||[]).filter(x=>x.game_id===selectedGame.id)
+    };
+  }
 
-    if(!selectedGame)return 0;
-    const gameDate=selectedGame.game_date;
-    const season=(seasons.data||[]).find(s=>gameDate>=s.starts_on&&gameDate<=s.ends_on);
-    seasonTickets=season?(tickets.data||[]).filter(t=>t.season_id===season.id).length:0;
+  async function getSeasonTickets(){
+    if(seasonTickets!==null)return seasonTickets;
+    const ctx=await getSeasonContext();
+    seasonTickets=ctx.seasonId?(ctx.tickets||[]).filter(t=>t.season_id===ctx.seasonId).length:0;
     return seasonTickets;
+  }
+
+  async function syncSeasonPaymentLabels(ctx){
+    if(!ctx.seasonId)return;
+    const ticketByPlayer=new Map((ctx.tickets||[]).filter(t=>t.season_id===ctx.seasonId).map(t=>[t.player_id,!!t.paid]));
+    const playerById=new Map((ctx.players||[]).map(p=>[p.id,p]));
+    const rowByPlayer=new Map((ctx.gamePlayers||[]).filter(x=>x.player_id).map(x=>[x.player_id,x]));
+
+    // The Game Squad DOM rows follow the same participant order as game_players.
+    const rows=[...app.querySelectorAll(".squad .squad-row")];
+    (ctx.gamePlayers||[]).forEach((gp,index)=>{
+      const row=rows[index];
+      if(!row||!gp.player_id)return;
+      const p=playerById.get(gp.player_id);
+      if(p?.model!=="season")return;
+      const paid=ticketByPlayer.get(gp.player_id)===true;
+      const badgeEl=[...row.querySelectorAll(".badge")].find(el=>/Season (un)paid/i.test(el.textContent||""));
+      if(badgeEl){
+        badgeEl.textContent=paid?"Season paid":"Season unpaid";
+        badgeEl.className="badge badge-"+(paid?"green":"amber");
+      }
+    });
   }
 
   async function update(){
@@ -40,9 +70,19 @@
     if(!stats||!app.querySelector(".hero")||!app.querySelector(".squad"))return;
     running=true;
     try{
+      const ctx=await getSeasonContext();
+      await syncSeasonPaymentLabels(ctx);
       const numberOfPlayers=rows.length;
-      const paymentDue=rows.filter(r=>/Season unpaid/i.test(r.textContent||"")||(()=>{const p=r.querySelector('input[data-t="paid"]');return !!p&&!p.checked;})()).length;
-      const tickets=await getSeasonTickets();
+      const ticketByPlayer=new Map((ctx.tickets||[]).filter(t=>t.season_id===ctx.seasonId).map(t=>[t.player_id,!!t.paid]));
+      const playerById=new Map((ctx.players||[]).map(p=>[p.id,p]));
+      const paymentDue=(ctx.gamePlayers||[]).filter(gp=>{
+        if(!gp.player_id)return !gp.paid;
+        const p=playerById.get(gp.player_id);
+        if(p?.model==="season")return ticketByPlayer.get(gp.player_id)!==true;
+        return gp.paid!==true;
+      }).length;
+      const tickets=ctx.seasonId?(ctx.tickets||[]).filter(t=>t.season_id===ctx.seasonId).length:0;
+      seasonTickets=tickets;
       const html=card("⚽","THIS GAME · NUMBER OF PLAYERS",numberOfPlayers)+card("€","THIS GAME · PAYMENT DUE",paymentDue)+card("🎟","THIS SEASON · NUMBER OF SEASON TICKETS",tickets);
       if(stats.innerHTML!==html)stats.innerHTML=html;
     }finally{running=false;}
