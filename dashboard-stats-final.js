@@ -13,7 +13,7 @@
       sb.from("games").select("id,game_date"),
       sb.from("finance_seasons").select("id,starts_on,ends_on").order("starts_on",{ascending:false}),
       sb.from("finance_season_tickets").select("id,season_id,player_id,paid"),
-      sb.from("players").select("id,name,model"),
+      sb.from("players").select("id,name"),
       sb.from("game_players").select("id,game_id,player_id,guest_name,paid")
     ]);
     if(games.error||seasons.error||tickets.error||players.error||gamePlayers.error){
@@ -53,8 +53,7 @@
     (ctx.gamePlayers||[]).forEach((gp,index)=>{
       const row=rows[index];
       if(!row||!gp.player_id)return;
-      const p=playerById.get(gp.player_id);
-      if(p?.model!=="season")return;
+      if(!ticketByPlayer.has(gp.player_id))return;
       const paid=ticketByPlayer.get(gp.player_id)===true;
       const badgeEl=[...row.querySelectorAll(".badge")].find(el=>/Season (un)paid/i.test(el.textContent||""));
       if(badgeEl){
@@ -78,7 +77,7 @@
       const paymentDue=(ctx.gamePlayers||[]).filter(gp=>{
         if(!gp.player_id)return !gp.paid;
         const p=playerById.get(gp.player_id);
-        if(p?.model==="season")return ticketByPlayer.get(gp.player_id)!==true;
+        if(ticketByPlayer.has(gp.player_id))return ticketByPlayer.get(gp.player_id)!==true;
         return gp.paid!==true;
       }).length;
       const tickets=ctx.seasonId?(ctx.tickets||[]).filter(t=>t.season_id===ctx.seasonId).length:0;

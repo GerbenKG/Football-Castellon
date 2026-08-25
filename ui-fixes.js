@@ -22,47 +22,11 @@
 
   const today = () => new Date().toISOString().slice(0, 10);
 
-  function removeLegacySeasonPaidField() {
-    const form = document.getElementById("player-form");
-    if (!form) return;
-    form.querySelectorAll('input[name="seasonPaid"]').forEach(input => {
-      const row = input.closest(".checkline") || input.parentElement;
-      if (row) row.remove();
-      else input.remove();
-    });
-  }
-
-  function removeLegacySeasonPaidColumn() {
-    const title = document.querySelector(".page-head .title");
-    if (!title || title.textContent.trim() !== "Players") return;
-
-    const subtitle = document.querySelector(".page-head .muted");
-    if (subtitle && subtitle.textContent.includes("season-ticket status")) {
-      subtitle.textContent = "Payment model.";
-    }
-
-    const table = document.querySelector(".page-head ~ .card table") || document.querySelector("table");
-    if (!table) return;
-
-    const headers = table.querySelectorAll("thead th");
-    if (headers.length < 4) return;
-
-    const seasonHeader = [...headers].find(th => th.textContent.trim().toLowerCase() === "season ticket");
-    if (!seasonHeader) return;
-    const columnIndex = [...headers].indexOf(seasonHeader);
-
-    seasonHeader.remove();
-    table.querySelectorAll("tbody tr").forEach(row => {
-      const cells = row.querySelectorAll("td");
-      if (cells[columnIndex]) cells[columnIndex].remove();
-    });
-  }
-
   async function loadFinanceSnapshot() {
     const [seasonsResult, ticketsResult, playersResult, gamesResult, gamePlayersResult, expensesResult] = await Promise.all([
       sb.from("finance_seasons").select("id,name,starts_on,ends_on,season_ticket_amount,pay_per_game_amount").order("starts_on", { ascending: false }),
       sb.from("finance_season_tickets").select("id,season_id,player_id,amount,paid,paid_on"),
-      sb.from("players").select("id,name,model").order("name"),
+      sb.from("players").select("id,name").order("name"),
       sb.from("games").select("id,game_date,start_time,end_time"),
       sb.from("game_players").select("id,game_id,player_id,guest_name,attended,paid"),
       sb.from("finance_expenses").select("id,season_id,due_date,amount,paid")
@@ -104,7 +68,7 @@
       const outstandingGamePayments = data.gamePlayers.filter(row => {
         const g = gameById.get(row.game_id);
         if (!g || g.game_date > today() || !row.attended || row.paid) return false;
-        return !!row.guest_name || playerById.get(row.player_id)?.model === "game";
+        return !!row.guest_name || !seasonTickets.some(t => t.player_id === row.player_id);
       }).length;
 
       const paymentDue = unpaidSeasonTickets + outstandingGamePayments;
@@ -235,7 +199,7 @@
       const seasonGames = data.games.filter(g => g.game_date >= season.starts_on && g.game_date <= season.ends_on);
       const seasonGameIds = new Set(seasonGames.map(g => g.id));
       const gameRows = data.gamePlayers.filter(x => seasonGameIds.has(x.game_id));
-      const paidGameIncome = gameRows.filter(x => x.paid && (x.guest_name || playersById.get(x.player_id)?.model === "game")).length * Number(season.pay_per_game_amount || 0);
+      const paidGameIncome = gameRows.filter(x => x.paid && (x.guest_name || !tickets.some(t => t.player_id === x.player_id))).length * Number(season.pay_per_game_amount || 0);
       const paidTicketIncome = tickets.filter(t => t.paid).reduce((sum, t) => sum + Number(t.amount || 0), 0);
       const outstandingTicketIncome = tickets.filter(t => !t.paid).reduce((sum, t) => sum + Number(t.amount || 0), 0);
       const paidExpenses = expenses.filter(x => x.paid).reduce((sum, x) => sum + Number(x.amount || 0), 0);
@@ -250,7 +214,7 @@
         attendanceByPlayer.set(row.player_id, (attendanceByPlayer.get(row.player_id) || 0) + 1);
       });
       let projectedGameIncome = 0;
-      data.players.filter(p => p.model === "game").forEach(p => {
+      data.players.filter(p => !tickets.some(t => t.player_id === p.id)).forEach(p => {
         const appearances = attendanceByPlayer.get(p.id) || 0;
         const rate = pastGames ? appearances / pastGames : 0;
         projectedGameIncome += rate * futureGames * Number(season.pay_per_game_amount || 0);
@@ -319,7 +283,7 @@
           const unpaidGames = gameRows.filter(x => {
             const g = seasonGames.find(game => game.id === x.game_id);
             if (!g || g.game_date > today() || !x.attended || x.paid) return false;
-            return !!x.guest_name || playersById.get(x.player_id)?.model === "game";
+            return !!x.guest_name || !tickets.some(t => t.player_id === x.player_id);
           });
 
           const rows = [
@@ -354,8 +318,6 @@
   }
 
   const observer = new MutationObserver(() => {
-    removeLegacySeasonPaidField();
-    removeLegacySeasonPaidColumn();
     refreshDashboardFinanceStats();
     patchFinancePage();
   });

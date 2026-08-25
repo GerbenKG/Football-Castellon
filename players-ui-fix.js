@@ -46,17 +46,6 @@
     badge.textContent = `${count} ${count === 1 ? "player" : "players"}`;
   }
 
-  // Payment model and season-paid status are Finance data, not player data.
-  // Never preserve or submit those legacy fields from the Players modal.
-  function removeLegacyFinanceFields() {
-    const form = document.getElementById("player-form");
-    if (!form) return;
-    form.querySelectorAll('[name="model"], [name="seasonPaid"], [name="season_paid"]').forEach(el => {
-      const label = el.closest("label");
-      (label || el).remove();
-    });
-  }
-
   function ensureMobileNavVisible() {
     if (!window.matchMedia("(max-width: 720px)").matches) return;
     const nav = document.querySelector(".nav");
@@ -75,13 +64,8 @@
     removeFinanceColumns();
     cleanPlayersHeading();
     addPlayerCount();
-    removeLegacyFinanceFields();
     ensureMobileNavVisible();
   }
-
-  document.addEventListener("submit", event => {
-    if (event.target?.id === "player-form") removeLegacyFinanceFields();
-  }, true);
 
   apply();
   let scheduled = false;

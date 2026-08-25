@@ -83,7 +83,6 @@ async function save(){
  if(can("payments.manage")){
   await check(await sb.from("payments").delete().neq("id","00000000-0000-0000-0000-000000000000"),"Resetting payments");
   const ps=[];
-  state.players.filter(p=>p.model==="season"&&p.seasonPaid).forEach(p=>ps.push({id:crypto.randomUUID(),player_id:p.id,payment_type:"season",paid:true}));
   state.games.forEach(g=>(g.participants||[]).forEach(x=>{if(!x.guest&&x.attended&&x.paid)ps.push({id:crypto.randomUUID(),player_id:x.playerId,game_id:g.id,payment_type:"game",paid:true});}));
   if(ps.length)await check(await sb.from("payments").insert(ps),"Saving payments");
  }
@@ -122,8 +121,8 @@ function dashboard(){
  const completed=state.games.filter(x=>(x.participants||[]).some(p=>p.attended)).length;
  const total=state.games.reduce((a,x)=>a+(x.participants||[]).filter(p=>p.attended).length,0);
  const avg=completed?total/completed:0;
- const paid=state.games.reduce((a,x)=>a+(x.participants||[]).filter(p=>p.attended&&!p.guest&&player(p.playerId)?.model==="game"&&p.paid).length,0);
- const payable=state.games.reduce((a,x)=>a+(x.participants||[]).filter(p=>p.attended&&!p.guest&&player(p.playerId)?.model==="game").length,0);
+ const paid=state.games.reduce((a,x)=>a+(x.participants||[]).filter(p=>p.attended&&!p.guest&&!isSeasonTicket(p.playerId,g.date)&&p.paid).length,0);
+ const payable=state.games.reduce((a,x)=>a+(x.participants||[]).filter(p=>p.attended&&!p.guest&&!isSeasonTicket(p.playerId,g.date)).length,0);
  const collection=payable?paid/payable*100:0;
  const leaders=[...state.players].sort((a,b)=>att(b)-att(a)).slice(0,5);
  return '<section class="hero"><div class="hero-pitch"></div><div class="hero-copy"><div class="game-nav"><button class="game-arrow" data-game-nav="prev" title="Previous game" aria-label="Previous game">←</button><div><div class="eyebrow light">GAME</div><h1>'+dateText(g.date)+'</h1><p>⚽ '+esc(g.time)+' · '+esc(g.location)+'</p></div><button class="game-arrow" data-game-nav="next" title="Next game" aria-label="Next game">→</button></div><div class="hero-actions">'+(can("attendance.manage")?'<button class="btn btn-light" data-a="add-player">+ Player</button>':"")+(can("attendance.manage")?'<button class="btn btn-ghost" data-a="guest">+ Guest</button>':"")+'</div></div><div class="hero-ball">⚽</div></section>'+
@@ -139,15 +138,14 @@ function dashboard(){
  }).join("")+'</div></section>';
 }
 function players(){
- return '<div class="page-head"><div><div class="eyebrow">ROSTER</div><h1 class="title">Players</h1><p class="muted">Payment model and season-ticket status.</p></div>'+(can("players.manage")?'<button class="btn btn-primary" data-a="new-player">+ Add player</button>':"")+'</div>'+
- '<div class="card table-card"><table><thead><tr><th>Player</th><th>Payment model</th><th>Season ticket</th><th></th></tr></thead><tbody>'+
+ return '<div class="page-head"><div><div class="eyebrow">ROSTER</div><h1 class="title">Players</h1><p class="muted">Roster and contact information.</p></div>'+(can("players.manage")?'<button class="btn btn-primary" data-a="new-player">+ Add player</button>':"")+'</div>'+
+ '<div class="card table-card"><table><thead><tr><th>Player</th><th>Phone</th><th>Email</th><th></th></tr></thead><tbody>'+
  state.players.map(p=>{
    const actions='<button class="btn btn-secondary" data-a="history" data-id="'+p.id+'">Attendance</button>'+
      (can("players.manage")?'<button class="btn btn-secondary" data-a="edit" data-id="'+p.id+'">Edit</button>':"")+
      (can("players.manage")&&can("attendance.manage")?'<button class="btn btn-secondary" data-a="delete-player" data-id="'+p.id+'">Delete</button>':"");
    return '<tr><td><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><b>'+esc(p.name)+'</b></div></td><td>'+
-     badge(p.model==="season"?"🎟 Season ticket":"Per game",p.model==="season"?"green":"slate")+'</td><td>'+
-     (p.model==="season"?(p.seasonPaid?badge("✓ Paid","green"):badge("Unpaid","red")):"—")+
+     esc(p.phone||"—")+'</td><td>'+esc(p.email||"—")+
      '</td><td><div class="actions">'+actions+'</div></td></tr>';
  }).join("")+
  '</tbody></table></div>';
@@ -306,7 +304,7 @@ function act(a,id){
   const submit=existing?"Save changes":"Create Game";
   return modal(title,'<form id="game-form" data-id="'+(existing?.id||"")+'"><label>Date<input name="date" type="date" value="'+esc(existing?.date||nextGameDate())+'" required></label><div class="form-grid"><label>Start time<input name="startTime" type="time" value="'+esc(existing?.startTime||"20:00")+'" required></label><label>End time<input name="endTime" type="time" value="'+esc(existing?.endTime||"22:00")+'" required></label></div><label>Location<input name="location" value="'+esc(existing?.location||"Castellón")+'"></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">'+submit+'</button></div></form>');
 }
- if(a==="new-player"||a==="edit"){const p=a==="edit"?player(id):null;return modal(p?"Edit player":"Add player",'<form id="player-form" data-id="'+(p?.id||"")+'"><label>Name<input name="name" value="'+esc(p?.name||"")+'" required></label><label>Payment model<select name="model"><option value="game" '+(p?.model==="game"?"selected":"")+'>Pay per game</option><option value="season" '+(p?.model==="season"?"selected":"")+'>Season ticket</option></select></label><label class="checkline"><input name="seasonPaid" type="checkbox" '+(p?.seasonPaid?"checked":"")+'> Season ticket paid</label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save player</button></div></form>');}
+ if(a==="new-player"||a==="edit"){const p=a==="edit"?player(id):null;return modal(p?"Edit player":"Add player",'<form id="player-form" data-id="'+(p?.id||"")+'"><label>Name<input name="name" value="'+esc(p?.name||"")+'" required></label><label>Phone<input name="phone" type="tel" value="'+esc(p?.phone||"")+'"></label><label>Email<input name="email" type="email" value="'+esc(p?.email||"")+'"></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save player</button></div></form>');}
  if(a==="history"){
   const p=player(id);
   if(!p)return;
@@ -436,7 +434,7 @@ if(e.target.id==="member-form"){const x=await sb.rpc("admin_upsert_access",{p_em
    console.groupCollapsed("[Football] Add player to game");
    console.log("Form data:", { selectedGameId, pid });
    console.log("Game found:", g ? { id:g.id, date:g.date, participants:g.participants.length } : null);
-   console.log("Player found:", p ? { id:p.id, name:p.name, model:p.model } : null);
+   console.log("Player found:", p ? { id:p.id, name:p.name } : null);
    if(!g||!pid){console.error("Missing game or player", {selectedGameId,pid});console.groupEnd();return alert("No game or player selected.");}
    if(!p){console.error("Player not found in current roster", {pid, playerIds:state.players.map(x=>x.id)});console.groupEnd();return alert("The selected player is not available in the current roster. Refresh the page and try again.");}
    if(g.participants.some(x=>!x.guest&&x.playerId===pid)){
