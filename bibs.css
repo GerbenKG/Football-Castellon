@@ -1,0 +1,9 @@
+.bib-toggle {
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .bib-toggle {
+    justify-self: end;
+  }
+}
