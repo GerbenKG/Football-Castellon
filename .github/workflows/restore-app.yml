@@ -10,16 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Restore app.js and remove final legacy reference
-        shell: python
+      - name: Restore app.js from verified cleanup commit
         run: |
-          import subprocess
+          git fetch origin faabe3a0723ccd4956dcf876a0b79673e15272d1:refs/remotes/origin/restore-app
+          git checkout refs/remotes/origin/restore-app -- app.js
+          python - <<'PY'
           from pathlib import Path
-          subprocess.run(['git','checkout','d78b527','--','app.js'], check=True)
-          p=Path('app.js'); s=p.read_text()
+          p=Path('app.js')
+          s=p.read_text()
           s=s.replace('season.filter(p=>p.seasonPaid).length/season.length','season.filter(p=>ticketForPlayer(p.id,g.date)?.paid).length/season.length')
           p.write_text(s)
-      - name: Commit and remove workflow
+          PY
+      - name: Commit restored app and remove workflow
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
