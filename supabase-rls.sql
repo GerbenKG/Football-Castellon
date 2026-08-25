@@ -1,3 +1,0 @@
--- DEPRECATED
--- The application now uses permission-based RLS.
--- Run supabase-rbac.sql in the Supabase SQL Editor instead.
