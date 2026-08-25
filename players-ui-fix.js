@@ -10,15 +10,13 @@
     if (!isPlayersPage()) return;
     const table = document.querySelector(".page-head ~ .card table") || document.querySelector("table");
     if (!table) return;
-
     const headers = [...table.querySelectorAll("thead th")];
-    const financeIndexes = headers
+    const indexes = headers
       .map((th, index) => ({ text: th.textContent.trim().toLowerCase(), index }))
       .filter(x => x.text === "payment model" || x.text === "season ticket")
       .map(x => x.index)
       .sort((a, b) => b - a);
-
-    financeIndexes.forEach(index => {
+    indexes.forEach(index => {
       headers[index]?.remove();
       table.querySelectorAll("tbody tr").forEach(row => row.querySelectorAll("td")[index]?.remove());
     });
@@ -36,56 +34,26 @@
     if (!isPlayersPage()) return;
     const table = document.querySelector(".page-head ~ .card table") || document.querySelector("table");
     if (!table) return;
-
     const count = table.querySelectorAll("tbody tr").length;
     let badge = document.querySelector(".page-head .players-count");
     if (!badge) {
       const title = document.querySelector(".page-head .title");
+      if (!title) return;
       badge = document.createElement("span");
       badge.className = "players-count";
       title.insertAdjacentElement("afterend", badge);
     }
-
-    const nextText = `${count} ${count === 1 ? "player" : "players"}`;
-    if (badge.textContent !== nextText) badge.textContent = nextText;
+    badge.textContent = `${count} ${count === 1 ? "player" : "players"}`;
   }
 
-  // Finance settings are no longer editable on the Players page. Preserve the
-  // existing values invisibly so editing a player's name cannot overwrite them.
-  function removeFinanceFieldsFromPlayerModal() {
+  // Payment model and season-paid status are Finance data, not player data.
+  // Never preserve or submit those legacy fields from the Players modal.
+  function removeLegacyFinanceFields() {
     const form = document.getElementById("player-form");
     if (!form) return;
-
-    if (form.dataset.financePreserved !== "1") {
-      const model = form.querySelector('[name="model"]');
-      const seasonPaid = form.querySelector('[name="seasonPaid"]');
-
-      if (model) {
-        const hiddenModel = document.createElement("input");
-        hiddenModel.type = "hidden";
-        hiddenModel.name = "model";
-        hiddenModel.value = model.value || "game";
-        form.appendChild(hiddenModel);
-      }
-
-      // Only preserve the checkbox when it was checked. Absence means false to
-      // the existing save handler, so unpaid players stay unpaid.
-      if (seasonPaid?.checked) {
-        const hiddenPaid = document.createElement("input");
-        hiddenPaid.type = "hidden";
-        hiddenPaid.name = "seasonPaid";
-        hiddenPaid.value = "on";
-        form.appendChild(hiddenPaid);
-      }
-
-      form.dataset.financePreserved = "1";
-    }
-
-    [...form.querySelectorAll("label")].forEach(label => {
-      const text = label.textContent.trim().toLowerCase();
-      if (text.startsWith("payment model") || text.startsWith("season ticket paid")) {
-        label.remove();
-      }
+    form.querySelectorAll('[name="model"], [name="seasonPaid"], [name="season_paid"]').forEach(el => {
+      const label = el.closest("label");
+      (label || el).remove();
     });
   }
 
@@ -107,18 +75,15 @@
     removeFinanceColumns();
     cleanPlayersHeading();
     addPlayerCount();
-    removeFinanceFieldsFromPlayerModal();
+    removeLegacyFinanceFields();
     ensureMobileNavVisible();
   }
 
-  // Capture the submit before app.js handles the form, covering the small
-  // window between opening the modal and the MutationObserver callback.
   document.addEventListener("submit", event => {
-    if (event.target?.id === "player-form") removeFinanceFieldsFromPlayerModal();
+    if (event.target?.id === "player-form") removeLegacyFinanceFields();
   }, true);
 
   apply();
-
   let scheduled = false;
   const observer = new MutationObserver(() => {
     if (scheduled) return;
