@@ -1,9 +1,11 @@
 (() => {
   "use strict";
 
-  // "Present" is no longer a separate Game Squad field.
-  // Do not wrap or proxy Supabase requests here: that breaks the Supabase
-  // query builder (notably cloneRequestState) and causes intermittent alerts.
+  // Obsolete legacy cleanup functions must exist because older UI code may call them.
+  // The current data model no longer uses players.model or players.season_paid.
+  window.removeLegacySeasonPaidField = window.removeLegacySeasonPaidField || function () {};
+  window.removeLegacySeasonPaidColumn = window.removeLegacySeasonPaidColumn || function () {};
+
   const removePresentUi = () => {
     document.querySelectorAll("label.toggle").forEach(label => {
       if (/\bPresent\b/i.test(label.textContent || "")) label.remove();
