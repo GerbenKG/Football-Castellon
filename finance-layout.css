@@ -1,0 +1,51 @@
+/* Finance page layout — staging preview */
+
+/* Keep Season ticket holders full-width, with the holder list in two columns. */
+@media (min-width: 721px) {
+  .finance-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  .finance-grid > .card:has(.finance-ticket-display) {
+    grid-column: 1 / -1;
+  }
+
+  .finance-ticket-display {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 24px;
+  }
+
+  .finance-ticket-display-head {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 110px 110px auto;
+    gap: 16px;
+  }
+
+  .finance-ticket-display-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 90px 90px auto;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 12px 0;
+    border-bottom: 1px solid #e5ece7;
+  }
+
+  .finance-ticket-display-row:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+
+  .finance-ticket-empty {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The outstanding-payment section naturally follows below the ticket section. */
+@media (max-width: 720px) {
+  .finance-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
