@@ -1,11 +1,9 @@
-/* Dashboard stats: render only the final three-card layout. */
+/* Dashboard stats: render the final three-card layout. */
 .hero + .stats {
+  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   opacity: 1;
-}
-
-.hero + .stats:not(.stats-ready) {
-  visibility: hidden;
+  visibility: visible;
 }
 
 @media (max-width: 760px) {
