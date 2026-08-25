@@ -384,7 +384,7 @@ document.querySelectorAll("[data-finance-season-select]").forEach(b=>b.onchange=
 });
 }
 document.addEventListener("click",e=>{const c=e.target.closest("[data-close]");if(c){e.preventDefault();document.getElementById("modal-root").innerHTML="";}});
-console.info("[Football] APP BUILD 20260824-26 loaded");
+console.info("[Football] APP BUILD 20260825-01 loaded");
 document.addEventListener("submit",async e=>{
  console.info("[Football] SUBMIT EVENT", { id:e.target?.id, tag:e.target?.tagName, action:e.submitter?.textContent?.trim() });
  e.preventDefault();const f=new FormData(e.target);
