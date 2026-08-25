@@ -10,49 +10,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Refactor player finance data model
+      - name: Remove remaining legacy player finance code
         shell: python
         run: |
           from pathlib import Path
           import re
 
           p=Path('app.js'); s=p.read_text()
-          s=s.replace('let financeData={seasons:[],tickets:[],expenses:[]}, financeLoaded=false, financeLoading=false, financeSeasonId=null;', 'let financeData={seasons:[],tickets:[],expenses:[]}, financeLoaded=false, financeLoading=false, financeSeasonId=null;\nlet playerFinanceData={seasons:[],tickets:[]};')
-          s=s.replace('const badge=(t,c="slate")=>\'<span class="badge badge-\'+c+\'">\'+t+"</span>";', 'const badge=(t,c="slate")=>\'<span class="badge badge-\'+c+\'">\'+t+"</span>";\nconst ticketForPlayer=(playerId,date)=>{const season=playerFinanceData.seasons.find(s=>date>=s.starts_on&&date<=s.ends_on);return season?playerFinanceData.tickets.find(t=>t.season_id===season.id&&t.player_id===playerId):null;};\nconst isSeasonTicket=(playerId,date)=>!!ticketForPlayer(playerId,date);')
-          s=s.replace('if(state.players.length)await check(await sb.from("players").upsert(state.players.map(p=>({id:p.id,name:p.name,model:p.model,season_paid:!!p.seasonPaid}))),"Saving players");','if(state.players.length)await check(await sb.from("players").upsert(state.players.map(p=>({id:p.id,name:p.name,phone:p.phone||null,email:p.email||null}))),"Saving players");')
-          start=s.index(' if(can("payments.manage")){'); end=s.index('\n}\n\nasync function loadRemote',start)+2
-          s=s[:start]+''' if(can("payments.manage")){\n  await check(await sb.from("payments").delete().neq("id","00000000-0000-0000-0000-000000000000"),"Resetting payments");\n  const ps=[];\n  state.games.forEach(g=>(g.participants||[]).forEach(x=>{if(!x.guest&&x.attended&&x.paid)ps.push({id:crypto.randomUUID(),player_id:x.playerId,game_id:g.id,payment_type:"game",paid:true});}));\n  if(ps.length)await check(await sb.from("payments").insert(ps),"Saving payments");\n }''' + s[end:]
-          old=''' const p=await sb.from("players").select("*").order("name");\n const g=await sb.from("games").select("*").order("game_date");\n const r=await sb.from("game_players").select("*");\n if(p.error||g.error||r.error)throw(p.error||g.error||r.error);\n state.players=(p.data||[]).map(x=>({id:x.id,name:x.name,model:x.model,seasonPaid:x.season_paid}));'''
-          new=''' const p=await sb.from("players").select("id,name,phone,email").order("name");\n const g=await sb.from("games").select("*").order("game_date");\n const r=await sb.from("game_players").select("*");\n const fs=await sb.from("finance_seasons").select("id,starts_on,ends_on");\n const ft=await sb.from("finance_season_tickets").select("id,season_id,player_id,amount,paid,paid_on");\n if(p.error||g.error||r.error||fs.error||ft.error)throw(p.error||g.error||r.error||fs.error||ft.error);\n playerFinanceData={seasons:fs.data||[],tickets:ft.data||[]};\n state.players=(p.data||[]).map(x=>({id:x.id,name:x.name,phone:x.phone||"",email:x.email||""}));'''
-          assert old in s; s=s.replace(old,new)
-          replacements={
-            'const season=state.players.filter(p=>p.model==="season"),pay=state.players.filter(p=>p.model==="game");':'const season=state.players.filter(p=>isSeasonTicket(p.id,g.date)),pay=state.players.filter(p=>!isSeasonTicket(p.id,g.date));',
-            'const due=rows.filter(x=>x.attended&&!x.guest&&player(x.playerId)?.model==="game"&&!x.paid).length;':'const due=rows.filter(x=>{if(x.guest)return !x.paid;const t=ticketForPlayer(x.playerId,g.date);return t?!t.paid:!x.paid;}).length;',
-            'season.filter(p=>p.seasonPaid).length/season.length':'season.filter(p=>ticketForPlayer(p.id,g.date)?.paid).length/season.length',
-            '((p.model==="season")?"🎟 Season ticket":"Per game")':'(isSeasonTicket(p.id,g.date)?"🎟 Season ticket":"Per game")',
-            'p?.model==="season"?"🎟 Season":"Per game"':'isSeasonTicket(p.id,g.date)?"🎟 Season":"Per game"',
-            '(p?.model==="season"?(p.seasonPaid?"Season paid":"Season unpaid"):(x.paid?"Paid":"Mark paid"))':'(ticketForPlayer(p.id,g.date)?(ticketForPlayer(p.id,g.date).paid?"Season paid":"Season unpaid"):(x.paid?"Paid":"Mark paid"))',
-            'x.guest||p?.model==="season"?(x.paid||p?.seasonPaid?"green":"amber"):(x.paid?"green":"red")':'x.guest||isSeasonTicket(p.id,g.date)?((ticketForPlayer(p.id,g.date)?.paid)||x.paid?"green":"amber"):(x.paid?"green":"red")',
-            '(!x.guest&&p?.model==="game" || x.guest)':'(!x.guest&&!isSeasonTicket(p.id,g.date) || x.guest)',
-            'const seasonPlayers=state.players.filter(p=>p.model==="season");':'const seasonPlayers=tickets.map(t=>player(t.player_id)).filter(Boolean);',
-            'x.guest||player(x.playerId)?.model==="game"?Number(s.pay_per_game_amount):0':'x.guest||!ticketForPlayer(x.playerId,g.date)?Number(s.pay_per_game_amount):0',
-            'const ppPlayers=state.players.filter(p=>p.model==="game");':'const ppPlayers=state.players.filter(p=>!tickets.some(t=>t.player_id===p.id));',
-            'p.name=f.get("name").trim();p.model=f.get("model");p.seasonPaid=f.has("seasonPaid");':'p.name=f.get("name").trim();p.phone=f.get("phone")?.trim()||"";p.email=f.get("email")?.trim()||"";',
-            'Player found:", p ? { id:p.id, name:p.name, model:p.model } : null':'Player found:", p ? { id:p.id, name:p.name } : null'
-          }
-          for a,b in replacements.items(): s=s.replace(a,b)
+          # Remove season-payment writes from the generic payments table.
+          start=s.find('  state.players.filter(p=>p.model==="season"&&p.seasonPaid).forEach')
+          if start >= 0:
+              end=s.find('\n  state.games.forEach', start)
+              if end > start: s=s[:start]+s[end+1:]
+          s=s.replace('season.filter(p=>p.seasonPaid).length/season.length','season.filter(p=>ticketForPlayer(p.id,g.date)?.paid).length/season.length')
+          s=s.replace('player(p.playerId)?.model==="game"&&p.paid','!isSeasonTicket(p.playerId,g.date)&&p.paid')
+          s=s.replace('player(p.playerId)?.model==="game")','!isSeasonTicket(p.playerId,g.date))')
           s=s.replace('<p class="muted">Payment model and season-ticket status.</p>','<p class="muted">Roster and contact information.</p>')
           s=s.replace('<th>Player</th><th>Payment model</th><th>Season ticket</th><th></th>','<th>Player</th><th>Phone</th><th>Email</th><th></th>')
           old="""     badge(p.model===\"season\"?\"🎟 Season ticket\":\"Per game\",p.model===\"season\"?\"green\":\"slate\")+'</td><td>'+\n     (p.model===\"season\"?(p.seasonPaid?badge(\"✓ Paid\",\"green\"):badge(\"Unpaid\",\"red\")):\"—\")+\n     '</td><td><div class=\"actions\">'+actions+'</div></td></tr>';"""
           new="""     esc(p.phone||\"—\")+'</td><td>'+esc(p.email||\"—\")+\n     '</td><td><div class=\"actions\">'+actions+'</div></td></tr>';"""
-          assert old in s; s=s.replace(old,new)
-          old_start=s.index(' if(a==="new-player"||a==="edit")')
-          old_end=s.index('\n if(a==="history")',old_start)
-          new_form=''' if(a==="new-player"||a==="edit"){const p=a==="edit"?player(id):null;return modal(p?"Edit player":"Add player",'<form id="player-form" data-id="'+(p?.id||"")+'"><label>Name<input name="name" value="'+esc(p?.name||"")+'" required></label><label>Phone<input name="phone" type="tel" value="'+esc(p?.phone||"")+'"></label><label>Email<input name="email" type="email" value="'+esc(p?.email||"")+'"></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save player</button></div></form>');}'''
-          s=s[:old_start]+new_form+s[old_end:]
+          if old in s: s=s.replace(old,new)
+          old_start=s.find(' if(a==="new-player"||a==="edit")')
+          old_end=s.find('\n if(a==="history")',old_start) if old_start>=0 else -1
+          if old_start>=0 and old_end>old_start:
+              form=''' if(a==="new-player"||a==="edit"){const p=a==="edit"?player(id):null;return modal(p?"Edit player":"Add player",'<form id="player-form" data-id="'+(p?.id||"")+'"><label>Name<input name="name" value="'+esc(p?.name||"")+'" required></label><label>Phone<input name="phone" type="tel" value="'+esc(p?.phone||"")+'"></label><label>Email<input name="email" type="email" value="'+esc(p?.email||"")+'"></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary">Save player</button></div></form>');}'''
+              s=s[:old_start]+form+s[old_end:]
+          s=s.replace('p.name=f.get("name").trim();p.model=f.get("model");p.seasonPaid=f.has("seasonPaid");','p.name=f.get("name").trim();p.phone=f.get("phone")?.trim()||"";p.email=f.get("email")?.trim()||"";')
+          s=s.replace('Player found:", p ? { id:p.id, name:p.name, model:p.model } : null','Player found:", p ? { id:p.id, name:p.name } : null')
           p.write_text(s)
 
-          # ui-fixes.js: finance calculations use ticket membership, never player payment type.
           p=Path('ui-fixes.js'); t=p.read_text()
           t=t.replace('sb.from("players").select("id,name,model")','sb.from("players").select("id,name")')
           t=t.replace('return !!row.guest_name || playerById.get(row.player_id)?.model === "game";','return !!row.guest_name || !seasonTickets.some(t => t.player_id === row.player_id);')
@@ -63,23 +49,24 @@ jobs:
           t=t.replace('    removeLegacySeasonPaidField();\n','').replace('    removeLegacySeasonPaidColumn();\n','')
           p.write_text(t)
 
-          # players-ui-fix.js: remove obsolete field scrubber.
           p=Path('players-ui-fix.js'); t=p.read_text()
           t=re.sub(r'\n  // Payment model and season-paid status.*?\n  }\n\n','\n',t,flags=re.S)
           t=re.sub(r'\n  document\.addEventListener\("submit", event => \{.*?\n  \}, true\);\n\n','\n',t,flags=re.S)
           t=t.replace('    removeLegacyFinanceFields();\n','')
           p.write_text(t)
 
-          # dashboard-stats-final.js: ticket membership is the season-ticket test.
           p=Path('dashboard-stats-final.js'); t=p.read_text()
           t=t.replace('sb.from("players").select("id,name,model")','sb.from("players").select("id,name")')
           t=t.replace('if(p?.model==="season")return ticketByPlayer.get(gp.player_id)!==true;','if(ticketByPlayer.has(gp.player_id))return ticketByPlayer.get(gp.player_id)!==true;')
-          t=t.replace('const playerById=new Map((ctx.players||[]).map(p=>[p.id,p]));\n    const rowByPlayer=new Map((ctx.gamePlayers||[]).filter(x=>x.player_id).map(x=>[x.player_id,x]));','const playerById=new Map((ctx.players||[]).map(p=>[p.id,p]));')
           t=re.sub(r'\n      const p=playerById\.get\(gp\.player_id\);\n      if\(p\?\.model!=="season"\)return;','\n      if(!ticketByPlayer.has(gp.player_id))return;',t)
           p.write_text(t)
 
-          # supabase-config.js becomes a plain client initializer; no compatibility layer.
           Path('supabase-config.js').write_text('''window.supabaseClient = null;\ntry {\n  if (!window.supabase || !window.supabase.createClient) throw new Error("Supabase library did not load.");\n  window.supabaseClient = window.supabase.createClient("https://fumawncedxswwvafecuj.supabase.co","sb_publishable_5ELVcnDfatNVXqHNM7WKjQ_wJ9qC8F4");\n} catch (e) {\n  window.supabaseInitError = e;\n}\n''')
+
+          print('remaining legacy references:')
+          for f in Path('.').glob('*.js'):
+              for i,line in enumerate(f.read_text(errors='ignore').splitlines(),1):
+                  if any(x in line for x in ('seasonPaid','season_paid','p.model','x.model')): print(f'{f}:{i}:{line}')
 
       - name: Commit cleanup and remove workflow
         run: |
