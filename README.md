@@ -12,8 +12,8 @@ Admins can create and maintain the regular player roster.
 
 Each player has:
 - Name
-- Active / inactive status
-- **Season Ticket** or **Pay per game** payment model
+- Phone number
+- Email address
 
 Season-ticket purchases are managed separately in Finance and are tied to a specific **player + season**. A player can therefore have season tickets for multiple seasons.
 
@@ -33,8 +33,8 @@ For every game, admins can:
 The payment rules are deliberately simple:
 
 **Season Ticket**
-- Payment is made once for a specific season.
-- The player's season-ticket purchase and paid status are managed in Finance.
+- A season ticket is a Finance record for a specific player and season.
+- The ticket's paid status is managed in Finance.
 - Attendance does not create another payment obligation.
 
 **Pay per game**
@@ -45,7 +45,6 @@ The payment rules are deliberately simple:
 - Guests are attached directly to the game they played.
 - Their payment is tracked for that game only.
 - Guests do not need to be added to the permanent player roster.
-
 
 ## Authentication and access control
 
@@ -67,12 +66,6 @@ The permission model is enforced twice:
 1. The UI hides actions the profile cannot use.
 2. Supabase Row Level Security enforces the same permissions at database level.
 
-### Enabling the RBAC database
-
-Run 'supabase-rbac.sql' once in the Supabase SQL Editor. This creates the access profiles, role permissions, secure RPCs and permission-based RLS policies.
-
-Do not use the deprecated 'supabase-rls.sql' setup.
-
 ## Data storage
 
 Player, game, attendance and payment data is stored in the project's **Supabase Postgres database**, not browser localStorage.
@@ -82,12 +75,11 @@ The static site is served from GitHub Pages. Supabase provides the authenticatio
 ## Current MVP
 
 The project is a zero-build static web application:
-- 'index.html' — application shell
-- 'style.css' — responsive UI
-- 'app.js' — application logic, authentication and RBAC
-- 'supabase-config.js' — Supabase project configuration
-- 'README.md' — project documentation
-
+- `index.html` — application shell
+- `style.css` — responsive UI
+- `app.js` — application logic, authentication and RBAC
+- `supabase-config.js` — Supabase project configuration
+- `README.md` — project documentation
 
 ## Finance
 
@@ -109,6 +101,4 @@ The Finance dashboard shows:
 - Projected future game income based on recorded attendance
 - Projected end-of-season balance
 
-Run `supabase-finance.sql` once in the Supabase SQL Editor to create the finance tables and seed the 2026/27 pitch-rental schedule.
-
-Run `supabase-finance-season-tickets.sql` to migrate legacy season-ticket status into the per-player/per-season model.
+Database migrations under `supabase/migrations/` are retained as version-controlled schema history. One-time setup SQL files are intentionally not kept in the repository.
