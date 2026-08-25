@@ -5,8 +5,7 @@
   const app = document.getElementById("app");
   if (!sb || !app) return;
 
-  // The Present/playing columns are gone from game_players. Keep the existing
-  // app code compatible while the rest of the UI is migrated.
+  // Keep legacy app writes compatible with the current game_players schema.
   const originalFrom = sb.from.bind(sb);
   const noopQuery = () => new Proxy({}, {
     get(_target, prop) {
@@ -50,7 +49,7 @@
     return query;
   };
 
-  const esc = value => String(value ?? "").replace(/[&<>"]/g, c => ({
+  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"
   }[c]));
   const dateText = date => new Date(date + "T12:00:00").toLocaleDateString("en-GB", {
@@ -68,7 +67,9 @@
     const rows = [...app.querySelectorAll(".squad .squad-row")];
     if (!stats || !hero || syncing) return;
 
-    stats.style.visibility = "hidden";
+    // Never show the temporary four-card markup from app.js. The stats become
+    // visible only after this single snapshot has been calculated.
+    stats.classList.remove("stats-ready");
     syncing = true;
     try {
       const heroDate = hero.querySelector("h1")?.textContent?.trim() || "";
@@ -90,11 +91,11 @@
         const time = String(g.start_time || "").slice(0, 5);
         return sameDate && (!time || heroMeta.includes(time));
       });
-      if (!selectedGame) return;
+      if (!selectedGame) throw new Error("Selected game not found");
 
       const seasons = seasonsResult.data || [];
       const season = seasons.find(s => selectedGame.game_date >= s.starts_on && selectedGame.game_date <= s.ends_on) || seasons[0];
-      if (!season) return;
+      if (!season) throw new Error("Current season not found");
 
       const tickets = (ticketsResult.data || []).filter(t => t.season_id === season.id);
       const ticketByPlayer = new Map(tickets.map(t => [t.player_id, t]));
@@ -102,8 +103,12 @@
       const playerById = new Map(players.map(p => [p.id, p]));
       const squad = (squadResult.data || []).filter(x => x.game_id === selectedGame.id);
 
-      // Payment Due is deliberately simple: every player/guest in this Game
-      // Squad whose applicable payment is not paid counts as one due payment.
+      // Playing is simply the number of people in Game Squad. There is no
+      // separate playing/present field anymore.
+      const playing = squad.length;
+
+      // A due payment is either an unpaid season ticket for a season-ticket
+      // holder, or an unchecked game payment for a pay-per-game player/guest.
       const due = squad.filter(row => {
         if (!row.player_id) return !row.paid;
         const ticket = ticketByPlayer.get(row.player_id);
@@ -119,15 +124,14 @@
 
       if (key !== lastKey) {
         lastKey = key;
-        const count = squad.length;
         stats.innerHTML =
-          card("⚽", "THIS GAME · PLAYING", count) +
-          card("✓", "THIS GAME · PRESENT", count) +
+          card("⚽", "THIS GAME · PLAYING", playing) +
           card("🎟", "THIS SEASON · SEASON TICKETS", tickets.length) +
           card("€", "THIS GAME · PAYMENTS DUE", due);
       }
 
-      // Finance is the source of truth for the payment status shown in Game Squad.
+      // Finance remains the source of truth for season-ticket status shown in
+      // Game Squad. Pay-per-game rows keep their own game payment checkbox.
       rows.forEach(row => {
         const rowId = row.querySelector('[data-t="paid"]')?.dataset.id || row.querySelector(".remove")?.dataset.id;
         const squadRow = squad.find(x => x.id === rowId);
@@ -151,13 +155,15 @@
         }
       });
 
-      // Present is no longer an editable Game Squad field.
+      // Present is removed from the Game Squad UI entirely.
       app.querySelectorAll('.squad input[data-t="attended"]').forEach(input => input.closest("label")?.remove());
+      stats.classList.add("stats-ready");
     } catch (error) {
       console.warn("[Football] Dashboard/game status sync failed:", error);
+      // Do not expose the temporary/incorrect stat values when the Finance
+      // snapshot fails. The cards remain hidden until a valid snapshot exists.
     } finally {
       syncing = false;
-      stats.style.visibility = "visible";
     }
   }
 
