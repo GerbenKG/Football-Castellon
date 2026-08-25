@@ -131,10 +131,10 @@ function dashboard(){
  '<div class="card analytics-card"><div class="card-title"><div><h3>Payments</h3><p>Collection performance.</p></div></div><div class="progress-value"><strong>'+collection.toFixed(0)+'%</strong><span>'+paid+' of '+payable+' game payments collected</span></div><div class="progress"><i style="width:'+collection+'%"></i></div><div class="mini-stats"><span>Season tickets paid <b>'+season.filter(p=>ticketForPlayer(p.id,g.date)?.paid).length+'/'+season.length+'</b></span><span>Games with attendance <b>'+completed+'</b></span></div></div></section>'+
  '<section class="section"><div class="section-head"><div><h2>Attendance leaders</h2><p>Top players by attendance rate.</p></div><button class="btn btn-secondary" data-view="players">View players →</button></div><div class="card leaders">'+leaders.map(p=>'<div class="leader-row"><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(p.name)+'</b><small>'+(isSeasonTicket(p.id,g.date)?"🎟 Season ticket":"Per game")+'</small></div></div><strong>'+att(p).toFixed(0)+'%</strong></div>').join("")+'</div></section>'+
  '<section class="section"><div class="section-head"><div><h2>Game squad</h2><p>Manage attendance and payment for this match.</p></div></div><div class="squad card">'+rows.map(x=>{
-  const p=x.guest?null:player(x.playerId),name=x.guest?x.name:(p?.name||"Player"),type=x.guest?"Guest":isSeasonTicket(p.id,g.date)?"🎟 Season":"Per game";
-  const payLabel=x.guest?(x.paid?"Paid":"Due"):(ticketForPlayer(p.id,g.date)?(ticketForPlayer(p.id,g.date).paid?"Season paid":"Season unpaid"):(x.paid?"Paid":"Mark paid"));
-  const pc=x.guest||isSeasonTicket(p.id,g.date)?((ticketForPlayer(p.id,g.date)?.paid)||x.paid?"green":"amber"):(x.paid?"green":"red");
-  return '<div class="squad-row"><div class="who"><span class="avatar">'+esc(name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(name)+'</b><small>'+type+'</small></div></div>'+(can("attendance.manage")?'<label class="toggle"><input type="checkbox" data-t="attended" data-id="'+x.rowId+'" '+(x.attended?"checked":"")+'><span>Present</span></label>':'<span>'+badge(x.attended?"Present":"Not present",x.attended?"green":"slate")+'</span>')+(can("payments.manage")&&(!x.guest&&!isSeasonTicket(p.id,g.date) || x.guest)?'<label class="toggle payment-toggle"><input type="checkbox" data-t="paid" data-id="'+x.rowId+'" '+(x.paid?"checked":"")+'><span>Paid</span></label>':'<span>'+badge(payLabel,pc)+'</span>')+(can("attendance.manage")?'<button class="remove" data-a="remove" data-id="'+x.rowId+'">×</button>':"")+'</div>';
+  const p=x.guest?null:player(x.playerId),name=x.guest?x.name:(p?.name||"Player"),type=x.guest?"Guest":isSeasonTicket(p?.id,g.date)?"🎟 Season":"Per game";
+  const payLabel=x.guest?(x.paid?"Paid":"Due"):(ticketForPlayer(p?.id,g.date)?(ticketForPlayer(p?.id,g.date).paid?"Season paid":"Season unpaid"):(x.paid?"Paid":"Mark paid"));
+  const pc=x.guest||isSeasonTicket(p?.id,g.date)?((ticketForPlayer(p?.id,g.date)?.paid)||x.paid?"green":"amber"):(x.paid?"green":"red");
+  return '<div class="squad-row"><div class="who"><span class="avatar">'+esc(name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(name)+'</b><small>'+type+'</small></div></div>'+(can("attendance.manage")?'<label class="toggle"><input type="checkbox" data-t="attended" data-id="'+x.rowId+'" '+(x.attended?"checked":"")+'><span>Present</span></label>':'<span>'+badge(x.attended?"Present":"Not present",x.attended?"green":"slate")+'</span>')+(can("payments.manage")&&(!x.guest&&!isSeasonTicket(p?.id,g.date) || x.guest)?'<label class="toggle payment-toggle"><input type="checkbox" data-t="paid" data-id="'+x.rowId+'" '+(x.paid?"checked":"")+'><span>Paid</span></label>':'<span>'+badge(payLabel,pc)+'</span>')+(can("attendance.manage")?'<button class="remove" data-a="remove" data-id="'+x.rowId+'">×</button>':"")+'</div>';
  }).join("")+'</div></section>';
 }
 function players(){
@@ -144,9 +144,7 @@ function players(){
    const actions='<button class="btn btn-secondary" data-a="history" data-id="'+p.id+'">Attendance</button>'+
      (can("players.manage")?'<button class="btn btn-secondary" data-a="edit" data-id="'+p.id+'">Edit</button>':"")+
      (can("players.manage")&&can("attendance.manage")?'<button class="btn btn-secondary" data-a="delete-player" data-id="'+p.id+'">Delete</button>':"");
-   return '<tr><td><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><b>'+esc(p.name)+'</b></div></td><td>'+
-     esc(p.phone||"—")+'</td><td>'+esc(p.email||"—")+
-     '</td><td><div class="actions">'+actions+'</div></td></tr>';
+   return '<tr><td><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><b>'+esc(p.name)+'</b></div></td><td>'+esc(p.phone||"—")+'</td><td>'+esc(p.email||"—")+'</td><td><div class="actions">'+actions+'</div></td></tr>';
  }).join("")+
  '</tbody></table></div>';
 }
