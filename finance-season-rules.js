@@ -22,7 +22,7 @@
         sb.from("finance_season_tickets").select("id,season_id,player_id,amount,paid"),
         sb.from("players").select("id,name"),
         sb.from("games").select("id,game_date"),
-        sb.from("game_players").select("game_id,player_id,guest_name,attended,paid"),
+        sb.from("game_players").select("game_id,player_id,guest_name,playing,attended,paid"),
         sb.from("finance_expenses").select("season_id,amount,paid,due_date")
       ]);
       const error = s.error || t.error || p.error || g.error || gp.error || e.error;
@@ -57,15 +57,20 @@
       const gameIncomeRows = currentGameRows.filter(x => x.paid && (x.guest_name || !ticketIds.has(x.player_id)));
       const unpaidGameRows = currentGameRows.filter(x => {
         const game = gameById.get(x.game_id);
-        if (!game || game.game_date > today() || !x.attended || x.paid) return false;
-        return !!x.guest_name || !ticketIds.has(x.player_id);
+        if (!game || x.paid) return false;
+        // A pay-per-game player owes the game fee as soon as they are added
+        // to the Game Squad. Do not require attendance or wait until the
+        // game date has passed; this must also work for upcoming games.
+        return !!x.guest_name || (!!x.player_id && !!x.playing && !ticketIds.has(x.player_id));
       });
 
       if (isDashboard) {
         const selectedGameRows = dashboardGame ? gamePlayers.filter(x => x.game_id === dashboardGame.id) : [];
+        const selectedTickets = dashboardGame ? tickets.filter(t => t.season_id === (seasons.find(s => dashboardGame.game_date >= s.starts_on && dashboardGame.game_date <= s.ends_on)?.id || "")) : [];
+        const selectedTicketIds = new Set(selectedTickets.map(t => t.player_id));
         const selectedGamePaymentsDue = selectedGameRows.filter(x => {
-          if (x.player_id && ticketIds.has(x.player_id)) return !currentTickets.find(t => t.player_id === x.player_id)?.paid;
-          return !x.paid;
+          if (x.player_id && selectedTicketIds.has(x.player_id)) return !selectedTickets.find(t => t.player_id === x.player_id)?.paid;
+          return !x.paid && (!!x.guest_name || !!x.playing);
         }).length;
         const stats = document.querySelectorAll(".stats:not(.finance-stats) .stat");
         if (stats[2]?.querySelector("strong")) stats[2].querySelector("strong").textContent = String(currentTickets.length);
@@ -85,13 +90,17 @@
         const paidGameRows = seasonRows.filter(x => x.paid && (x.guest_name || !seasonTicketIds.has(x.player_id)));
         const unpaidRows = seasonRows.filter(x => {
           const game = gameById.get(x.game_id);
-          if (!game || game.game_date > today() || !x.attended || x.paid) return false;
-          return !!x.guest_name || !seasonTicketIds.has(x.player_id);
+          if (!game || x.paid) return false;
+          // Pay-per-game payment is due when the player is in the Game Squad,
+          // including future games. Season-ticket holders are excluded because
+          // their payment status comes from finance_season_tickets.
+          return !!x.guest_name || (!!x.player_id && !!x.playing && !seasonTicketIds.has(x.player_id));
         });
         const seasonExpenses = expenses.filter(x => x.season_id === season.id);
         const paidTicketIncome = seasonTickets.filter(x => x.paid).reduce((a,x) => a + Number(x.amount || 0), 0);
         const paidGameIncome = paidGameRows.length * Number(season.pay_per_game_amount || 0);
         const outstandingTickets = seasonTickets.filter(x => !x.paid).reduce((a,x) => a + Number(x.amount || 0), 0);
+        const outstandingGames = unpaidRows.length * Number(season.pay_per_game_amount || 0);
         const paidExpenses = seasonExpenses.filter(x => x.paid).reduce((a,x) => a + Number(x.amount || 0), 0);
         const futureExpenses = seasonExpenses.filter(x => !x.paid && x.due_date >= today()).reduce((a,x) => a + Number(x.amount || 0), 0);
         const balance = paidTicketIncome + paidGameIncome - paidExpenses;
@@ -104,11 +113,11 @@
           const rate = pastGames ? (appearances.get(x.id) || 0) / pastGames : 0;
           projectedGameIncome += rate * futureGames * Number(season.pay_per_game_amount || 0);
         });
-        const projectedEnd = balance + outstandingTickets + projectedGameIncome - futureExpenses;
+        const projectedEnd = balance + outstandingTickets + outstandingGames + projectedGameIncome - futureExpenses;
 
         const stats = document.querySelectorAll(".finance-stats .stat");
         if (stats[0]?.querySelector("strong")) stats[0].querySelector("strong").textContent = money(balance);
-        if (stats[1]?.querySelector("strong")) stats[1].querySelector("strong").textContent = money(outstandingTickets + projectedGameIncome);
+        if (stats[1]?.querySelector("strong")) stats[1].querySelector("strong").textContent = money(outstandingTickets + outstandingGames + projectedGameIncome);
         if (stats[2]?.querySelector("strong")) stats[2].querySelector("strong").textContent = money(futureExpenses);
         if (stats[3]?.querySelector("strong")) stats[3].querySelector("strong").textContent = money(projectedEnd);
 
