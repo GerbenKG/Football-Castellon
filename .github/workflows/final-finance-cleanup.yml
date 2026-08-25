@@ -10,8 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Remove final legacy reference
+      - name: Restore verified app and remove final legacy reference
         run: |
+          git fetch origin faabe3a0723ccd4956dcf876a0b79673e15272d1:refs/remotes/origin/restore-app
+          git checkout refs/remotes/origin/restore-app -- app.js
           python - <<'PY'
           from pathlib import Path
           p=Path('app.js')
