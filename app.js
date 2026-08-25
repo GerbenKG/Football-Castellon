@@ -2,6 +2,7 @@
 "use strict";
 let state={players:[],games:[]}, view="dashboard", gameId=null, currentUser=null, gameFilter="upcoming";
 let financeData={seasons:[],tickets:[],expenses:[]}, financeLoaded=false, financeLoading=false, financeSeasonId=null;
+let playerFinanceData={seasons:[],tickets:[]};
 let access={profile:null,permissions:{},members:[],rolePermissions:[]};
 let actingAs=null;
 const isPreview=()=>!!actingAs;
@@ -21,6 +22,8 @@ const player=id=>state.players.find(p=>p.id===id);
 const game=()=>state.games.find(g=>g.id===gameId)||state.games[0]||{participants:[]};
 const dateText=d=>new Date(d+"T12:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
 const badge=(t,c="slate")=>'<span class="badge badge-'+c+'">'+t+"</span>";
+const ticketForPlayer=(playerId,date)=>{const season=playerFinanceData.seasons.find(s=>date>=s.starts_on&&date<=s.ends_on);return season?playerFinanceData.tickets.find(t=>t.season_id===season.id&&t.player_id===playerId):null;};
+const isSeasonTicket=(playerId,date)=>!!ticketForPlayer(playerId,date);
 
 function showFatal(m){document.getElementById("app").innerHTML='<section class="card error-card"><h2>Football could not start</h2><p>'+esc(m)+'</p></section>';}
 function accessDenied(){
@@ -58,7 +61,7 @@ async function save(){
  if(can("players.manage")){
   const rp=await check(await sb.from("players").select("id"),"Loading players");
   const ids=new Set(state.players.map(p=>p.id));
-  if(state.players.length)await check(await sb.from("players").upsert(state.players.map(p=>({id:p.id,name:p.name,model:p.model,season_paid:!!p.seasonPaid}))),"Saving players");
+  if(state.players.length)await check(await sb.from("players").upsert(state.players.map(p=>({id:p.id,name:p.name,phone:p.phone||null,email:p.email||null}))),"Saving players");
   for(const p of rp.data||[])if(!ids.has(p.id))await check(await sb.from("players").delete().eq("id",p.id),"Deleting player");
  }
  if(can("games.manage")){
@@ -88,11 +91,14 @@ async function save(){
 
 async function loadRemote(options={}){
  const preserveGameId=gameId;
- const p=await sb.from("players").select("*").order("name");
+ const p=await sb.from("players").select("id,name,phone,email").order("name");
  const g=await sb.from("games").select("*").order("game_date");
  const r=await sb.from("game_players").select("*");
- if(p.error||g.error||r.error)throw(p.error||g.error||r.error);
- state.players=(p.data||[]).map(x=>({id:x.id,name:x.name,model:x.model,seasonPaid:x.season_paid}));
+ const fs=await sb.from("finance_seasons").select("id,starts_on,ends_on");
+ const ft=await sb.from("finance_season_tickets").select("id,season_id,player_id,amount,paid,paid_on");
+ if(p.error||g.error||r.error||fs.error||ft.error)throw(p.error||g.error||r.error||fs.error||ft.error);
+ playerFinanceData={seasons:fs.data||[],tickets:ft.data||[]};
+ state.players=(p.data||[]).map(x=>({id:x.id,name:x.name,phone:x.phone||"",email:x.email||""}));
  state.games=(g.data||[]).map(x=>({id:x.id,date:x.game_date,startTime:String(x.start_time).slice(0,5),endTime:String(x.end_time).slice(0,5),time:String(x.start_time).slice(0,5)+"–"+String(x.end_time).slice(0,5),location:x.location,participants:[]}));
  const map=new Map(state.games.map(x=>[x.id,x]));
  (r.data||[]).forEach(x=>{const g=map.get(x.game_id);if(g)g.participants.push({rowId:x.id,playerId:x.player_id,guest:!x.player_id,name:x.guest_name,playing:x.playing,attended:x.attended,paid:x.paid});});
@@ -108,8 +114,8 @@ async function loadRemote(options={}){
 }
 function dashboard(){
  const g=game(),rows=g.participants||[],playing=rows.filter(x=>x.playing).length,present=rows.filter(x=>x.attended).length;
- const season=state.players.filter(p=>p.model==="season"),pay=state.players.filter(p=>p.model==="game");
- const due=rows.filter(x=>x.attended&&!x.guest&&player(x.playerId)?.model==="game"&&!x.paid).length;
+ const season=state.players.filter(p=>isSeasonTicket(p.id,g.date)),pay=state.players.filter(p=>!isSeasonTicket(p.id,g.date));
+ const due=rows.filter(x=>{if(x.guest)return !x.paid;const t=ticketForPlayer(x.playerId,g.date);return t?!t.paid:!x.paid;}).length;
  const att=p=>{const a=state.games.flatMap(x=>x.participants||[]).filter(x=>!x.guest&&x.playerId===p.id);return a.length?a.filter(x=>x.attended).length/a.length*100:0;};
  const all=state.players.length?state.players.reduce((a,p)=>a+att(p),0)/state.players.length:0;
  const payAvg=pay.length?pay.reduce((a,p)=>a+att(p),0)/pay.length:0;
@@ -124,12 +130,12 @@ function dashboard(){
  '<div class="stats"><div class="stat"><div class="stat-icon">⚽</div><div><small>PLAYING</small><strong>'+playing+'</strong></div></div><div class="stat"><div class="stat-icon">✓</div><div><small>PRESENT</small><strong>'+present+'</strong></div></div><div class="stat"><div class="stat-icon">🎟</div><div><small>SEASON TICKETS</small><strong>'+season.length+'</strong></div></div><div class="stat"><div class="stat-icon">€</div><div><small>PAYMENTS DUE</small><strong>'+due+'</strong></div></div></div>'+
  '<section class="analytics-grid"><div class="card analytics-card"><div class="card-title"><div><h3>Attendance overview</h3><p>Average attendance across recorded appearances.</p></div></div><div class="metric-row"><div><small>ALL PLAYERS</small><strong>'+all.toFixed(0)+'%</strong></div><div><small>PAY PER GAME</small><strong>'+payAvg.toFixed(0)+'%</strong></div><div><small>AVG PRESENT / GAME</small><strong>'+avg.toFixed(1)+'</strong></div></div></div>'+
  '<div class="card analytics-card"><div class="card-title"><div><h3>Payments</h3><p>Collection performance.</p></div></div><div class="progress-value"><strong>'+collection.toFixed(0)+'%</strong><span>'+paid+' of '+payable+' game payments collected</span></div><div class="progress"><i style="width:'+collection+'%"></i></div><div class="mini-stats"><span>Season tickets paid <b>'+season.filter(p=>p.seasonPaid).length+'/'+season.length+'</b></span><span>Games with attendance <b>'+completed+'</b></span></div></div></section>'+
- '<section class="section"><div class="section-head"><div><h2>Attendance leaders</h2><p>Top players by attendance rate.</p></div><button class="btn btn-secondary" data-view="players">View players →</button></div><div class="card leaders">'+leaders.map(p=>'<div class="leader-row"><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(p.name)+'</b><small>'+((p.model==="season")?"🎟 Season ticket":"Per game")+'</small></div></div><strong>'+att(p).toFixed(0)+'%</strong></div>').join("")+'</div></section>'+
+ '<section class="section"><div class="section-head"><div><h2>Attendance leaders</h2><p>Top players by attendance rate.</p></div><button class="btn btn-secondary" data-view="players">View players →</button></div><div class="card leaders">'+leaders.map(p=>'<div class="leader-row"><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(p.name)+'</b><small>'+(isSeasonTicket(p.id,g.date)?"🎟 Season ticket":"Per game")+'</small></div></div><strong>'+att(p).toFixed(0)+'%</strong></div>').join("")+'</div></section>'+
  '<section class="section"><div class="section-head"><div><h2>Game squad</h2><p>Manage attendance and payment for this match.</p></div></div><div class="squad card">'+rows.map(x=>{
-  const p=x.guest?null:player(x.playerId),name=x.guest?x.name:(p?.name||"Player"),type=x.guest?"Guest":p?.model==="season"?"🎟 Season":"Per game";
-  const payLabel=x.guest?(x.paid?"Paid":"Due"):(p?.model==="season"?(p.seasonPaid?"Season paid":"Season unpaid"):(x.paid?"Paid":"Mark paid"));
-  const pc=x.guest||p?.model==="season"?(x.paid||p?.seasonPaid?"green":"amber"):(x.paid?"green":"red");
-  return '<div class="squad-row"><div class="who"><span class="avatar">'+esc(name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(name)+'</b><small>'+type+'</small></div></div>'+(can("attendance.manage")?'<label class="toggle"><input type="checkbox" data-t="attended" data-id="'+x.rowId+'" '+(x.attended?"checked":"")+'><span>Present</span></label>':'<span>'+badge(x.attended?"Present":"Not present",x.attended?"green":"slate")+'</span>')+(can("payments.manage")&&(!x.guest&&p?.model==="game" || x.guest)?'<label class="toggle payment-toggle"><input type="checkbox" data-t="paid" data-id="'+x.rowId+'" '+(x.paid?"checked":"")+'><span>Paid</span></label>':'<span>'+badge(payLabel,pc)+'</span>')+(can("attendance.manage")?'<button class="remove" data-a="remove" data-id="'+x.rowId+'">×</button>':"")+'</div>';
+  const p=x.guest?null:player(x.playerId),name=x.guest?x.name:(p?.name||"Player"),type=x.guest?"Guest":isSeasonTicket(p.id,g.date)?"🎟 Season":"Per game";
+  const payLabel=x.guest?(x.paid?"Paid":"Due"):(ticketForPlayer(p.id,g.date)?(ticketForPlayer(p.id,g.date).paid?"Season paid":"Season unpaid"):(x.paid?"Paid":"Mark paid"));
+  const pc=x.guest||isSeasonTicket(p.id,g.date)?((ticketForPlayer(p.id,g.date)?.paid)||x.paid?"green":"amber"):(x.paid?"green":"red");
+  return '<div class="squad-row"><div class="who"><span class="avatar">'+esc(name).slice(0,1).toUpperCase()+'</span><div><b>'+esc(name)+'</b><small>'+type+'</small></div></div>'+(can("attendance.manage")?'<label class="toggle"><input type="checkbox" data-t="attended" data-id="'+x.rowId+'" '+(x.attended?"checked":"")+'><span>Present</span></label>':'<span>'+badge(x.attended?"Present":"Not present",x.attended?"green":"slate")+'</span>')+(can("payments.manage")&&(!x.guest&&!isSeasonTicket(p.id,g.date) || x.guest)?'<label class="toggle payment-toggle"><input type="checkbox" data-t="paid" data-id="'+x.rowId+'" '+(x.paid?"checked":"")+'><span>Paid</span></label>':'<span>'+badge(payLabel,pc)+'</span>')+(can("attendance.manage")?'<button class="remove" data-a="remove" data-id="'+x.rowId+'">×</button>':"")+'</div>';
  }).join("")+'</div></section>';
 }
 function players(){
@@ -221,7 +227,7 @@ function finance(){
  if(!s)return '<section class="card empty"><h2>No season configured</h2><p>Create your first season to start tracking finances.</p></section>';
  const tickets=financeData.tickets.filter(x=>x.season_id===s.id);
  const expenses=financeData.expenses.filter(x=>x.season_id===s.id);
- const seasonPlayers=state.players.filter(p=>p.model==="season");
+ const seasonPlayers=tickets.map(t=>player(t.player_id)).filter(Boolean);
  const ticketByPlayer=new Map(tickets.map(x=>[x.player_id,x]));
  const seasonGames=state.games.filter(g=>g.date>=s.starts_on&&g.date<=s.ends_on);
  const gamePlayers=seasonGames.flatMap(g=>(g.participants||[]).map(x=>({g,x})));
@@ -232,7 +238,7 @@ function finance(){
  const balance=actualSeasonIncome+actualGameIncome-paidExpenses;
  const unpaidSeason=seasonPlayers.filter(p=>!ticketByPlayer.get(p.id)?.paid);
  const unpaidGame=gamePlayers.filter(({g,x})=>g.date<=new Date().toISOString().slice(0,10)&&x.attended&&(!x.guest&&player(x.playerId)?.model==="game"||x.guest)&&!x.paid);
- const ppPlayers=state.players.filter(p=>p.model==="game");
+ const ppPlayers=state.players.filter(p=>!tickets.some(t=>t.player_id===p.id));
  let projectedGame=0;
  ppPlayers.forEach(p=>{
    const appearances=state.games.flatMap(g=>(g.participants||[]).filter(x=>!x.guest&&x.playerId===p.id&&x.attended)).length;
@@ -414,7 +420,7 @@ if(e.target.id==="member-form"){const x=await sb.rpc("admin_upsert_access",{p_em
     state.games.push(g);gameId=g.id;
   }
 }
- if(e.target.id==="player-form"){let p=player(e.target.dataset.id);if(!p){p={id:crypto.randomUUID()};state.players.push(p);}p.name=f.get("name").trim();p.model=f.get("model");p.seasonPaid=f.has("seasonPaid");}
+ if(e.target.id==="player-form"){let p=player(e.target.dataset.id);if(!p){p={id:crypto.randomUUID()};state.players.push(p);}p.name=f.get("name").trim();p.phone=f.get("phone")?.trim()||"";p.email=f.get("email")?.trim()||"";}
  const isPlayerPickForm=e.target?.tagName==="FORM" &&
    !!e.target.dataset.gameId &&
    !!e.target.querySelector('select[name="id"]');
