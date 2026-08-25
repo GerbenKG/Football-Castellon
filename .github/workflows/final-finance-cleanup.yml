@@ -1,0 +1,35 @@
+name: Final finance cleanup
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  cleanup:
+    if: github.actor == 'GerbenKG'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove final legacy reference
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app.js')
+          s=p.read_text()
+          old='season.filter(p=>p.seasonPaid).length/season.length'
+          new='season.filter(p=>ticketForPlayer(p.id,g.date)?.paid).length/season.length'
+          assert old in s
+          p.write_text(s.replace(old,new))
+          PY
+      - name: Commit and remove workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js
+          git commit -m "Remove final season payment legacy reference"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
+          git rm .github/workflows/final-finance-cleanup.yml
+          git commit -m "Remove final cleanup workflow"
+          git push origin HEAD:main
