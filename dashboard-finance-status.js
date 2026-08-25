@@ -4,12 +4,15 @@
   const sb = window.supabaseClient;
   if (!sb) return;
 
-  // Dashboard financial KPIs are owned by the Finance module. Hide the
-  // dashboard values only while a newly rendered dashboard is being resolved.
-  // Do not toggle visibility on every observer pass: that causes a visible
-  // blink whenever another part of the dashboard changes.
+  // Finance is the single source of truth for these two dashboard KPIs.
+  // Keep the financial values hidden until Finance has resolved them. This
+  // prevents the dashboard's legacy 0 values from flashing before the async
+  // Finance query completes.
   const style = document.createElement("style");
-  style.textContent = ".hero + .stats.finance-loading{visibility:hidden}.hero + .stats.finance-ready{visibility:visible}";
+  style.textContent = [
+    ".stats .stat:nth-child(3) strong,.stats .stat:nth-child(4) strong{visibility:hidden}",
+    ".stats.finance-ready .stat:nth-child(3) strong,.stats.finance-ready .stat:nth-child(4) strong{visibility:visible}"
+  ].join("");
   document.head.appendChild(style);
 
   const dateText = date => new Date(date + "T12:00:00").toLocaleDateString("en-GB", {
@@ -33,15 +36,12 @@
     const heroMeta = hero.querySelector("p")?.textContent?.trim() || "";
     if (!heroDate) return;
 
-    // A new dashboard render (or a different selected game) gets a single
-    // loading state. Existing rendered stats stay visible during refreshes.
     const renderChanged = currentStats !== stats;
     if (renderChanged) {
       currentStats = stats;
       currentGameKey = "";
       lastKey = "";
       stats.classList.remove("finance-ready");
-      stats.classList.add("finance-loading");
     }
 
     running = true;
@@ -112,7 +112,6 @@
         if (values[3]) values[3].textContent = String(due);
       }
 
-      stats.classList.remove("finance-loading");
       stats.classList.add("finance-ready");
     } catch (error) {
       console.warn("[Football] Dashboard Finance sync failed:", error);
