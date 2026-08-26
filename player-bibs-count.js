@@ -4,72 +4,60 @@
   const sb = window.supabaseClient;
   if (!sb) return;
 
-  let lastKey = "";
+  let busy = false;
 
   async function render() {
+    if (busy) return;
     if (!document.querySelector('.nav-item.active[data-view="players"]')) return;
 
     const table = document.querySelector('.page-head + .table-card table');
-    if (!table) return;
+    if (!table || table.querySelector('th[data-bibs-count-column]')) return;
 
-    const bodyRows = [...table.querySelectorAll("tbody tr")];
-    if (!bodyRows.length) return;
+    busy = true;
+    try {
+      const { data, error } = await sb
+        .from("game_players")
+        .select("player_id")
+        .eq("took_bibs", true);
+      if (error) throw error;
 
-    const { data, error } = await sb
-      .from("game_players")
-      .select("player_id,took_bibs")
-      .eq("took_bibs", true);
-    if (error) {
-      console.warn("[Football] Could not load bib counts", error);
-      return;
-    }
+      const counts = new Map();
+      (data || []).forEach(row => {
+        if (!row.player_id) return;
+        counts.set(row.player_id, (counts.get(row.player_id) || 0) + 1);
+      });
 
-    const counts = new Map();
-    (data || []).forEach(row => {
-      if (!row.player_id) return;
-      counts.set(row.player_id, (counts.get(row.player_id) || 0) + 1);
-    });
-
-    const key = bodyRows.map(row => row.querySelector(".who b")?.textContent?.trim() || "").join("|") + ":" + [...counts].map(x => x.join("=")).join(",");
-    if (key === lastKey && table.querySelector("[data-bibs-count-column]")) return;
-    lastKey = key;
-
-    const existingHeader = table.querySelector('th[data-bibs-count-column]');
-    if (!existingHeader) {
       const headerRow = table.querySelector("thead tr");
-      if (headerRow) {
-        const th = document.createElement("th");
-        th.dataset.bibsCountColumn = "true";
-        th.textContent = "Bibs taken";
-        headerRow.insertBefore(th, headerRow.lastElementChild);
-      }
+      if (!headerRow) return;
+      const th = document.createElement("th");
+      th.dataset.bibsCountColumn = "true";
+      th.textContent = "Bibs taken";
+      headerRow.insertBefore(th, headerRow.lastElementChild);
+
+      table.querySelectorAll("tbody tr").forEach(row => {
+        const edit = row.querySelector('[data-a="edit"]');
+        const cell = document.createElement("td");
+        cell.dataset.bibsCountCell = "true";
+        cell.textContent = String(counts.get(edit?.dataset?.id) || 0);
+        row.insertBefore(cell, row.lastElementChild);
+      });
+    } catch (error) {
+      console.warn("[Football] Could not load bib counts", error);
+    } finally {
+      busy = false;
     }
-
-    table.querySelectorAll("tbody tr").forEach(row => {
-      if (row.querySelector("td[data-bibs-count-cell]")) return;
-
-      const name = row.querySelector(".who b")?.textContent?.trim();
-      if (!name) return;
-
-      const edit = row.querySelector('[data-a="edit"]');
-      const playerId = edit?.dataset?.id;
-      const cell = document.createElement("td");
-      cell.dataset.bibsCountCell = "true";
-      cell.textContent = String(playerId ? (counts.get(playerId) || 0) : 0);
-      row.insertBefore(cell, row.lastElementChild);
-    });
   }
 
-  let timer;
-  const schedule = () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => render().catch(() => {}), 50);
-  };
-
-  new MutationObserver(schedule).observe(document.getElementById("app") || document.body, {
+  const observer = new MutationObserver(() => render());
+  observer.observe(document.getElementById("app") || document.body, {
     childList: true,
     subtree: true
   });
 
-  schedule();
+  // The app renders asynchronously on first load. Retry briefly so the
+  // column appears immediately without requiring navigation/tab switching.
+  const startup = setInterval(() => render(), 100);
+  setTimeout(() => clearInterval(startup), 5000);
+
+  render();
 })();
