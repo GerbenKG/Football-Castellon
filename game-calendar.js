@@ -2,43 +2,67 @@
   "use strict";
 
   function isGamesPage() {
-    return document.querySelector('.nav-item.active[data-view="games"]');
+    return !!document.querySelector('.nav-item.active[data-view="games"]');
   }
 
-  function pad(value) {
-    return String(value).padStart(2, "0");
+  const pad = value => String(value).padStart(2, "0");
+
+  function parseCard(card) {
+    const heading = card.querySelector(".game-overview-date h3");
+    const details = card.querySelector(".game-overview-date p");
+    if (!heading || !details) return null;
+
+    const dateMatch = heading.textContent.trim().match(/^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+(\d{1,2})\s+([A-Za-z]+)/i);
+    const timeMatch = details.textContent.match(/(\d{1,2}:\d{2})[–-](\d{1,2}:\d{2})\s*[·•]\s*(.+)$/);
+    if (!dateMatch || !timeMatch) return null;
+
+    const months = {january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11};
+    const month = months[dateMatch[2].toLowerCase()];
+    if (month === undefined) return null;
+
+    const year = month >= 8 ? 2026 : 2027;
+    return {
+      date: `${year}-${pad(month + 1)}-${pad(Number(dateMatch[1]))}`,
+      start: timeMatch[1],
+      end: timeMatch[2],
+      location: timeMatch[3].trim()
+    };
   }
 
-  function googleCalendarUrl(date, start, end, location) {
-    const [y, m, d] = date.split("-").map(Number);
-    const [sh, sm] = start.split(":").map(Number);
-    const [eh, em] = end.split(":").map(Number);
-    const startUtc = new Date(Date.UTC(y, m - 1, d, sh - 2, sm));
-    const endUtc = new Date(Date.UTC(y, m - 1, d, eh - 2, em));
-    const fmt = dt => dt.getUTCFullYear() + pad(dt.getUTCMonth() + 1) + pad(dt.getUTCDate()) + "T" + pad(dt.getUTCHours()) + pad(dt.getUTCMinutes()) + "00Z";
+  function googleCalendarUrl(game) {
+    const [y,m,d] = game.date.split("-").map(Number);
+    const start = game.start.replace(":", "") + "00";
+    const end = game.end.replace(":", "") + "00";
+    const dates = `${y}${pad(m)}${pad(d)}T${start}/${y}${pad(m)}${pad(d)}T${end}`;
     const params = new URLSearchParams({
       action: "TEMPLATE",
       text: "Football game",
-      dates: fmt(startUtc) + "/" + fmt(endUtc),
-      location: location || "Castellón"
+      dates,
+      location: game.location || "Castellón"
     });
-    return "https://calendar.google.com/calendar/render?" + params.toString();
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
   }
 
   function addLinks() {
     if (!isGamesPage()) return;
     document.querySelectorAll(".game-overview-card").forEach(card => {
       if (card.querySelector("[data-google-calendar]")) return;
-
-      const game = card.__footballGame;
+      const game = parseCard(card);
       if (!game) return;
 
-      const actions = card.querySelector(".game-overview-actions") || card.querySelector(".game-actions");
-      if (!actions) return;
+      let actions = card.querySelector(".game-overview-actions") || card.querySelector(".game-actions");
+      if (!actions) {
+        actions = document.createElement("div");
+        actions.className = "game-overview-actions";
+        actions.style.display = "flex";
+        actions.style.gap = "8px";
+        actions.style.marginTop = "12px";
+        card.appendChild(actions);
+      }
 
       const link = document.createElement("a");
       link.className = "btn btn-secondary";
-      link.href = googleCalendarUrl(game.date, game.startTime, game.endTime, game.location);
+      link.href = googleCalendarUrl(game);
       link.target = "_blank";
       link.rel = "noopener noreferrer";
       link.dataset.googleCalendar = "true";
@@ -47,21 +71,12 @@
     });
   }
 
-  function patchCards() {
-    if (!isGamesPage() || !window.state?.games) return;
-    const cards = [...document.querySelectorAll(".game-overview-card")];
-    const games = window.state.games || [];
-    cards.forEach((card, index) => {
-      if (!card.__footballGame) card.__footballGame = games[index] || null;
-    });
-    addLinks();
-  }
-
   function schedule() {
-    clearTimeout(window.__calendarTimer);
-    window.__calendarTimer = setTimeout(patchCards, 50);
+    clearTimeout(window.__googleCalendarTimer);
+    window.__googleCalendarTimer = setTimeout(addLinks, 50);
   }
 
   schedule();
-  new MutationObserver(schedule).observe(document.getElementById("app") || document.body, { childList: true, subtree: true });
+  const app = document.getElementById("app");
+  if (app) new MutationObserver(schedule).observe(app, { childList: true, subtree: true });
 })();
