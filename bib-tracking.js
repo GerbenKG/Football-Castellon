@@ -78,10 +78,14 @@
         const result = await sb.rpc("set_game_bib_taker", { p_game_player_id: selected.id });
         if (result.error) throw result.error;
 
+        // Update the visible checkbox immediately. Do not wait for a page refresh.
+        document.querySelectorAll("[data-bibs-row]").forEach(input => {
+          input.checked = input.dataset.bibsRow === selected.id;
+        });
+
         lastGameKey = "";
         button.textContent = "✓ " + selectedName + " selected";
         setTimeout(() => { button.textContent = "🎽 Auto-select bibs"; }, 1400);
-        await renderBibControls();
       } catch (error) {
         console.warn("[Football] Auto-select bibs failed", error);
         alert("Could not automatically select bibs: " + (error.message || "Unknown error"));
