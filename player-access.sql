@@ -31,16 +31,12 @@ begin
   if p_role not in('super_admin','admin','attendance','finance','viewer','player') then raise exception 'Invalid role'; end if;
   if lower(trim(p_email))='' then raise exception 'Email is required'; end if;
 
-  if p_role='player' then
-    if p_player_id is null then raise exception 'A Player must be linked to a Player record'; end if;
-    if not exists(select 1 from public.players where id=p_player_id and archived_at is null) then
-      raise exception 'The selected Player is archived or does not exist';
-    end if;
-    if exists(select 1 from public.access_profiles where player_id=p_player_id and email<>lower(trim(p_email))) then
-      raise exception 'This Player is already linked to another Member';
-    end if;
-  else
-    p_player_id := null;
+  if p_player_id is null then raise exception 'A Player must be linked to a Member'; end if;
+  if not exists(select 1 from public.players where id=p_player_id and archived_at is null) then
+    raise exception 'The selected Player is archived or does not exist';
+  end if;
+  if exists(select 1 from public.access_profiles where player_id=p_player_id and email<>lower(trim(p_email))) then
+    raise exception 'This Player is already linked to another Member';
   end if;
 
   if p_role<>'super_admin' or p_active=false then
