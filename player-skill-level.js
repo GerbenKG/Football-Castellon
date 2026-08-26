@@ -35,13 +35,13 @@
     if (!isSuperAdmin || !playersPage()) return;
     const table = document.querySelector(".page-head ~ .card table") || document.querySelector("table");
     if (!table || !loaded) return;
-    if (table.querySelector("th[data-skill-level]") ) return;
+    if (table.querySelector("th[data-skill-level]")) return;
 
     const head = table.querySelector("thead tr");
     if (!head) return;
     const th = document.createElement("th");
     th.dataset.skillLevel = "true";
-    th.textContent = "Skill";
+    th.textContent = "Skill Level";
     head.insertBefore(th, head.lastElementChild);
 
     table.querySelectorAll("tbody tr").forEach(row => {
