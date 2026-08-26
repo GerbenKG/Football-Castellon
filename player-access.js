@@ -143,7 +143,6 @@
     }
     const games = result.data || [];
     const dateText = d => new Date(d + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-    const pad = n => String(n).padStart(2, "0");
     const calendarUrl = g => {
       const day = g.game_date.replaceAll("-", "");
       const start = String(g.start_time).slice(0, 5).replace(":", "") + "00";
@@ -248,31 +247,40 @@
     location.reload();
   }, true);
 
-  function apply() {
+  function enforcePlayerView() {
     if (!isPlayer()) return;
     addProfileNav();
-    if (!window.__playerView) route("profile");
+    const app = document.getElementById("app");
+    if (!app) return;
+    if (app.querySelector(".hero, .stats")) {
+      app.innerHTML = "";
+      window.__playerView = window.__playerView || "profile";
+      route(window.__playerView);
+    }
+  }
+
+  function apply() {
+    if (!isPlayer()) return;
+    window.__playerView = "profile";
+    enforcePlayerView();
+    route("profile");
   }
 
   async function init() {
     await loadAccess();
-    if (isPlayer()) {
-      window.__playerView = "profile";
-      apply();
-      route("profile");
-    }
+    if (isPlayer()) apply();
     const observer = new MutationObserver(() => {
       clearTimeout(timer);
       timer = setTimeout(async () => {
         if (isPlayer()) {
-          addProfileNav();
+          enforcePlayerView();
           if (document.querySelector('.nav-item.active[data-view="admin"]')) {
             await addPlayerAdminControls();
             await addPlayerPermissionColumn();
           }
           if (window.__playerView === "profile" && !document.querySelector("#player-avatar-input")) renderProfile();
         }
-      }, 50);
+      }, 20);
     });
     observer.observe(document.getElementById("app") || document.body, { childList: true, subtree: true });
 
