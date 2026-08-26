@@ -27,7 +27,7 @@
       const players = await getArchived();
       app.innerHTML = '<section class="page-head"><div><div class="eyebrow">PLAYERS</div><h1>Archive</h1><p class="muted">Archived players are kept here and are not deleted.</p></div></section>' +
         '<section class="card"><div class="table-wrap"><table><thead><tr><th>Player</th><th>Phone</th><th>Email</th><th>Archived</th><th></th></tr></thead><tbody>' +
-        (players.length ? players.map(p => '<tr data-archive-id="' + p.id + '"><td><b>' + esc(p.name) + '</b></td><td>' + esc(p.phone || "—") + '</td><td>' + esc(p.email || "—") + '</td><td>' + new Date(p.archived_at).toLocaleDateString("en-GB") + '</td><td><button class="btn btn-secondary" data-restore-player="' + p.id + '">Restore</button></td></tr>').join("") : '<tr><td colspan="5" class="muted">No archived players.</td></tr>') +
+        (players.length ? players.map(p => '<tr><td><b>' + esc(p.name) + '</b></td><td>' + esc(p.phone || "—") + '</td><td>' + esc(p.email || "—") + '</td><td>' + new Date(p.archived_at).toLocaleDateString("en-GB") + '</td><td><button class="btn btn-secondary" data-restore-player="' + p.id + '">Restore</button></td></tr>').join("") : '<tr><td colspan="5" class="muted">No archived players.</td></tr>') +
         '</tbody></table></div></section>';
     } catch (e) {
       app.innerHTML = '<section class="card error-card"><h2>Could not load archive</h2><p>' + esc(e.message) + '</p></section>';
@@ -45,42 +45,27 @@
   async function restorePlayer(id) {
     const { error } = await sb.from("players").update({ archived_at: null }).eq("id", id);
     if (error) return alert(error.message);
-    renderArchive();
+    await renderArchive();
   }
 
   function esc(value) {
     return String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   }
 
-  function markArchiveButtons() {
+  function addArchiveButtons() {
     const table = document.querySelector(".page-head ~ .card table") || document.querySelector("table");
     if (!table) return;
     table.querySelectorAll("tbody tr").forEach(row => {
       const buttons = [...row.querySelectorAll("button")];
-      const button = buttons.find(b => b.textContent.trim().toLowerCase() === "delete" || b.textContent.trim().toLowerCase() === "archive");
-      if (!button) return;
+      const button = buttons.find(b => b.textContent.trim().toLowerCase() === "delete");
+      if (!button || button.dataset.archivePlayer) return;
+      const edit = buttons.find(b => b.textContent.trim().toLowerCase() === "edit");
+      const id = row.dataset.playerId || edit?.dataset?.playerId || edit?.dataset?.id;
+      if (!id) return;
+      row.dataset.playerId = id;
       button.textContent = "Archive";
-      button.dataset.archivePlayer = row.dataset.playerId || "";
-      if (!row.dataset.playerId) {
-        const edit = buttons.find(b => b.textContent.trim().toLowerCase() === "edit");
-        const id = edit?.dataset?.playerId || edit?.dataset?.id;
-        if (id) {
-          row.dataset.playerId = id;
-          button.dataset.archivePlayer = id;
-        }
-      }
+      button.dataset.archivePlayer = id;
     });
-  }
-
-  function hideArchivedRows() {
-    const table = document.querySelector(".page-head ~ .card table") || document.querySelector("table");
-    if (!table) return;
-    getArchived().then(players => {
-      const ids = new Set(players.map(p => p.id));
-      table.querySelectorAll("tbody tr").forEach(row => {
-        if (ids.has(row.dataset.playerId)) row.remove();
-      });
-    }).catch(() => {});
   }
 
   document.addEventListener("click", async event => {
@@ -113,13 +98,18 @@
   function apply() {
     addArchiveNav();
     const active = document.querySelector('.nav-item.active[data-view="players"]');
-    if (active) {
-      markArchiveButtons();
-      hideArchivedRows();
-    }
+    if (active) addArchiveButtons();
   }
 
   apply();
-  const observer = new MutationObserver(apply);
+  let scheduled = false;
+  const observer = new MutationObserver(() => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      apply();
+    });
+  });
   observer.observe(document.body, { childList: true, subtree: true });
 })();
