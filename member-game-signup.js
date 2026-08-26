@@ -89,14 +89,16 @@
     if (!button) {
       button = document.createElement("button");
       button.type = "button";
-      button.className = "btn btn-primary";
       button.dataset.selfGameSignupButton = "true";
       wrap.appendChild(button);
     }
 
+    button.className = playing ? "btn btn-secondary" : "btn btn-primary";
     button.disabled = disabled;
-    button.textContent = playing ? "I'm playing ✓" : "I'm playing";
+    button.textContent = playing ? "I'm playing ✓" : "Sign me up!";
     button.dataset.playing = playing ? "true" : "false";
+    button.setAttribute("aria-pressed", playing ? "true" : "false");
+    button.title = playing ? "Click to leave this match" : "Click to sign up for this match";
   }
 
   async function refresh() {
@@ -137,6 +139,7 @@
     if (!preview && !isRealPlayer) return;
 
     busy = true;
+    const wasPlaying = button.dataset.playing === "true";
     button.disabled = true;
     button.textContent = "Saving…";
 
@@ -158,16 +161,17 @@
 
       if (result.error) throw result.error;
 
-      // The Games view gets its squad from the database when the application
-      // loads. Reloading here makes the new signup/removal immediately visible
-      // in the player list, playing count, and button state.
       window.dispatchEvent(new CustomEvent("football:game-squad-changed", { detail: result.data }));
-      button.textContent = result.data?.playing ? "I'm playing ✓" : "I'm playing";
+      button.dataset.playing = result.data?.playing ? "true" : "false";
+      button.className = result.data?.playing ? "btn btn-secondary" : "btn btn-primary";
+      button.textContent = result.data?.playing ? "I'm playing ✓" : "Sign me up!";
       setTimeout(() => window.location.reload(), 150);
     } catch (error) {
       console.error("Self game signup failed", error);
       button.disabled = false;
-      button.textContent = button.dataset.playing === "true" ? "I'm playing ✓" : "I'm playing";
+      button.className = wasPlaying ? "btn btn-secondary" : "btn btn-primary";
+      button.dataset.playing = wasPlaying ? "true" : "false";
+      button.textContent = wasPlaying ? "I'm playing ✓" : "Sign me up!";
       alert("Could not update your game signup: " + (error?.message || error));
     } finally {
       busy = false;
