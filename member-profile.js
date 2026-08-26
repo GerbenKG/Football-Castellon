@@ -35,10 +35,12 @@
       item.className = "nav-item";
       item.type = "button";
       item.dataset.memberProfile = "true";
-      item.textContent = "Profile";
       nav.appendChild(item);
     }
-    item.style.display = "";
+    item.innerHTML = '<span aria-hidden="true">◉</span><span>Profile</span>';
+    item.style.display = "inline-flex";
+    item.style.alignItems = "center";
+    item.style.gap = "8px";
     item.classList.toggle("active", window.__memberView === "profile");
   }
 
@@ -57,7 +59,7 @@
 
   function renderLoading() {
     const app = document.getElementById("app");
-    if (app) app.innerHTML = '<section class="card empty"><h2>Loading profile…</h2></section>';
+    if (app) app.innerHTML = '<section class="card empty" style="max-width:820px;margin:0 auto"><h2>Loading profile…</h2></section>';
   }
 
   async function renderProfile() {
@@ -68,31 +70,35 @@
       const profile = await getProfile();
       const image = await signedAvatar(profile.avatar_path);
       const initial = esc(profile.name || "M").slice(0, 1).toUpperCase();
-      const bibs = profile.role === "player" ? '<label>Bibs taken<input value="' + Number(profile.bibs_taken_count || 0) + '" disabled></label>' : '';
+      const bibs = profile.role === "player" ? '<div class="profile-field readonly-field"><span class="field-label">Bibs taken</span><strong>' + Number(profile.bibs_taken_count || 0) + '</strong></div>' : '';
 
       document.getElementById("app").innerHTML =
-        '<div class="page-head"><div><div class="eyebrow">PROFILE</div><h1 class="title">My Profile</h1><p class="muted">Manage your personal contact details.</p></div></div>' +
-        '<section class="card" style="max-width:760px">' +
-          '<div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;margin-bottom:24px">' +
-            (image
-              ? '<img src="' + esc(image) + '" alt="Profile picture" style="width:110px;height:110px;border-radius:50%;object-fit:cover">'
-              : '<div class="avatar" style="width:110px;height:110px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:42px">' + initial + '</div>') +
-            '<div><h2 style="margin:0">' + esc(profile.name) + '</h2><p class="muted" style="margin:6px 0 0">Profile information</p><label class="btn btn-secondary" style="display:inline-flex;margin-top:12px;cursor:pointer">Upload picture<input id="member-avatar-input" type="file" accept="image/*" style="display:none"></label></div>' +
-          '</div>' +
-          '<form id="member-profile-form">' +
-            '<div class="form-grid" style="grid-template-columns:1fr 1fr">' +
-              '<label>Name<input value="' + esc(profile.name) + '" disabled></label>' +
-              '<label>Phone<input name="phone" type="tel" value="' + esc(profile.phone || "") + '"></label>' +
-              '<label>Email<input name="email" type="email" value="' + esc(profile.email || "") + '"></label>' +
-              bibs +
+        '<div class="profile-shell">' +
+          '<div class="page-head profile-head"><div><div class="eyebrow">PROFILE</div><h1 class="title">My Profile</h1><p class="muted">Keep your personal details and profile picture up to date.</p></div></div>' +
+          '<section class="card profile-card">' +
+            '<div class="profile-hero">' +
+              '<div class="profile-avatar-wrap">' +
+                (image
+                  ? '<img class="profile-avatar" src="' + esc(image) + '" alt="Profile picture">'
+                  : '<div class="profile-avatar profile-avatar-fallback">' + initial + '</div>') +
+              '</div>' +
+              '<div class="profile-identity"><div class="eyebrow">MEMBER PROFILE</div><h2>' + esc(profile.name) + '</h2><p class="muted">Your name is managed by the site administrator.</p><label class="btn btn-secondary profile-upload">Upload picture<input id="member-avatar-input" type="file" accept="image/*" style="display:none"></label></div>' +
             '</div>' +
-            '<div class="modal-actions" style="margin-top:20px"><button class="btn btn-primary">Save profile</button></div>' +
-          '</form>' +
-        '</section>';
+            '<form id="member-profile-form" class="profile-form">' +
+              '<div class="profile-grid">' +
+                '<label class="profile-field"><span class="field-label">Name</span><input value="' + esc(profile.name) + '" disabled></label>' +
+                '<label class="profile-field"><span class="field-label">Phone</span><input name="phone" type="tel" value="' + esc(profile.phone || "") + '" placeholder="Add phone number"></label>' +
+                '<label class="profile-field"><span class="field-label">Email</span><input name="email" type="email" value="' + esc(profile.email || "") + '" placeholder="Add email address"></label>' +
+                bibs +
+              '</div>' +
+              '<div class="profile-actions"><button class="btn btn-primary">Save profile</button></div>' +
+            '</form>' +
+          '</section>' +
+        '</div>';
 
       document.getElementById("member-avatar-input")?.addEventListener("change", uploadAvatar);
     } catch (error) {
-      document.getElementById("app").innerHTML = '<section class="card error-card"><h2>Profile unavailable</h2><p>' + esc(error.message || "Could not load your profile.") + '</p></section>';
+      document.getElementById("app").innerHTML = '<section class="card error-card" style="max-width:820px;margin:0 auto"><h2>Profile unavailable</h2><p>' + esc(error.message || "Could not load your profile.") + '</p></section>';
     } finally {
       rendering = false;
     }
@@ -106,18 +112,11 @@
     if (!uid) return alert("You are not signed in.");
     const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
     const path = uid + "/avatar." + ext;
-    const upload = await sb.storage.from("player-avatars").upload(path, file, {
-      upsert: true,
-      contentType: file.type || "image/jpeg"
-    });
+    const upload = await sb.storage.from("player-avatars").upload(path, file, { upsert: true, contentType: file.type || "image/jpeg" });
     if (upload.error) return alert("Could not upload picture: " + upload.error.message);
 
     const profile = await getProfile();
-    const save = await sb.rpc("member_update_profile", {
-      p_phone: profile.phone || "",
-      p_email: profile.email || "",
-      p_avatar_path: path
-    });
+    const save = await sb.rpc("member_update_profile", { p_phone: profile.phone || "", p_email: profile.email || "", p_avatar_path: path });
     if (save.error) return alert("Could not save profile picture: " + save.error.message);
     await renderProfile();
   }
