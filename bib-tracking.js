@@ -88,15 +88,31 @@
         const checked = event.target.checked;
         event.target.disabled = true;
 
-        const result = await sb
-          .from("game_players")
-          .update({ took_bibs: checked })
-          .eq("id", record.id);
+        let result;
+        if (checked) {
+          // The database function clears the previous bib taker for this game
+          // before assigning the bibs to this player.
+          result = await sb.rpc("set_game_bib_taker", {
+            p_game_player_id: record.id
+          });
+        } else {
+          result = await sb
+            .from("game_players")
+            .update({ took_bibs: false })
+            .eq("id", record.id);
+        }
 
         if (result.error) {
           event.target.checked = !checked;
           alert("Could not save bibs status: " + result.error.message);
+        } else if (checked) {
+          // Keep the UI in sync immediately: only this checkbox remains checked.
+          rows.forEach(otherRow => {
+            const otherInput = otherRow.querySelector("[data-bibs-row]");
+            if (otherInput && otherInput !== event.target) otherInput.checked = false;
+          });
         }
+
         event.target.disabled = false;
       });
     });
