@@ -45,25 +45,40 @@
     actions.appendChild(button);
   }
 
-  async function chooseTeamCount() {
+  function closeModal() {
+    const root = document.getElementById("modal-root");
+    if (root) root.innerHTML = "";
+  }
+
+  function chooseTeamCount() {
     if (busy) return;
-    const raw = window.prompt("How many teams do you want to create? Enter 2 or 3.", "2");
-    if (raw === null) return;
-    const count = Number(raw);
-    if (![2, 3].includes(count)) {
-      window.alert("Please enter 2 or 3.");
-      return;
-    }
-    busy = true;
-    try {
-      const teams = await generateTeams(count);
-      showTeams(teams, count);
-    } catch (error) {
-      console.warn("[Football] Team generation failed", error);
-      window.alert("Could not generate teams: " + (error.message || "Unknown error"));
-    } finally {
-      busy = false;
-    }
+    const root = document.getElementById("modal-root");
+    if (!root) return;
+
+    root.innerHTML = '<div class="modal-bg"><div class="modal" style="max-width:460px"><div class="modal-head"><div><h2>Create teams</h2><p class="muted">How many teams do you want to create?</p></div><button class="remove" data-team-close type="button">×</button></div>' +
+      '<div style="display:flex;gap:12px;justify-content:center;padding:20px 0 8px">' +
+      '<button class="btn btn-primary" type="button" data-team-count="2" style="min-width:110px;font-size:18px">2 Teams</button>' +
+      '<button class="btn btn-primary" type="button" data-team-count="3" style="min-width:110px;font-size:18px">3 Teams</button>' +
+      '</div>' +
+      '<div class="modal-actions"><button class="btn btn-secondary" type="button" data-team-close>Cancel</button></div></div></div>';
+
+    root.querySelectorAll("[data-team-close]").forEach(button => button.addEventListener("click", closeModal));
+    root.querySelectorAll("[data-team-count]").forEach(button => {
+      button.addEventListener("click", async () => {
+        const count = Number(button.dataset.teamCount);
+        closeModal();
+        busy = true;
+        try {
+          const teams = await generateTeams(count);
+          showTeams(teams, count);
+        } catch (error) {
+          console.warn("[Football] Team generation failed", error);
+          window.alert("Could not generate teams: " + (error.message || "Unknown error"));
+        } finally {
+          busy = false;
+        }
+      });
+    });
   }
 
   async function generateTeams(teamCount) {
@@ -89,8 +104,6 @@
       throw new Error("There are not enough players in the Game Squad for " + teamCount + " teams.");
     }
 
-    // Sort strongest first and place each player into the currently weakest team.
-    // When team totals are tied, prefer the team with fewer players.
     players.sort((a, b) => b.skill - a.skill || a.name.localeCompare(b.name));
 
     const teams = Array.from({ length: teamCount }, (_, i) => ({
@@ -120,9 +133,7 @@
       '</div></section>').join("") +
       '</div><div class="modal-actions"><button class="btn btn-secondary" type="button" data-team-close>Close</button></div></div></div>';
 
-    root.querySelectorAll("[data-team-close]").forEach(button => {
-      button.addEventListener("click", () => { root.innerHTML = ""; });
-    });
+    root.querySelectorAll("[data-team-close]").forEach(button => button.addEventListener("click", closeModal));
   }
 
   function schedule() {
