@@ -11,6 +11,7 @@
   let profile = null;
   let avatarUrl = null;
   let initialized = false;
+  let previewIdentity = null;
 
   async function loadProfile() {
     const result = await sb.rpc("member_profile");
@@ -22,6 +23,23 @@
     if (!path) return null;
     const result = await sb.storage.from("player-avatars").createSignedUrl(path, 3600);
     return result.error ? null : result.data?.signedUrl || null;
+  }
+
+  function getPreviewIdentity() {
+    const banner = document.querySelector(".preview-banner");
+    if (!banner) return null;
+    const text = banner.querySelector(":scope > div")?.textContent?.trim() || "";
+    const match = text.match(/^Preview mode\s*·\s*Viewing the site as (.+?)\s*\((.+)\)$/);
+    if (!match) return null;
+    return { name: match[1].trim(), role: match[2].trim() };
+  }
+
+  function syncPreviewIdentity() {
+    const next = getPreviewIdentity();
+    const changed = (next?.name || null) !== (previewIdentity?.name || null) || (next?.role || null) !== (previewIdentity?.role || null);
+    if (!changed) return;
+    previewIdentity = next;
+    render();
   }
 
   function closeMenu() {
@@ -66,14 +84,17 @@
       topActions.appendChild(menu);
     }
 
-    const avatar = avatarUrl
-      ? '<img src="' + esc(avatarUrl) + '" alt="" class="member-user-avatar">'
-      : '<span class="member-user-avatar member-user-avatar-fallback" aria-hidden="true">' + initials(profile.name) + '</span>';
+    const displayName = previewIdentity?.name || profile.name || "Member";
+    const avatar = previewIdentity
+      ? '<span class="member-user-avatar member-user-avatar-fallback" aria-hidden="true">' + initials(displayName) + '</span>'
+      : (avatarUrl
+        ? '<img src="' + esc(avatarUrl) + '" alt="" class="member-user-avatar">'
+        : '<span class="member-user-avatar member-user-avatar-fallback" aria-hidden="true">' + initials(displayName) + '</span>');
 
     menu.innerHTML =
       '<button type="button" class="member-user-trigger" aria-expanded="false" aria-haspopup="menu">' +
         avatar +
-        '<span class="member-user-name">' + esc(profile.name || "Member") + '</span>' +
+        '<span class="member-user-name">' + esc(displayName) + '</span>' +
         '<span class="member-user-chevron" aria-hidden="true">⌄</span>' +
       '</button>' +
       '<div class="member-user-dropdown" role="menu">' +
@@ -125,6 +146,7 @@
 
     const observer = new MutationObserver(() => {
       removeLegacyHeaderButtons();
+      syncPreviewIdentity();
       if (!document.getElementById("member-user-menu")) render();
     });
     observer.observe(document.body, { childList: true, subtree: true });
