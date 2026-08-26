@@ -61,6 +61,9 @@
   function hideArchivedRows() {
     const table = document.querySelector(".page-head ~ .card table") || document.querySelector("table");
     if (!table) return;
+    table.querySelectorAll("tbody button").forEach(button => {
+      if (button.textContent.trim().toLowerCase() === "delete") button.textContent = "Archive";
+    });
     getArchived().then(players => {
       const names = new Set(players.map(p => p.name));
       table.querySelectorAll("tbody tr").forEach(row => {
@@ -90,10 +93,9 @@
     }
 
     const button = event.target.closest("button");
-    if (button && button.textContent.trim().toLowerCase() === "delete") {
+    if (button && button.textContent.trim().toLowerCase() === "archive") {
       event.preventDefault();
       event.stopImmediatePropagation();
-      button.textContent = "Archive";
       await archivePlayer(button);
     }
   }, true);
