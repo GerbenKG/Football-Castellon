@@ -6,7 +6,6 @@
 
   let busy = false;
   let cachedAccess = null;
-  let suppressObserverUntil = 0;
 
   function previewBannerText() {
     return document.body?.textContent?.replace(/\s+/g, " ").trim() || "";
@@ -17,8 +16,7 @@
   }
 
   function previewName() {
-    const text = previewBannerText();
-    const match = text.match(/Viewing the site as\s+(.+?)\s*\(player\)/i);
+    const match = previewBannerText().match(/Viewing the site as\s+(.+?)\s*\(player\)/i);
     return match?.[1]?.trim() || null;
   }
 
@@ -43,6 +41,7 @@
   }
 
   async function getSignup(gameId, playerId) {
+    if (!playerId) return null;
     const result = await sb
       .from("game_players")
       .select("id,playing")
@@ -53,11 +52,31 @@
     return result.data?.[0] || null;
   }
 
+  async function getPreviewPlayerId(name) {
+    if (!name) return null;
+    const access = await loadAccess();
+    if (access?.members?.length) {
+      const member = access.members.find(m =>
+        String(m.display_name || m.name || "").trim().toLowerCase() === name.trim().toLowerCase() &&
+        m.role === "player" && m.active !== false
+      );
+      if (member?.player_id) return member.player_id;
+    }
+
+    const result = await sb.rpc("admin_list_access");
+    if (result.error) return null;
+    const member = (result.data || []).find(m =>
+      String(m.display_name || m.name || "").trim().toLowerCase() === name.trim().toLowerCase() &&
+      m.role === "player" && m.active !== false
+    );
+    return member?.player_id || null;
+  }
+
   function findNextGameCard() {
     return Array.from(document.querySelectorAll(".card")).find(card => /NEXT GAME/i.test(card.textContent || ""));
   }
 
-  function renderButton(card, label, disabled = false) {
+  function renderButton(card, playing, disabled = false) {
     let wrap = card.querySelector("[data-self-game-signup]");
     if (!wrap) {
       wrap = document.createElement("div");
@@ -76,7 +95,8 @@
     }
 
     button.disabled = disabled;
-    button.textContent = label;
+    button.textContent = playing ? "I'm playing ✓" : "I'm playing";
+    button.dataset.playing = playing ? "true" : "false";
   }
 
   async function refresh() {
@@ -97,12 +117,11 @@
     const nextGame = await getNextGame();
     if (!nextGame) return;
 
-    if (preview) {
-      renderButton(card, "I'm playing");
-    } else {
-      const existing = await getSignup(nextGame.id, access.profile.player_id);
-      renderButton(card, existing?.playing ? "I'm playing ✓" : "I'm playing");
-    }
+    const playerId = preview
+      ? await getPreviewPlayerId(previewName())
+      : access.profile.player_id;
+    const existing = await getSignup(nextGame.id, playerId);
+    renderButton(card, !!existing?.playing);
   }
 
   document.addEventListener("click", async event => {
@@ -118,7 +137,6 @@
     if (!preview && !isRealPlayer) return;
 
     busy = true;
-    suppressObserverUntil = Date.now() + 1500;
     button.disabled = true;
     button.textContent = "Saving…";
 
@@ -130,36 +148,34 @@
       if (preview) {
         const name = previewName();
         if (!name) throw new Error("Could not determine the Player being previewed");
-        result = await sb.rpc("admin_preview_join_game", {
+        result = await sb.rpc("admin_preview_toggle_game", {
           p_game_id: nextGame.id,
           p_member_name: name
         });
       } else {
-        result = await sb.rpc("member_join_game", { p_game_id: nextGame.id });
+        result = await sb.rpc("member_toggle_game", { p_game_id: nextGame.id });
       }
 
       if (result.error) throw result.error;
 
-      suppressObserverUntil = Date.now() + 1500;
-      button.textContent = "I'm playing ✓";
-      button.disabled = true;
-      window.dispatchEvent(new CustomEvent("football:game-squad-changed"));
+      // The Games view gets its squad from the database when the application
+      // loads. Reloading here makes the new signup/removal immediately visible
+      // in the player list, playing count, and button state.
+      window.dispatchEvent(new CustomEvent("football:game-squad-changed", { detail: result.data }));
+      button.textContent = result.data?.playing ? "I'm playing ✓" : "I'm playing";
+      setTimeout(() => window.location.reload(), 150);
     } catch (error) {
       console.error("Self game signup failed", error);
-      suppressObserverUntil = Date.now() + 500;
       button.disabled = false;
-      button.textContent = "I'm playing";
-      alert("Could not add you to the game: " + (error?.message || error));
+      button.textContent = button.dataset.playing === "true" ? "I'm playing ✓" : "I'm playing";
+      alert("Could not update your game signup: " + (error?.message || error));
     } finally {
       busy = false;
     }
   });
 
   const observer = new MutationObserver(records => {
-    if (busy || Date.now() < suppressObserverUntil) return;
-
-    // Ignore DOM mutations caused by this button itself. The app has several
-    // global observers, and re-rendering here can otherwise reset the success state.
+    if (busy) return;
     const onlySignupMutations = records.length > 0 && records.every(record => {
       const target = record.target?.nodeType === Node.TEXT_NODE ? record.target.parentElement : record.target;
       return target?.closest?.("[data-self-game-signup]");
@@ -169,6 +185,7 @@
     clearTimeout(window.__memberGameSignupTimer);
     window.__memberGameSignupTimer = setTimeout(() => refresh().catch(console.error), 100);
   });
+
   observer.observe(document.body, { childList: true, subtree: true });
   setTimeout(() => refresh().catch(console.error), 500);
 })();
