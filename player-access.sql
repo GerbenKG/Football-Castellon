@@ -10,8 +10,9 @@ create unique index if not exists access_profiles_player_id_unique
 
 insert into public.role_permissions(role, permission, enabled)
 values
-  ('player','games.view',true)
- on conflict (role, permission) do update set enabled=excluded.enabled;
+  ('player','games.view',true),
+  ('player','players.view',false)
+on conflict (role, permission) do update set enabled=excluded.enabled;
 
 create or replace function public.admin_upsert_access(
   p_email text,
@@ -84,14 +85,13 @@ $$;
 
 create or replace function public.player_list_names()
 returns table(id uuid, name text)
-language sql
+language plpgsql
 security definer
 set search_path to ''
 as $$
-select p.id,p.name
-from public.players p
-where p.archived_at is null
-  and exists(select 1 from public.access_profiles a where a.user_id=auth.uid() and a.active=true and a.role='player');
+begin
+  raise exception 'Player access does not include roster access';
+end;
 $$;
 
 create or replace function public.player_list_games()
