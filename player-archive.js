@@ -25,6 +25,7 @@
     if (!archiveSection) {
       archiveSection = document.createElement("section");
       archiveSection.id = "player-archive-section";
+      archiveSection.style.marginTop = "40px";
       playersCard.insertAdjacentElement("afterend", archiveSection);
     }
 
@@ -77,27 +78,10 @@
     }
   }
 
-  function markArchiveButtons() {
-    const table = document.querySelector(".page-head ~ .table-card table");
-    if (!table) return;
-    table.querySelectorAll("tbody tr").forEach(row => {
-      const button = [...row.querySelectorAll("button")].find(b => b.dataset.a === "delete-player" || b.textContent.trim().toLowerCase() === "delete");
-      if (!button) return;
-      const edit = row.querySelector('[data-a="edit"]');
-      const id = row.dataset.playerId || edit?.dataset?.id;
-      if (!id) return;
-      row.dataset.playerId = id;
-      button.dataset.archivePlayer = id;
-      button.removeAttribute("data-a");
-      button.textContent = "Archive";
-    });
-  }
-
   async function applyPlayersPage() {
     if (!document.querySelector('.nav-item.active[data-view="players"]')) return;
     await hideArchivedPlayers();
     await renderArchiveSection();
-    markArchiveButtons();
   }
 
   document.addEventListener("click", async event => {
