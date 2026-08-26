@@ -47,6 +47,20 @@
     await renderArchive();
   }
 
+  async function removeArchivedFromPlayerPicker() {
+    const select = document.querySelector('#modal-root select[name="id"]');
+    if (!select) return;
+    const archived = await getArchived();
+    const ids = new Set(archived.map(p => p.id));
+    [...select.options].forEach(option => {
+      if (ids.has(option.value)) option.remove();
+    });
+    if (!select.options.length) {
+      select.disabled = true;
+      select.closest("form")?.querySelector(".btn-primary")?.setAttribute("disabled", "disabled");
+    }
+  }
+
   function esc(value) {
     return String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   }
@@ -54,10 +68,8 @@
   async function hideArchivedRows() {
     const table = document.querySelector(".page-head ~ .card table");
     if (!table) return;
-
     const archived = await getArchived();
     const ids = new Set(archived.map(p => p.id));
-
     table.querySelectorAll("tbody tr").forEach(row => {
       const edit = row.querySelector('[data-a="edit"]');
       const id = row.dataset.playerId || edit?.dataset?.id;
@@ -68,11 +80,14 @@
 
   function schedulePlayersCleanup() {
     setTimeout(() => {
-      if (document.querySelector('.nav-item.active[data-view="players"]')) {
-        hideArchivedRows().catch(() => {});
-      }
+      if (document.querySelector('.nav-item.active[data-view="players"]')) hideArchivedRows().catch(() => {});
     }, 0);
   }
+
+  document.addEventListener("click", event => {
+    const addPlayer = event.target.closest('[data-a="add-player"]');
+    if (addPlayer) setTimeout(() => removeArchivedFromPlayerPicker(), 0);
+  }, true);
 
   document.addEventListener("click", async event => {
     const archiveNav = event.target.closest('[data-view="archive"]');
