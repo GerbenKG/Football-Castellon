@@ -91,8 +91,6 @@
       .eq("game_id", game.id);
     if (squadError) throw squadError;
 
-    // Include both registered players and guests. Guests have no skill level,
-    // so they are treated as average skill (3).
     const players = (squad || [])
       .filter(row => row.player_id || row.guest_name)
       .map((row, index) => ({
@@ -128,11 +126,10 @@
     const root = document.getElementById("modal-root");
     if (!root) return;
 
-    const average = teams.map(team => team.total / team.players.length);
-    root.innerHTML = '<div class="modal-bg"><div class="modal" style="max-width:760px"><div class="modal-head"><div><h2>Suggested teams</h2><p class="muted">Balanced across the current Game Squad. Players without a skill level, including guests, are treated as 3.</p></div><button class="remove" data-team-close type="button">×</button></div>' +
+    root.innerHTML = '<div class="modal-bg"><div class="modal" style="max-width:760px"><div class="modal-head"><h2>Suggested teams</h2><button class="remove" data-team-close type="button">×</button></div>' +
       '<div class="analytics-grid" style="grid-template-columns:repeat(' + count + ',minmax(0,1fr))">' +
-      teams.map((team, index) => '<section class="card analytics-card"><div class="card-title"><div><h3>' + esc(team.name) + '</h3><p>Average skill ' + average[index].toFixed(2) + '</p></div></div><div class="history-list">' +
-        team.players.map(player => '<div class="history-row"><div><b>' + esc(player.name) + '</b><small>' + (player.guest ? "Guest · " : "") + 'Skill ' + player.skill + '</small></div><span class="badge badge-slate">' + player.skill + '</span></div>').join("") +
+      teams.map(team => '<section class="card analytics-card"><div class="card-title"><h3>' + esc(team.name) + '</h3></div><div class="history-list">' +
+        team.players.map(player => '<div class="history-row"><div><b>' + esc(player.name) + '</b></div></div>').join("") +
       '</div></section>').join("") +
       '</div><div class="modal-actions"><button class="btn btn-secondary" type="button" data-team-close>Close</button></div></div></div>';
 
