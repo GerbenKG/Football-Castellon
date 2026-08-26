@@ -32,27 +32,31 @@
   }
 
   function addColumn() {
-    if (!isSuperAdmin || !playersPage()) return;
+    if (!isSuperAdmin || !playersPage()) return false;
     const table = document.querySelector(".page-head ~ .card table") || document.querySelector("table");
-    if (!table || !loaded) return;
-    if (table.querySelector("th[data-skill-level]")) return;
+    if (!table || !loaded) return false;
+    if (table.querySelector("th[data-skill-level]")) return true;
 
     const head = table.querySelector("thead tr");
-    if (!head) return;
+    const rows = [...table.querySelectorAll("tbody tr")];
+    if (!head || !rows.length) return false;
+
     const th = document.createElement("th");
     th.dataset.skillLevel = "true";
     th.textContent = "Skill Level";
     head.insertBefore(th, head.lastElementChild);
 
-    table.querySelectorAll("tbody tr").forEach(row => {
+    rows.forEach(row => {
       const edit = row.querySelector('[data-a="edit"]');
-      const id = edit?.dataset?.id;
+      const id = edit?.dataset?.id || row.dataset.playerId;
       if (!id) return;
       const td = document.createElement("td");
       td.dataset.skillLevel = "true";
-      td.textContent = skills.get(id) ? String(skills.get(id)) : "—";
+      const value = skills.get(id);
+      td.textContent = value ? String(value) : "—";
       row.insertBefore(td, row.lastElementChild);
     });
+    return true;
   }
 
   async function enhanceEditModal() {
@@ -102,12 +106,24 @@
     await enhanceEditModal();
   }
 
+  async function waitForPlayersTable(attempt = 0) {
+    if (!isSuperAdmin || !loaded) return;
+    if (addColumn()) return;
+    if (attempt < 40) setTimeout(() => waitForPlayersTable(attempt + 1), 100);
+  }
+
   (async () => {
     await loadAccess();
+    await loadSkills();
     await apply();
+    waitForPlayersTable();
+
     const observer = new MutationObserver(() => {
       clearTimeout(window.__skillTimer);
-      window.__skillTimer = setTimeout(apply, 50);
+      window.__skillTimer = setTimeout(() => {
+        apply();
+        waitForPlayersTable();
+      }, 50);
     });
     observer.observe(document.getElementById("app") || document.body, { childList: true, subtree: true });
   })();
