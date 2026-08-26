@@ -25,23 +25,8 @@
     const nav = document.querySelector(".nav");
     if (!nav) return;
 
-    let item = nav.querySelector("[data-member-profile]");
-    if (!item) {
-      item = nav.querySelector("[data-player-profile]");
-      if (item) item.dataset.memberProfile = "true";
-    }
-    if (!item) {
-      item = document.createElement("button");
-      item.className = "nav-item";
-      item.type = "button";
-      item.dataset.memberProfile = "true";
-      nav.appendChild(item);
-    }
-    item.innerHTML = '<span aria-hidden="true">◉</span><span>Profile</span>';
-    item.style.display = "inline-flex";
-    item.style.alignItems = "center";
-    item.style.gap = "8px";
-    item.classList.toggle("active", window.__memberView === "profile");
+    const item = nav.querySelector("[data-member-profile], [data-player-profile]");
+    if (item) item.style.display = "none";
   }
 
   async function getProfile() {
@@ -128,7 +113,6 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       window.__memberView = "profile";
-      ensureNav();
       renderProfile();
     }
   }, true);
