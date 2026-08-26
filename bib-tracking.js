@@ -21,15 +21,9 @@
   async function findCurrentGame() {
     const title = currentGameTitle();
     if (!title) return null;
-
     const { data, error } = await sb.from("games").select("id,game_date").order("game_date");
     if (error) return null;
-
-    const format = date => new Date(date + "T12:00:00").toLocaleDateString("en-GB", {
-      weekday: "long",
-      day: "numeric",
-      month: "long"
-    });
+    const format = date => new Date(date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
     return (data || []).find(game => format(game.game_date) === title) || null;
   }
 
@@ -55,7 +49,7 @@
 
         const { data: currentPlayers, error: currentError } = await sb
           .from("game_players")
-          .select("id,player_id,guest_name")
+          .select("id,player_id,guest_name,players(name)")
           .eq("game_id", currentGame.id);
         if (currentError) throw currentError;
 
@@ -79,12 +73,13 @@
         const minCount = Math.min(...candidates.map(x => counts.get(x.player_id) || 0));
         const eligible = candidates.filter(x => (counts.get(x.player_id) || 0) === minCount);
         const selected = eligible[Math.floor(Math.random() * eligible.length)];
+        const selectedName = selected.players?.name || selected.guest_name || "Player";
 
         const result = await sb.rpc("set_game_bib_taker", { p_game_player_id: selected.id });
         if (result.error) throw result.error;
 
         lastGameKey = "";
-        button.textContent = "✓ " + (selected.player_id || "Player") + " selected";
+        button.textContent = "✓ " + selectedName + " selected";
         setTimeout(() => { button.textContent = "🎽 Auto-select bibs"; }, 1400);
         await renderBibControls();
       } catch (error) {
@@ -100,7 +95,6 @@
 
   async function renderBibControls() {
     if (!isGameSquadVisible()) return;
-
     addAutoSelectButton();
 
     const rows = [...document.querySelectorAll(".squad-row")];
@@ -117,7 +111,6 @@
       .from("game_players")
       .select("id,player_id,took_bibs,players(name)")
       .eq("game_id", currentGame.id);
-
     if (error) return;
 
     const byName = new Map((gamePlayers || [])
@@ -126,7 +119,6 @@
 
     rows.forEach(row => {
       if (row.querySelector("[data-bibs-control]")) return;
-
       const name = row.querySelector(".who b")?.textContent?.trim() || "";
       const record = byName.get(name.toLowerCase());
       if (!record) return;
@@ -168,10 +160,6 @@
     }, 80);
   }
 
-  new MutationObserver(scheduleRefresh).observe(document.getElementById("app") || document.body, {
-    childList: true,
-    subtree: true
-  });
-
+  new MutationObserver(scheduleRefresh).observe(document.getElementById("app") || document.body, { childList: true, subtree: true });
   scheduleRefresh();
 })();
