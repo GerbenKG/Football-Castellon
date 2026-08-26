@@ -22,6 +22,15 @@
     });
   }
 
+  function removeAttendanceButtons() {
+    if (!isPlayersPage()) return;
+    const table = document.querySelector(".page-head ~ .card table") || document.querySelector("table");
+    if (!table) return;
+    table.querySelectorAll("button").forEach(button => {
+      if (button.textContent.trim().toLowerCase() === "attendance") button.remove();
+    });
+  }
+
   function cleanPlayersHeading() {
     if (!isPlayersPage()) return;
     const subtitle = document.querySelector(".page-head .title")?.parentElement?.querySelector(".muted");
@@ -62,6 +71,7 @@
 
   function apply() {
     removeFinanceColumns();
+    removeAttendanceButtons();
     cleanPlayersHeading();
     addPlayerCount();
     ensureMobileNavVisible();
