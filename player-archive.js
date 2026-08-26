@@ -10,64 +10,36 @@
     return data || [];
   }
 
-  function addArchiveNav() {
-    const nav = document.querySelector(".nav");
-    if (!nav || nav.querySelector('[data-view="archive"]')) return;
-    const b = document.createElement("button");
-    b.className = "nav-item";
-    b.dataset.view = "archive";
-    b.textContent = "Archive";
-    nav.appendChild(b);
-  }
-
-  async function renderArchive() {
-    const app = document.getElementById("app");
-    if (!app) return;
-    try {
-      const players = await getArchived();
-      app.innerHTML = '<section class="page-head"><div><div class="eyebrow">PLAYERS</div><h1>Archive</h1><p class="muted">Archived players are kept here and are not deleted.</p></div></section>' +
-        '<section class="card"><div class="table-wrap"><table><thead><tr><th>Player</th><th>Phone</th><th>Email</th><th>Archived</th><th></th></tr></thead><tbody>' +
-        (players.length ? players.map(p => '<tr><td><b>' + esc(p.name) + '</b></td><td>' + esc(p.phone || "—") + '</td><td>' + esc(p.email || "—") + '</td><td>' + new Date(p.archived_at).toLocaleDateString("en-GB") + '</td><td><button class="btn btn-secondary" data-restore-player="' + p.id + '">Restore</button></td></tr>').join("") : '<tr><td colspan="5" class="muted">No archived players.</td></tr>') +
-        '</tbody></table></div></section>';
-    } catch (e) {
-      app.innerHTML = '<section class="card error-card"><h2>Could not load archive</h2><p>' + esc(e.message) + '</p></section>';
-    }
-  }
-
-  async function archivePlayer(id) {
-    if (!id) return;
-    const { error } = await sb.from("players").update({ archived_at: new Date().toISOString() }).eq("id", id).is("archived_at", null);
-    if (error) return alert(error.message);
-    document.querySelector('[data-player-id="' + id + '"]')?.remove();
-  }
-
-  async function restorePlayer(id) {
-    const { error } = await sb.from("players").update({ archived_at: null }).eq("id", id);
-    if (error) return alert(error.message);
-    await renderArchive();
-  }
-
-  async function removeArchivedFromPlayerPicker() {
-    const select = document.querySelector('#modal-root select[name="id"]');
-    if (!select) return;
-    const archived = await getArchived();
-    const ids = new Set(archived.map(p => p.id));
-    [...select.options].forEach(option => {
-      if (ids.has(option.value)) option.remove();
-    });
-    if (!select.options.length) {
-      select.disabled = true;
-      select.closest("form")?.querySelector(".btn-primary")?.setAttribute("disabled", "disabled");
-    }
-  }
-
   function esc(value) {
     return String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   }
 
-  async function hideArchivedRows() {
-    const table = document.querySelector(".page-head ~ .card table");
+  async function renderArchiveSection() {
+    if (!document.querySelector('.nav-item.active[data-view="players"]')) return;
+    const playersCard = document.querySelector(".page-head ~ .table-card");
+    if (!playersCard) return;
+
+    let archiveCard = document.getElementById("player-archive-card");
+    const players = await getArchived();
+
+    if (!archiveCard) {
+      archiveCard = document.createElement("section");
+      archiveCard.id = "player-archive-card";
+      archiveCard.className = "card";
+      playersCard.insertAdjacentElement("afterend", archiveCard);
+    }
+
+    archiveCard.innerHTML = '<div class="section-head"><div><div class="eyebrow">ARCHIVE</div><h2>Archived players</h2><p>Players kept for historical records. They cannot be selected for new games.</p></div></div>' +
+      '<div class="table-card"><table><thead><tr><th>Player</th><th>Phone</th><th>Email</th><th>Archived</th><th></th></tr></thead><tbody>' +
+      (players.length ? players.map(p => '<tr><td><b>' + esc(p.name) + '</b></td><td>' + esc(p.phone || "—") + '</td><td>' + esc(p.email || "—") + '</td><td>' + new Date(p.archived_at).toLocaleDateString("en-GB") + '</td><td><button class="btn btn-secondary" data-restore-player="' + p.id + '">Restore</button></td></tr>').join("") : '<tr><td colspan="5" class="muted">No archived players.</td></tr>') +
+      '</tbody></table></div>';
+  }
+
+  async function hideArchivedPlayers() {
+    if (!document.querySelector('.nav-item.active[data-view="players"]')) return;
+    const table = document.querySelector(".page-head ~ .table-card table");
     if (!table) return;
+
     const archived = await getArchived();
     const ids = new Set(archived.map(p => p.id));
     table.querySelectorAll("tbody tr").forEach(row => {
@@ -78,31 +50,35 @@
     });
   }
 
-  function schedulePlayersCleanup() {
-    setTimeout(() => {
-      if (document.querySelector('.nav-item.active[data-view="players"]')) hideArchivedRows().catch(() => {});
-    }, 0);
+  async function filterGamePlayerPicker() {
+    const form = document.getElementById("pick-form");
+    if (!form) return;
+    const select = form.querySelector('select[name="id"]');
+    if (!select) return;
+
+    const archived = await getArchived();
+    const ids = new Set(archived.map(p => p.id));
+    [...select.options].forEach(option => {
+      if (ids.has(option.value)) option.remove();
+    });
+
+    if (!select.options.length) {
+      form.querySelector(".modal-actions")?.insertAdjacentHTML("beforebegin", '<p class="notice">No active players are available for this game.</p>');
+      const submit = form.querySelector("button[type=submit], button.btn-primary");
+      if (submit) submit.disabled = true;
+    }
   }
 
-  document.addEventListener("click", event => {
-    const addPlayer = event.target.closest('[data-a="add-player"]');
-    if (addPlayer) setTimeout(() => removeArchivedFromPlayerPicker(), 0);
-  }, true);
+  async function applyPlayersPage() {
+    if (!document.querySelector('.nav-item.active[data-view="players"]')) return;
+    await hideArchivedPlayers();
+    await renderArchiveSection();
+  }
 
   document.addEventListener("click", async event => {
-    const archiveNav = event.target.closest('[data-view="archive"]');
-    if (archiveNav) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      document.querySelectorAll(".nav-item").forEach(x => x.classList.remove("active"));
-      archiveNav.classList.add("active");
-      await renderArchive();
-      return;
-    }
-
     const playersNav = event.target.closest('[data-view="players"]');
     if (playersNav) {
-      schedulePlayersCleanup();
+      setTimeout(() => applyPlayersPage().catch(() => {}), 0);
       return;
     }
 
@@ -110,18 +86,26 @@
     if (restore) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      await restorePlayer(restore.dataset.restorePlayer);
+      const { error } = await sb.from("players").update({ archived_at: null }).eq("id", restore.dataset.restorePlayer);
+      if (error) return alert(error.message);
+      await applyPlayersPage();
       return;
     }
 
-    const button = event.target.closest("button[data-archive-player]");
-    if (button) {
+    const archive = event.target.closest("button[data-archive-player]");
+    if (archive) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      await archivePlayer(button.dataset.archivePlayer);
+      const { error } = await sb.from("players").update({ archived_at: new Date().toISOString() }).eq("id", archive.dataset.archivePlayer).is("archived_at", null);
+      if (error) return alert(error.message);
+      await applyPlayersPage();
+      return;
+    }
+
+    if (event.target.closest('[data-a="add-player"]')) {
+      setTimeout(() => filterGamePlayerPicker().catch(() => {}), 0);
     }
   }, true);
 
-  addArchiveNav();
-  if (document.querySelector('.nav-item.active[data-view="players"]')) schedulePlayersCleanup();
+  setTimeout(() => applyPlayersPage().catch(() => {}), 0);
 })();
