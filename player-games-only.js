@@ -5,8 +5,21 @@
   if (!sb) return;
 
   let access = null;
+  let redirecting = false;
 
-  const isPlayer = () => access?.profile?.role === "player" && access?.profile?.active === true;
+  const isPlayerRole = value => String(value || "").trim().toLowerCase() === "player";
+  const previewRole = () => {
+    const banner = document.querySelector(".preview-banner");
+    if (!banner) return null;
+    const text = banner.querySelector(":scope > div")?.textContent?.trim() || "";
+    const match = text.match(/^Preview mode\s*·\s*Viewing the site as .+?\s*\((.+)\)$/i);
+    return match?.[1]?.trim() || null;
+  };
+
+  const isEffectivePlayer = () => {
+    const actualPlayer = access?.profile?.role === "player" && access?.profile?.active === true;
+    return actualPlayer || isPlayerRole(previewRole());
+  };
 
   function hideNavItem(selector) {
     const item = document.querySelector(selector);
@@ -25,25 +38,27 @@
   }
 
   function goToGames() {
+    if (redirecting) return;
     const games = document.querySelector('.nav-item[data-view="games"]');
-    if (games) {
-      games.click();
-      return;
-    }
-    window.location.hash = "games";
+    if (!games) return;
+    redirecting = true;
+    games.click();
+    setTimeout(() => { redirecting = false; }, 100);
   }
 
   function enforcePlayerArea() {
-    if (!isPlayer()) return;
+    if (!isEffectivePlayer()) return;
 
-    // Players only get Games and Profile. Dashboard and Players are not part
-    // of the Player experience and are removed from navigation.
+    // A Player's application surface is Games + Profile only.
     hideNavItem('.nav-item[data-view="dashboard"]');
     hideNavItem('.nav-item[data-view="players"]');
+    hideNavItem('.nav-item[data-view="finance"]');
+    hideNavItem('.nav-item[data-view="admin"]');
     showNavItem('.nav-item[data-view="games"]');
 
-    // If a Player lands on Dashboard (including after a refresh), move them
-    // immediately to Games rather than rendering the admin dashboard.
+    // Preview mode keeps the Super Admin's real session, so the normal app
+    // can still render Dashboard. Replace that view immediately when the
+    // preview target is a Player.
     const active = document.querySelector('.nav-item.active');
     if (active?.dataset.view === "dashboard") goToGames();
   }
@@ -56,7 +71,7 @@
   }
 
   document.addEventListener("click", event => {
-    if (!isPlayer()) return;
+    if (!isEffectivePlayer()) return;
 
     const dashboard = event.target.closest('.nav-item[data-view="dashboard"]');
     if (dashboard) {
