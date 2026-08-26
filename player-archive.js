@@ -34,18 +34,12 @@
     }
   }
 
-  async function archivePlayer(button) {
-    const row = button.closest("tr");
-    if (!row) return;
-    const name = row.querySelector("td")?.textContent.trim();
-    if (!name) return;
-    const { data, error } = await sb.from("players").select("id,name").eq("name", name).is("archived_at", null).limit(2);
+  async function archivePlayer(id) {
+    if (!id) return;
+    const { error } = await sb.from("players").update({ archived_at: new Date().toISOString() }).eq("id", id).is("archived_at", null);
     if (error) return alert(error.message);
-    if (!data?.length) return alert("Player not found.");
-    if (data.length > 1) return alert("More than one player has this name. Archive the player from the Edit dialog instead.");
-    const { error: updateError } = await sb.from("players").update({ archived_at: new Date().toISOString() }).eq("id", data[0].id);
-    if (updateError) return alert(updateError.message);
-    row.remove();
+    const row = document.querySelector('[data-player-id="' + id + '"]');
+    if (row) row.remove();
   }
 
   async function restorePlayer(id) {
@@ -58,17 +52,33 @@
     return String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   }
 
+  function markArchiveButtons() {
+    const table = document.querySelector(".page-head ~ .card table") || document.querySelector("table");
+    if (!table) return;
+    table.querySelectorAll("tbody tr").forEach(row => {
+      const buttons = [...row.querySelectorAll("button")];
+      const button = buttons.find(b => b.textContent.trim().toLowerCase() === "delete" || b.textContent.trim().toLowerCase() === "archive");
+      if (!button) return;
+      button.textContent = "Archive";
+      button.dataset.archivePlayer = row.dataset.playerId || "";
+      if (!row.dataset.playerId) {
+        const edit = buttons.find(b => b.textContent.trim().toLowerCase() === "edit");
+        const id = edit?.dataset?.playerId || edit?.dataset?.id;
+        if (id) {
+          row.dataset.playerId = id;
+          button.dataset.archivePlayer = id;
+        }
+      }
+    });
+  }
+
   function hideArchivedRows() {
     const table = document.querySelector(".page-head ~ .card table") || document.querySelector("table");
     if (!table) return;
-    table.querySelectorAll("tbody button").forEach(button => {
-      if (button.textContent.trim().toLowerCase() === "delete") button.textContent = "Archive";
-    });
     getArchived().then(players => {
-      const names = new Set(players.map(p => p.name));
+      const ids = new Set(players.map(p => p.id));
       table.querySelectorAll("tbody tr").forEach(row => {
-        const name = row.querySelector("td")?.textContent.trim();
-        if (name && names.has(name)) row.remove();
+        if (ids.has(row.dataset.playerId)) row.remove();
       });
     }).catch(() => {});
   }
@@ -92,18 +102,21 @@
       return;
     }
 
-    const button = event.target.closest("button");
-    if (button && button.textContent.trim().toLowerCase() === "archive") {
+    const button = event.target.closest("button[data-archive-player]");
+    if (button) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      await archivePlayer(button);
+      await archivePlayer(button.dataset.archivePlayer);
     }
   }, true);
 
   function apply() {
     addArchiveNav();
     const active = document.querySelector('.nav-item.active[data-view="players"]');
-    if (active) hideArchivedRows();
+    if (active) {
+      markArchiveButtons();
+      hideArchivedRows();
+    }
   }
 
   apply();
