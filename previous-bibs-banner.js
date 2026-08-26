@@ -14,24 +14,34 @@
 
     const { data: games, error } = await sb.from("games").select("id,game_date").order("game_date");
     if (error) return;
+
     const format = date => new Date(date + "T12:00:00").toLocaleDateString("en-GB", {
       weekday: "long", day: "numeric", month: "long"
     });
     const current = (games || []).find(g => format(g.game_date) === title);
     if (!current) return;
 
-    const previous = (games || []).filter(g => g.game_date < current.game_date).sort((a,b) => b.game_date.localeCompare(a.game_date))[0];
-    heroCopy.querySelector("[data-previous-bibs]")?.remove();
-    if (!previous) return;
+    const previous = (games || [])
+      .filter(g => g.game_date < current.game_date)
+      .sort((a, b) => b.game_date.localeCompare(a.game_date))[0];
 
-    const { data } = await sb.from("game_players").select("players(name)").eq("game_id", previous.id).eq("took_bibs", true).limit(1);
-    const name = data?.[0]?.players?.name;
-    if (!name) return;
+    heroCopy.querySelector("[data-previous-bibs]")?.remove();
+
+    let name = null;
+    if (previous) {
+      const { data } = await sb
+        .from("game_players")
+        .select("players(name)")
+        .eq("game_id", previous.id)
+        .eq("took_bibs", true)
+        .limit(1);
+      name = data?.[0]?.players?.name || null;
+    }
 
     const banner = document.createElement("div");
     banner.className = "previous-bibs-banner";
     banner.dataset.previousBibs = "true";
-    banner.innerHTML = "🦺 Previous game bibs: <strong>" + esc(name) + "</strong>";
+    banner.innerHTML = "🦺 Previous game bibs: <strong>" + esc(name || "Unknown") + "</strong>";
     heroCopy.querySelector(".game-nav")?.insertAdjacentElement("afterend", banner);
   }
 
@@ -39,6 +49,6 @@
   new MutationObserver(() => {
     clearTimeout(timer);
     timer = setTimeout(() => render().catch(() => {}), 100);
-  }).observe(document.getElementById("app") || document.body, {childList:true, subtree:true});
+  }).observe(document.getElementById("app") || document.body, { childList: true, subtree: true });
   render().catch(() => {});
 })();
