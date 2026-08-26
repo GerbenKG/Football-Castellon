@@ -38,8 +38,7 @@
     if (!id) return;
     const { error } = await sb.from("players").update({ archived_at: new Date().toISOString() }).eq("id", id).is("archived_at", null);
     if (error) return alert(error.message);
-    const row = document.querySelector('[data-player-id="' + id + '"]');
-    if (row) row.remove();
+    document.querySelector('[data-player-id="' + id + '"]')?.remove();
   }
 
   async function restorePlayer(id) {
@@ -52,20 +51,27 @@
     return String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   }
 
-  function addArchiveButtons() {
-    const table = document.querySelector(".page-head ~ .card table") || document.querySelector("table");
+  async function hideArchivedRows() {
+    const table = document.querySelector(".page-head ~ .card table");
     if (!table) return;
+
+    const archived = await getArchived();
+    const ids = new Set(archived.map(p => p.id));
+
     table.querySelectorAll("tbody tr").forEach(row => {
-      const buttons = [...row.querySelectorAll("button")];
-      const button = buttons.find(b => b.textContent.trim().toLowerCase() === "delete");
-      if (!button || button.dataset.archivePlayer) return;
-      const edit = buttons.find(b => b.textContent.trim().toLowerCase() === "edit");
-      const id = row.dataset.playerId || edit?.dataset?.playerId || edit?.dataset?.id;
-      if (!id) return;
-      row.dataset.playerId = id;
-      button.textContent = "Archive";
-      button.dataset.archivePlayer = id;
+      const edit = row.querySelector('[data-a="edit"]');
+      const id = row.dataset.playerId || edit?.dataset?.id;
+      if (id) row.dataset.playerId = id;
+      if (id && ids.has(id)) row.remove();
     });
+  }
+
+  function schedulePlayersCleanup() {
+    setTimeout(() => {
+      if (document.querySelector('.nav-item.active[data-view="players"]')) {
+        hideArchivedRows().catch(() => {});
+      }
+    }, 0);
   }
 
   document.addEventListener("click", async event => {
@@ -76,6 +82,12 @@
       document.querySelectorAll(".nav-item").forEach(x => x.classList.remove("active"));
       archiveNav.classList.add("active");
       await renderArchive();
+      return;
+    }
+
+    const playersNav = event.target.closest('[data-view="players"]');
+    if (playersNav) {
+      schedulePlayersCleanup();
       return;
     }
 
@@ -95,21 +107,6 @@
     }
   }, true);
 
-  function apply() {
-    addArchiveNav();
-    const active = document.querySelector('.nav-item.active[data-view="players"]');
-    if (active) addArchiveButtons();
-  }
-
-  apply();
-  let scheduled = false;
-  const observer = new MutationObserver(() => {
-    if (scheduled) return;
-    scheduled = true;
-    requestAnimationFrame(() => {
-      scheduled = false;
-      apply();
-    });
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
+  addArchiveNav();
+  if (document.querySelector('.nav-item.active[data-view="players"]')) schedulePlayersCleanup();
 })();
