@@ -72,11 +72,11 @@
             '<form id="member-profile-form" class="profile-form">' +
               '<div class="profile-grid">' +
                 '<label class="profile-field"><span class="field-label">Name</span><input value="' + esc(profile.name) + '" disabled></label>' +
-                '<label class="profile-field"><span class="field-label">Phone</span><input name="phone" type="tel" value="' + esc(profile.phone || "") + '" placeholder="Add phone number"></label>' +
-                '<label class="profile-field"><span class="field-label">Email</span><input name="email" type="email" value="' + esc(profile.email || "") + '" placeholder="Add email address"></label>' +
+                '<label class="profile-field"><span class="field-label">Phone</span><input name="phone" type="tel" value="' + esc(profile.phone || "") + '" placeholder="Add phone number" autocomplete="tel"></label>' +
+                '<label class="profile-field"><span class="field-label">Email</span><input name="email" type="email" value="' + esc(profile.email || "") + '" placeholder="Add email address" autocomplete="email"></label>' +
                 bibs +
               '</div>' +
-              '<div class="profile-actions"><button class="btn btn-primary">Save profile</button></div>' +
+              '<div class="profile-actions"><button id="member-profile-save" class="btn btn-primary" type="submit">Save profile</button><p id="member-profile-status" class="muted" role="status" aria-live="polite" style="margin:0"></p></div>' +
             '</form>' +
           '</section>' +
         '</div>';
@@ -120,15 +120,43 @@
   document.addEventListener("submit", async event => {
     if (!isMember() || event.target?.id !== "member-profile-form") return;
     event.preventDefault();
+
     const form = event.target;
+    const button = form.querySelector("#member-profile-save");
+    const status = form.querySelector("#member-profile-status");
     const f = new FormData(form);
+    const phone = String(f.get("phone") || "").trim();
+    const email = String(f.get("email") || "").trim().toLowerCase();
+
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+      if (status) status.textContent = "Please enter a valid email address.";
+      return;
+    }
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Saving…";
+    }
+    if (status) status.textContent = "Saving your profile…";
+
     const result = await sb.rpc("member_update_profile", {
-      p_phone: String(f.get("phone") || "").trim(),
-      p_email: String(f.get("email") || "").trim(),
+      p_phone: phone,
+      p_email: email,
       p_avatar_path: null
     });
-    if (result.error) return alert("Could not save profile: " + result.error.message);
+
+    if (result.error) {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Save profile";
+      }
+      if (status) status.textContent = "Could not save profile: " + result.error.message;
+      return;
+    }
+
     await renderProfile();
+    const savedStatus = document.getElementById("member-profile-status");
+    if (savedStatus) savedStatus.textContent = "Profile saved successfully.";
   }, true);
 
   async function init() {
