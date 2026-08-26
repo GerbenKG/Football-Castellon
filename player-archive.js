@@ -14,6 +14,21 @@
     return data || [];
   }
 
+  function prepareArchiveButtons() {
+    const table = document.querySelector(".page-head ~ .table-card table");
+    if (!table) return;
+
+    table.querySelectorAll("tbody tr").forEach(row => {
+      const button = [...row.querySelectorAll("button")].find(b => b.textContent.trim().toLowerCase() === "delete");
+      if (!button || button.dataset.archivePlayer) return;
+      const edit = row.querySelector('[data-a="edit"]');
+      const id = edit?.dataset?.id;
+      if (!id) return;
+      button.textContent = "Archive";
+      button.dataset.archivePlayer = id;
+    });
+  }
+
   async function renderArchiveSection() {
     if (!document.querySelector('.nav-item.active[data-view="players"]')) return;
     const playersCard = document.querySelector(".page-head ~ .table-card");
@@ -81,6 +96,7 @@
   async function applyPlayersPage() {
     if (!document.querySelector('.nav-item.active[data-view="players"]')) return;
     await hideArchivedPlayers();
+    prepareArchiveButtons();
     await renderArchiveSection();
   }
 
