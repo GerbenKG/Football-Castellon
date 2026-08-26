@@ -88,6 +88,6 @@
     clearTimeout(timer);
     timer = setTimeout(enhanceAdmin, 50);
   });
-  observer.observe(document.getElementById("app") || document.body, { childList: true, subtree: true });
+  observer.observe(document.body, { childList: true, subtree: true });
   setTimeout(enhanceAdmin, 300);
 })();
