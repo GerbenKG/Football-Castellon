@@ -9,10 +9,7 @@
   let timer = null;
 
   const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '\"': "&quot;"
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '\"': "&quot;"
   }[c]));
 
   const isPlayer = () => access?.profile?.role === "player" && access?.profile?.active === true;
@@ -46,7 +43,7 @@
 
     n.querySelectorAll(".nav-item[data-view]").forEach(button => {
       const view = button.dataset.view;
-      const keep = view === "players" || view === "games";
+      const keep = view === "games";
       button.style.display = keep ? "" : "none";
       button.classList.toggle("active", keep && window.__playerView === view);
     });
@@ -60,7 +57,6 @@
     window.__playerView = view;
     addProfileNav();
     if (view === "profile") renderProfile();
-    else if (view === "players") renderPlayerNames();
     else if (view === "games") renderPlayerGames();
   }
 
@@ -114,24 +110,9 @@
     const path = uid + "/avatar." + ext;
     const upload = await sb.storage.from("player-avatars").upload(path, file, { upsert: true, contentType: file.type || "image/jpeg" });
     if (upload.error) return alert("Could not upload picture: " + upload.error.message);
-    const save = await sb.rpc("player_update_avatar", { p_avatar_path: path });
+    const save = await sb.rpc("member_update_profile", { p_phone: "", p_email: "", p_avatar_path: path });
     if (save.error) return alert("Could not save profile picture: " + save.error.message);
     renderProfile();
-  }
-
-  async function renderPlayerNames() {
-    if (!isPlayer()) return;
-    const result = await sb.rpc("player_list_names");
-    if (result.error) {
-      document.getElementById("app").innerHTML = '<section class="card error-card"><h2>Players unavailable</h2><p>' + esc(result.error.message) + '</p></section>';
-      return;
-    }
-    const players = result.data || [];
-    document.getElementById("app").innerHTML =
-      '<div class="page-head"><div><div class="eyebrow">TEAM</div><h1 class="title">Players</h1><p class="muted">The current player roster.</p></div></div>' +
-      '<section class="card table-card"><table><thead><tr><th>Player</th></tr></thead><tbody>' +
-      (players.length ? players.map(p => '<tr><td><b>' + esc(p.name) + '</b></td></tr>').join("") : '<tr><td class="empty">No players.</td></tr>') +
-      '</tbody></table></section>';
   }
 
   async function renderPlayerGames() {
@@ -155,7 +136,7 @@
       '<div class="game-overview-list">' + games.map(g =>
         '<article class="card game-overview-card ' + (g.game_date < today ? "past" : "upcoming") + '">' +
         '<div class="game-overview-main"><div class="game-overview-date"><span class="game-day">' + esc(new Date(g.game_date + "T12:00:00").toLocaleDateString("en-GB", { day: "2-digit" })) + '</span><div><div class="eyebrow">' + (g.game_date < today ? "PLAYED" : "UP NEXT") + '</div><h3>' + esc(dateText(g.game_date)) + '</h3><p>⚽ ' + esc(String(g.start_time).slice(0, 5)) + '–' + esc(String(g.end_time).slice(0, 5)) + ' · ' + esc(g.location || "Castellón") + '</p></div></div></div>' +
-        '<div class="game-overview-actions"><span class="game-status">' + (g.game_date < today ? "Played" : "Upcoming") + '</span><a class="btn btn-secondary" href="' + esc(calendarUrl(g)) + '" target="_blank" rel="noopener noreferrer">Add to Google Calendar</a></div>' +
+        '<div class="game-overview-actions"><span class="game-status">' + (g.playing ? "I'm playing ✓" : (g.game_date < today ? "Played" : "Upcoming")) + '</span><a class="btn btn-secondary" href="' + esc(calendarUrl(g)) + '" target="_blank" rel="noopener noreferrer">Add to Google Calendar</a></div>' +
         '</article>'
       ).join("") + '</div>';
   }
@@ -220,10 +201,10 @@
     const view = event.target.closest('.nav-item[data-view]');
     if (!view) return;
     const target = view.dataset.view;
-    if (target !== "players" && target !== "games") return;
+    if (target !== "games") return;
     event.preventDefault();
     event.stopPropagation();
-    route(target);
+    route("games");
   }, true);
 
   document.addEventListener("submit", async event => {
