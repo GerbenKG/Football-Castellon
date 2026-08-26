@@ -7,18 +7,19 @@
   let busy = false;
   let cachedAccess = null;
 
-  const isPlayerPreview = () => {
-    const banner = document.querySelector(".preview-banner");
-    const text = banner?.querySelector(":scope > div")?.textContent?.trim() || "";
-    return /\(player\)$/i.test(text);
-  };
+  function previewBannerText() {
+    return document.querySelector(".preview-banner")?.textContent?.replace(/\s+/g, " ").trim() || "";
+  }
 
-  const previewName = () => {
-    const banner = document.querySelector(".preview-banner");
-    const text = banner?.querySelector(":scope > div")?.textContent?.trim() || "";
-    const match = text.match(/^Preview mode\s*·\s*Viewing the site as (.+?)\s*\(player\)$/i);
+  function isPlayerPreview() {
+    return /Viewing the site as .+\(player\)/i.test(previewBannerText());
+  }
+
+  function previewName() {
+    const text = previewBannerText();
+    const match = text.match(/Viewing the site as\s+(.+?)\s*\(player\)/i);
     return match?.[1]?.trim() || null;
-  };
+  }
 
   async function loadAccess() {
     if (cachedAccess) return cachedAccess;
@@ -52,9 +53,7 @@
   }
 
   function findNextGameCard() {
-    return Array.from(document.querySelectorAll(".card")).find(card =>
-      /NEXT GAME/i.test(card.textContent || "")
-    );
+    return Array.from(document.querySelectorAll(".card")).find(card => /NEXT GAME/i.test(card.textContent || ""));
   }
 
   function renderButton(card, label, disabled = false) {
@@ -66,10 +65,14 @@
       card.appendChild(wrap);
     }
 
-    wrap.innerHTML =
-      '<button type="button" class="btn btn-primary" data-self-game-signup-button' +
-      (disabled ? " disabled" : "") +
-      ">" + label + "</button>";
+    const existing = wrap.querySelector("[data-self-game-signup-button]");
+    if (existing) {
+      if (!existing.disabled || !disabled) existing.disabled = disabled;
+      existing.textContent = label;
+      return;
+    }
+
+    wrap.innerHTML = '<button type="button" class="btn btn-primary" data-self-game-signup-button' + (disabled ? " disabled" : "") + ">" + label + "</button>";
   }
 
   async function refresh() {
@@ -96,41 +99,58 @@
       const existing = await getSignup(nextGame.id, access.profile.player_id);
       renderButton(card, existing?.playing ? "I'm playing ✓" : "I'm playing");
     }
-
-    const button = card.querySelector("[data-self-game-signup-button]");
-    if (!button || button.dataset.bound === "true") return;
-    button.dataset.bound = "true";
-
-    button.addEventListener("click", async () => {
-      if (busy) return;
-      busy = true;
-      button.disabled = true;
-      button.textContent = "Saving…";
-
-      try {
-        const result = preview
-          ? await sb.rpc("admin_preview_join_game", {
-              p_game_id: nextGame.id,
-              p_member_name: previewName()
-            })
-          : await sb.rpc("member_join_game", { p_game_id: nextGame.id });
-
-        if (result.error) throw result.error;
-
-        button.textContent = "I'm playing ✓";
-        window.dispatchEvent(new CustomEvent("football:game-squad-changed"));
-      } catch (error) {
-        console.error("Self game signup failed", error);
-        alert("Could not add you to the game: " + error.message);
-        button.disabled = false;
-        button.textContent = "I'm playing";
-      } finally {
-        busy = false;
-      }
-    });
   }
 
-  const observer = new MutationObserver(() => refresh().catch(console.error));
+  document.addEventListener("click", async event => {
+    const button = event.target.closest("[data-self-game-signup-button]");
+    if (!button || busy) return;
+
+    const card = button.closest("[data-self-game-signup]")?.closest(".card");
+    if (!card) return;
+
+    const preview = isPlayerPreview();
+    const access = await loadAccess();
+    const isRealPlayer = access?.profile?.role === "player" && access.profile.active === true;
+    if (!preview && !isRealPlayer) return;
+
+    busy = true;
+    button.disabled = true;
+    button.textContent = "Saving…";
+
+    try {
+      const nextGame = await getNextGame();
+      if (!nextGame) throw new Error("No upcoming game found");
+
+      let result;
+      if (preview) {
+        const name = previewName();
+        if (!name) throw new Error("Could not determine the Player being previewed");
+        result = await sb.rpc("admin_preview_join_game", {
+          p_game_id: nextGame.id,
+          p_member_name: name
+        });
+      } else {
+        result = await sb.rpc("member_join_game", { p_game_id: nextGame.id });
+      }
+
+      if (result.error) throw result.error;
+
+      button.textContent = "I'm playing ✓";
+      window.dispatchEvent(new CustomEvent("football:game-squad-changed"));
+    } catch (error) {
+      console.error("Self game signup failed", error);
+      alert("Could not add you to the game: " + (error?.message || error));
+      button.disabled = false;
+      button.textContent = "I'm playing";
+    } finally {
+      busy = false;
+    }
+  });
+
+  const observer = new MutationObserver(() => {
+    clearTimeout(window.__memberGameSignupTimer);
+    window.__memberGameSignupTimer = setTimeout(() => refresh().catch(console.error), 100);
+  });
   observer.observe(document.body, { childList: true, subtree: true });
-  setTimeout(() => refresh().catch(console.error), 300);
+  setTimeout(() => refresh().catch(console.error), 500);
 })();
