@@ -6,13 +6,14 @@
 
   let busy = false;
   let cachedAccess = null;
+  let suppressObserverUntil = 0;
 
   function previewBannerText() {
-    return document.querySelector(".preview-banner")?.textContent?.replace(/\s+/g, " ").trim() || "";
+    return document.body?.textContent?.replace(/\s+/g, " ").trim() || "";
   }
 
   function isPlayerPreview() {
-    return /Viewing the site as .+\(player\)/i.test(previewBannerText());
+    return /Viewing the site as\s+.+?\s*\(player\)/i.test(previewBannerText());
   }
 
   function previewName() {
@@ -65,14 +66,17 @@
       card.appendChild(wrap);
     }
 
-    const existing = wrap.querySelector("[data-self-game-signup-button]");
-    if (existing) {
-      if (!existing.disabled || !disabled) existing.disabled = disabled;
-      existing.textContent = label;
-      return;
+    let button = wrap.querySelector("[data-self-game-signup-button]");
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn btn-primary";
+      button.dataset.selfGameSignupButton = "true";
+      wrap.appendChild(button);
     }
 
-    wrap.innerHTML = '<button type="button" class="btn btn-primary" data-self-game-signup-button' + (disabled ? " disabled" : "") + ">" + label + "</button>";
+    button.disabled = disabled;
+    button.textContent = label;
   }
 
   async function refresh() {
@@ -114,6 +118,7 @@
     if (!preview && !isRealPlayer) return;
 
     busy = true;
+    suppressObserverUntil = Date.now() + 1500;
     button.disabled = true;
     button.textContent = "Saving…";
 
@@ -135,19 +140,32 @@
 
       if (result.error) throw result.error;
 
+      suppressObserverUntil = Date.now() + 1500;
       button.textContent = "I'm playing ✓";
+      button.disabled = true;
       window.dispatchEvent(new CustomEvent("football:game-squad-changed"));
     } catch (error) {
       console.error("Self game signup failed", error);
-      alert("Could not add you to the game: " + (error?.message || error));
+      suppressObserverUntil = Date.now() + 500;
       button.disabled = false;
       button.textContent = "I'm playing";
+      alert("Could not add you to the game: " + (error?.message || error));
     } finally {
       busy = false;
     }
   });
 
-  const observer = new MutationObserver(() => {
+  const observer = new MutationObserver(records => {
+    if (busy || Date.now() < suppressObserverUntil) return;
+
+    // Ignore DOM mutations caused by this button itself. The app has several
+    // global observers, and re-rendering here can otherwise reset the success state.
+    const onlySignupMutations = records.length > 0 && records.every(record => {
+      const target = record.target?.nodeType === Node.TEXT_NODE ? record.target.parentElement : record.target;
+      return target?.closest?.("[data-self-game-signup]");
+    });
+    if (onlySignupMutations) return;
+
     clearTimeout(window.__memberGameSignupTimer);
     window.__memberGameSignupTimer = setTimeout(() => refresh().catch(console.error), 100);
   });
