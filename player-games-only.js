@@ -37,6 +37,17 @@
     item.removeAttribute("tabindex");
   }
 
+  function hidePlayerGameActions() {
+    if (!isEffectivePlayer()) return;
+
+    // Players can see the Games overview, but cannot open or manage a squad.
+    document.querySelectorAll('button[data-game]').forEach(button => {
+      button.style.display = "none";
+      button.setAttribute("aria-hidden", "true");
+      button.tabIndex = -1;
+    });
+  }
+
   function goToGames() {
     if (redirecting) return;
     const games = document.querySelector('.nav-item[data-view="games"]');
@@ -55,6 +66,7 @@
     hideNavItem('.nav-item[data-view="finance"]');
     hideNavItem('.nav-item[data-view="admin"]');
     showNavItem('.nav-item[data-view="games"]');
+    hidePlayerGameActions();
 
     // Preview mode keeps the Super Admin's real session, so the normal app
     // can still render Dashboard. Replace that view immediately when the
@@ -86,6 +98,13 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       goToGames();
+      return;
+    }
+
+    const gameAction = event.target.closest('button[data-game]');
+    if (gameAction) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
     }
   }, true);
 
