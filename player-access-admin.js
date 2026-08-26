@@ -4,11 +4,11 @@
   if (!sb) return;
 
   let timer = null;
-  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;"}[c]));
+  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;"," ":">",'\"':"&quot;"}[c]));
 
   async function getPlayers() {
-    const q = await sb.from("players").select("id,name").is("archived_at", null).order("name");
-    return q.data || [];
+    const q = await sb.rpc("admin_list_players_for_linking");
+    return q.error ? [] : (q.data || []);
   }
 
   async function enhanceAdmin() {
@@ -22,18 +22,36 @@
       roleSelect.appendChild(option);
     }
 
-    if (roleSelect && !document.getElementById("player-member-link-field")) {
-      const players = await getPlayers();
-      const members = (await sb.rpc("admin_list_access")).data || [];
-      const member = members.find(m => m.email === document.querySelector('#member-form')?.dataset.email);
-      const wrapper = document.createElement("label");
-      wrapper.id = "player-member-link-field";
-      wrapper.innerHTML = '<span>Player</span><select name="player_id"><option value="">Select player…</option>' + players.map(p => '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>').join("") + '</select>';
-      roleSelect.closest("label")?.after(wrapper);
-      if (member?.player_id) wrapper.querySelector("select").value = member.player_id;
-      const sync = () => { wrapper.style.display = roleSelect.value === "player" ? "" : "none"; };
-      roleSelect.addEventListener("change", sync);
-      sync();
+    if (roleSelect) {
+      let wrapper = document.getElementById("player-member-link-field");
+      if (!wrapper) {
+        wrapper = document.createElement("label");
+        wrapper.id = "player-member-link-field";
+        wrapper.innerHTML = '<span>Player</span><select name="player_id"><option value="">Select player…</option></select>';
+        roleSelect.closest("label")?.after(wrapper);
+      }
+
+      const select = wrapper.querySelector("select[name=player_id]");
+      if (select && select.options.length <= 1) {
+        const [players, membersResult] = await Promise.all([
+          getPlayers(),
+          sb.rpc("admin_list_access")
+        ]);
+        const members = membersResult.data || [];
+        const memberEmail = document.querySelector('#member-form input[name="email"]')?.value?.trim().toLowerCase() || "";
+        const member = members.find(m => String(m.email || "").trim().toLowerCase() === memberEmail);
+        const currentPlayerId = member?.player_id || "";
+        const linkedElsewhere = new Set((members || []).filter(m => m.player_id && String(m.email || "").trim().toLowerCase() !== memberEmail).map(m => m.player_id));
+
+        select.innerHTML = '<option value="">Select player…</option>' + players.map(p => {
+          const disabled = linkedElsewhere.has(p.id) && p.id !== currentPlayerId ? " disabled" : "";
+          const suffix = disabled ? " (already linked)" : "";
+          return '<option value="' + esc(p.id) + '"' + disabled + '>' + esc(p.name) + suffix + '</option>';
+        }).join("");
+        if (currentPlayerId) select.value = currentPlayerId;
+      }
+
+      wrapper.style.display = "";
     }
 
     const head = document.querySelector(".permission-head");
@@ -71,13 +89,13 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     const f = new FormData(form);
-    if (role === "player" && !f.get("player_id")) return alert("Select the Player this Member belongs to.");
+    if (!f.get("player_id")) return alert("Select the Player this Member belongs to.");
     const q = await sb.rpc("admin_upsert_access", {
       p_email: String(f.get("email") || "").trim().toLowerCase(),
       p_display_name: String(f.get("display_name") || "").trim(),
       p_role: role,
       p_active: f.has("active"),
-      p_player_id: role === "player" ? f.get("player_id") : null
+      p_player_id: f.get("player_id")
     });
     if (q.error) return alert(q.error.message);
     document.getElementById("modal-root").innerHTML = "";
