@@ -34,11 +34,22 @@
     const result = await sb.rpc("get_my_access");
     const actualRole = result.data?.allowed ? result.data?.profile?.role : null;
 
+    const isEffectivePlayer = () => isPlayerRole(actualRole) || isPlayerRole(previewRole());
+
     const enforce = () => {
-      const player = isPlayerRole(actualRole) || isPlayerRole(previewRole());
-      if (player) hidePlayersNav();
+      if (isEffectivePlayer()) hidePlayersNav();
       else restorePlayersNav();
     };
+
+    document.addEventListener("click", event => {
+      if (!isEffectivePlayer()) return;
+      const players = event.target.closest('.nav-item[data-view="players"]');
+      if (!players) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const games = document.querySelector('.nav-item[data-view="games"]');
+      if (games) games.click();
+    }, true);
 
     enforce();
     const observer = new MutationObserver(enforce);
