@@ -153,6 +153,11 @@
     if (!isMember()) return;
     ensureNav();
 
+    if (access.profile.role === "player") {
+      window.__memberView = "profile";
+      await renderProfile();
+    }
+
     const observer = new MutationObserver(() => {
       if (!isMember()) return;
       ensureNav();
