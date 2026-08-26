@@ -69,7 +69,17 @@
     const value = skills.get(playerId) ?? "";
     const label = document.createElement("label");
     label.innerHTML = '<span>Skill level</span><select name="skill_level"><option value="">Not set</option><option value="1">1 — Lowest</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5 — Highest</option></select>';
-    form.querySelector(".modal-actions")?.before(label) || form.appendChild(label);
+
+    const emailField = form.querySelector('[name="email"]');
+    if (emailField) {
+      const emailLabel = emailField.closest("label");
+      if (emailLabel) emailLabel.insertAdjacentElement("afterend", label);
+      else emailField.parentElement?.insertAdjacentElement("afterend", label);
+    } else {
+      const actions = form.querySelector(".modal-actions");
+      if (actions) actions.before(label); else form.appendChild(label);
+    }
+
     form.querySelector("[name=skill_level]").value = value ? String(value) : "";
   }
 
