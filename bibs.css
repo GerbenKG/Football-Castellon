@@ -1,7 +1,8 @@
-.bib-toggle{margin-left:8px;white-space:nowrap}.bib-toggle input{accent-color:#16a34a}.bib-toggle span{font-size:12px;font-weight:700}.squad-row .bib-toggle{display:inline-flex;align-items:center;gap:6px}
-/* Keep payment status and bib tracking in stable columns for every squad row. */
-.squad-row{display:grid;grid-template-columns:minmax(0,1fr) 220px 220px 40px;align-items:center;column-gap:12px}
-.squad-row>.who{grid-column:1}
-.squad-row>.toggle.payment-toggle,.squad-row>.badge{grid-column:2;justify-self:start;margin-left:0}
+.bib-toggle{margin-left:0;white-space:nowrap}.bib-toggle input{accent-color:#16a34a}.bib-toggle span{font-size:12px;font-weight:700}.squad-row .bib-toggle{display:inline-flex;align-items:center;gap:7px}
+/* Keep player, payment, bibs and remove controls in fixed columns. */
+.squad-row{display:grid;grid-template-columns:minmax(0,1fr) 220px 220px 40px;align-items:center;column-gap:16px}
+.squad-row>.who{grid-column:1;min-width:0}
+.squad-row>.toggle.payment-toggle,.squad-row>span{grid-column:2;justify-self:start;margin-left:0}
 .squad-row>.bib-toggle{grid-column:3;justify-self:start;margin-left:0}
 .squad-row>.remove{grid-column:4;justify-self:end}
+@media(max-width:720px){.squad-row{grid-template-columns:minmax(0,1fr) 140px 140px 32px;column-gap:8px}.squad-row>.toggle,.squad-row>span,.squad-row>.bib-toggle{font-size:11px}}
