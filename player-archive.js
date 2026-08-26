@@ -4,14 +4,14 @@
   const sb = window.supabaseClient;
   if (!sb) return;
 
+  function esc(value) {
+    return String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  }
+
   async function getArchived() {
     const { data, error } = await sb.from("players").select("id,name,phone,email,archived_at").not("archived_at", "is", null).order("name");
     if (error) throw error;
     return data || [];
-  }
-
-  function esc(value) {
-    return String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   }
 
   async function renderArchiveSection() {
@@ -19,19 +19,27 @@
     const playersCard = document.querySelector(".page-head ~ .table-card");
     if (!playersCard) return;
 
-    let archiveCard = document.getElementById("player-archive-card");
+    let archiveSection = document.getElementById("player-archive-section");
     const players = await getArchived();
 
-    if (!archiveCard) {
-      archiveCard = document.createElement("section");
-      archiveCard.id = "player-archive-card";
-      archiveCard.className = "card";
-      playersCard.insertAdjacentElement("afterend", archiveCard);
+    if (!archiveSection) {
+      archiveSection = document.createElement("section");
+      archiveSection.id = "player-archive-section";
+      playersCard.insertAdjacentElement("afterend", archiveSection);
     }
 
-    archiveCard.innerHTML = '<div class="section-head"><div><div class="eyebrow">ARCHIVE</div><h2>Archived players</h2><p>Players kept for historical records. They cannot be selected for new games.</p></div></div>' +
-      '<div class="table-card"><table><thead><tr><th>Player</th><th>Phone</th><th>Email</th><th>Archived</th><th></th></tr></thead><tbody>' +
-      (players.length ? players.map(p => '<tr><td><b>' + esc(p.name) + '</b></td><td>' + esc(p.phone || "—") + '</td><td>' + esc(p.email || "—") + '</td><td>' + new Date(p.archived_at).toLocaleDateString("en-GB") + '</td><td><button class="btn btn-secondary" data-restore-player="' + p.id + '">Restore</button></td></tr>').join("") : '<tr><td colspan="5" class="muted">No archived players.</td></tr>') +
+    const count = players.length;
+    archiveSection.innerHTML =
+      '<div class="page-head"><div>' +
+        '<div class="eyebrow">ARCHIVE</div>' +
+        '<h1 class="title">Archived players</h1>' +
+        '<span class="players-count">' + count + ' ' + (count === 1 ? 'player' : 'players') + '</span>' +
+        '<p class="muted">Players kept for historical records. They cannot be selected for new games.</p>' +
+      '</div></div>' +
+      '<div class="card table-card"><table><thead><tr><th>Player</th><th>Phone</th><th>Email</th><th>Archived</th><th></th></tr></thead><tbody>' +
+      (players.length
+        ? players.map(p => '<tr><td><div class="who"><span class="avatar">' + esc(p.name).slice(0,1).toUpperCase() + '</span><b>' + esc(p.name) + '</b></div></td><td>' + esc(p.phone || "—") + '</td><td>' + esc(p.email || "—") + '</td><td>' + new Date(p.archived_at).toLocaleDateString("en-GB") + '</td><td><div class="actions"><button class="btn btn-secondary" data-restore-player="' + p.id + '">Restore</button></div></td></tr>').join("")
+        : '<tr><td colspan="5" class="empty">No archived players.</td></tr>') +
       '</tbody></table></div>';
   }
 
