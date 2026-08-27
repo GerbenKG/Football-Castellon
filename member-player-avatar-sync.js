@@ -21,20 +21,26 @@
     const bold = container.querySelector("b, strong");
     if (bold?.textContent?.trim()) return bold.textContent.trim();
 
+    // Fallback for list markup where the name is a plain text node/td.
+    // Match an exact leaf-node value against the player names returned by
+    // the database, avoiding accidental matches against phone/email text.
+    for (const node of container.querySelectorAll("*") || []) {
+      if (node.children.length === 0) {
+        const text = node.textContent?.trim();
+        if (text && byName.has(normalise(text))) return text;
+      }
+    }
+
     return "";
   }
 
   function nameForAvatar(avatar) {
-    // Most roster/squad rows have an explicit row container.
     const row = avatar.closest("tr, .member-row, .player-row, .squad-row, .leader-row, .who, .player-chip");
     const rowName = nameFromContainer(row);
     if (rowName) return rowName;
 
-    // Admin & Access and the Players roster have evolved through several UI
-    // versions. Walk up a few levels so the avatar keeps working even when
-    // the surrounding row does not have a dedicated class.
     let node = avatar.parentElement;
-    for (let i = 0; i < 5 && node; i += 1, node = node.parentElement) {
+    for (let i = 0; i < 6 && node; i += 1, node = node.parentElement) {
       const name = nameFromContainer(node);
       if (name) return name;
     }
@@ -45,8 +51,6 @@
   function replaceAvatar(element, url, name) {
     if (!element || !url) return;
     if (element.dataset.avatarUrl === url) return;
-
-    // Do not replace an already-rendered profile image unnecessarily.
     if (element.tagName === "IMG" && element.src === url) return;
 
     const image = document.createElement("img");
@@ -91,9 +95,6 @@
   function apply() {
     if (!byName.size) return;
 
-    // Every roster/member avatar uses the same linked Member -> Player image.
-    // This deliberately covers both the current .avatar markup and the
-    // dedicated member/player avatar classes used by older list markup.
     document.querySelectorAll(".avatar, [class*='member-avatar'], [class*='player-avatar']").forEach(avatar => {
       if (avatar.tagName === "IMG" && avatar.dataset.avatarUrl) return;
       const name = nameForAvatar(avatar);
@@ -101,7 +102,6 @@
       if (url) replaceAvatar(avatar, url, name);
     });
 
-    // Games overview uses player chips with an <i> initial instead.
     document.querySelectorAll(".player-chip:not(.guest)").forEach(chip => {
       const text = [...chip.childNodes]
         .filter(node => node.nodeType === Node.TEXT_NODE)
