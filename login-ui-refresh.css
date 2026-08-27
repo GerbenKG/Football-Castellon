@@ -1,119 +1,145 @@
-/* Login experience refresh — intentionally scoped to authentication screens. */
+/* Login experience refresh — scoped to authentication screens. */
 body:has(.auth-card){
   min-height:100vh;
   background:
-    radial-gradient(circle at 18% 18%, rgba(22,163,74,.10), transparent 28%),
-    radial-gradient(circle at 85% 82%, rgba(15,118,110,.07), transparent 30%),
-    linear-gradient(135deg,#f7faf8 0%,#eef4f0 52%,#e8efeb 100%);
+    radial-gradient(circle at 12% 18%,rgba(22,163,74,.12),transparent 28%),
+    radial-gradient(circle at 88% 78%,rgba(15,118,110,.08),transparent 30%),
+    linear-gradient(135deg,#f7faf8 0%,#eef4f0 52%,#e7efea 100%);
 }
+
 body:has(.auth-card) .topbar{
   position:relative;
   padding-top:18px;
   padding-bottom:18px;
-  background:rgba(5,27,18,.97);
+  background:#061c12;
   box-shadow:0 8px 30px rgba(7,27,18,.16);
 }
+
 body:has(.auth-card) .container{
   max-width:none;
   padding:0;
 }
+
+/* Use a real two-column grid. The previous version combined a grid-like
+   pseudo-panel with 49% left padding, which could squeeze the form down to
+   a narrow strip on some browsers. */
 body:has(.auth-card) .auth-card{
   position:relative;
-  width:min(900px,calc(100vw - 40px));
-  min-height:500px;
-  margin:72px auto 90px;
-  padding:58px 72px 58px 49%;
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-  align-items:flex-start;
+  width:min(980px,calc(100vw - 48px));
+  min-height:540px;
+  margin:68px auto 88px;
+  padding:0;
+  display:grid;
+  grid-template-columns:44% 56%;
+  grid-auto-rows:auto;
+  align-content:center;
+  row-gap:0;
   overflow:hidden;
   border:1px solid rgba(207,222,213,.95);
   border-radius:28px;
-  background:rgba(255,255,255,.94);
-  box-shadow:0 28px 80px rgba(21,55,40,.13),0 3px 12px rgba(21,55,40,.05);
-  backdrop-filter:blur(14px);
+  background:#fff;
+  box-shadow:0 30px 80px rgba(21,55,40,.14),0 4px 14px rgba(21,55,40,.05);
 }
+
+/* Left brand / football panel */
 body:has(.auth-card) .auth-card::before{
-  content:"CASTELLÓN\A\AFOOTBALL HUB";
+  content:"CASTELLÓN\A\AFOOTBALL HUB\A\AMATCHDAY ACCESS";
   white-space:pre;
   position:absolute;
   inset:0 auto 0 0;
-  width:43%;
-  padding:58px 42px;
+  width:44%;
+  padding:54px 46px;
   display:flex;
   align-items:flex-start;
   justify-content:flex-start;
-  color:#d8f5e2;
-  font-size:12px;
-  line-height:1.35;
+  z-index:0;
+  color:#dcf8e5;
+  font-size:11px;
+  line-height:1.4;
   font-weight:950;
   letter-spacing:.18em;
   background:
-    radial-gradient(circle at 50% 50%, transparent 0 74px, rgba(255,255,255,.22) 75px 77px, transparent 78px),
-    linear-gradient(90deg,rgba(255,255,255,.10) 1px,transparent 1px),
-    linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px),
-    linear-gradient(145deg,#063d23 0%,#08703a 56%,#0b8245 100%);
-  background-size:auto,72px 72px,72px 72px,auto;
-  box-shadow:inset -1px 0 rgba(255,255,255,.14);
+    radial-gradient(circle at 50% 56%,transparent 0 72px,rgba(255,255,255,.18) 73px 75px,transparent 76px),
+    radial-gradient(circle at 50% 56%,transparent 0 126px,rgba(255,255,255,.08) 127px 129px,transparent 130px),
+    linear-gradient(90deg,rgba(255,255,255,.085) 1px,transparent 1px),
+    linear-gradient(rgba(255,255,255,.065) 1px,transparent 1px),
+    linear-gradient(145deg,#063d23 0%,#08703a 58%,#0a8245 100%);
+  background-size:auto,auto,72px 72px,72px 72px,auto;
+  box-shadow:inset -1px 0 rgba(255,255,255,.16);
 }
+
 body:has(.auth-card) .auth-card::after{
   content:"⚽";
   position:absolute;
-  left:calc(21.5% - 42px);
-  top:50%;
-  transform:translateY(-8%);
-  width:84px;
-  height:84px;
+  left:calc(22% - 46px);
+  top:56%;
+  transform:translateY(-50%);
+  width:92px;
+  height:92px;
   display:grid;
   place-items:center;
-  border:1px solid rgba(255,255,255,.22);
+  z-index:0;
+  border:1px solid rgba(255,255,255,.24);
   border-radius:50%;
   color:#fff;
-  font-size:44px;
-  background:rgba(255,255,255,.09);
-  box-shadow:0 18px 40px rgba(0,0,0,.15),inset 0 0 0 10px rgba(255,255,255,.035);
+  font-size:48px;
+  background:rgba(255,255,255,.10);
+  box-shadow:0 20px 42px rgba(0,0,0,.18),inset 0 0 0 10px rgba(255,255,255,.035);
 }
+
+/* All form content lives in the right-hand column. */
 body:has(.auth-card) .auth-card > *{
   position:relative;
   z-index:1;
-  width:100%;
+  grid-column:2;
+  width:auto;
+  margin-left:72px;
+  margin-right:72px;
 }
+
 body:has(.auth-card) .auth-card > .ball-logo{
-  width:50px;
-  height:50px;
-  margin:0 0 22px;
+  width:52px;
+  height:52px;
+  margin-top:0;
+  margin-bottom:20px;
+  margin-left:72px;
   border-radius:15px;
   font-size:25px;
   box-shadow:0 10px 24px rgba(22,163,74,.18),inset 0 0 0 1px rgba(255,255,255,.25);
 }
+
 body:has(.auth-card) .auth-card .eyebrow{
   margin-bottom:7px;
   color:#23824a;
   font-size:10px;
   letter-spacing:.16em;
 }
+
 body:has(.auth-card) .auth-card h1{
   margin:0;
   color:#10251b;
-  font-size:42px;
+  font-size:44px;
   line-height:1;
   letter-spacing:-.055em;
 }
+
 body:has(.auth-card) .auth-card p.muted{
-  margin:13px 0 26px;
+  margin:13px 0 27px;
   color:#64766d;
   font-size:15px;
   line-height:1.6;
 }
+
 body:has(.auth-card) #google-login{
   width:100%;
-  min-height:52px;
+  min-height:54px;
+  margin-top:0;
   border-radius:13px;
   font-size:14px;
   letter-spacing:-.01em;
   box-shadow:0 10px 24px rgba(22,163,74,.18);
 }
+
 body:has(.auth-card) #google-login::before{
   content:"G";
   display:inline-grid;
@@ -128,28 +154,49 @@ body:has(.auth-card) #google-login::before{
   font-weight:950;
   vertical-align:-2px;
 }
+
 body:has(.auth-card) #google-login:hover{
   transform:translateY(-2px);
   box-shadow:0 14px 28px rgba(22,163,74,.24);
 }
+
 body:has(.auth-card) .auth-error{
   min-height:20px;
-  margin:12px 0 0;
+  margin-top:12px;
+  margin-bottom:0;
   color:#a23c3c;
   font-size:12px;
 }
+
 body:has(.auth-card) .access-denied{
   min-height:420px;
 }
-@media(max-width:700px){
+
+@media(max-width:760px){
   body:has(.auth-card) .auth-card{
-    width:min(520px,calc(100vw - 24px));
+    width:min(540px,calc(100vw - 24px));
     min-height:0;
     margin:28px auto 50px;
-    padding:34px 28px 32px;
+    padding:38px 28px 34px;
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
     border-radius:22px;
   }
+
   body:has(.auth-card) .auth-card::before,
   body:has(.auth-card) .auth-card::after{display:none}
-  body:has(.auth-card) .auth-card h1{font-size:34px}
+
+  body:has(.auth-card) .auth-card > *{
+    width:auto;
+    margin-left:0;
+    margin-right:0;
+  }
+
+  body:has(.auth-card) .auth-card > .ball-logo{
+    margin-left:0;
+    margin-top:0;
+  }
+
+  body:has(.auth-card) .auth-card h1{font-size:36px}
 }
