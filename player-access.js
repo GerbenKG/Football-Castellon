@@ -5,7 +5,6 @@
   if (!sb) return;
 
   let access = null;
-  let busy = false;
   let timer = null;
 
   const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({
@@ -39,7 +38,8 @@
       n.appendChild(item);
     }
 
-    // Player profile remains available through the user menu, but is not a primary nav item.
+    // Profile is intentionally hidden from the primary nav. The member profile
+    // module owns the profile page and also exposes it through the user menu.
     item.style.display = "none";
     item.classList.remove("active");
 
@@ -58,80 +58,10 @@
     if (!isPlayer()) return;
     window.__playerView = view;
     addProfileNav();
-    if (view === "profile") renderProfile();
-    else if (view === "games") renderPlayerGames();
-  }
-
-  async function playerProfile() {
-    const result = await sb.rpc("player_profile");
-    if (result.error || !result.data?.id) throw result.error || new Error("Player profile is not linked.");
-    return result.data;
-  }
-
-  async function avatarUrl(path) {
-    if (!path) return null;
-    const result = await sb.storage.from("player-avatars").createSignedUrl(path, 3600);
-    return result.error ? null : result.data?.signedUrl || null;
-  }
-
-  async function renderProfile() {
-    if (!isPlayer() || busy) return;
-    busy = true;
-    try {
-      const profile = await playerProfile();
-      const image = await avatarUrl(profile.avatar_path);
-      const initial = esc(profile.name || "P").slice(0, 1).toUpperCase();
-      document.getElementById("app").innerHTML =
-        '<div class="profile-shell player-profile-shell">' +
-          '<div class="page-head profile-head">' +
-            '<div><div class="eyebrow">PLAYER PROFILE</div><h1 class="title">My Profile</h1><p class="muted">Your personal information and bib history.</p></div>' +
-          '</div>' +
-          '<section class="card profile-card player-profile-card">' +
-            '<div class="profile-hero">' +
-              '<div class="profile-avatar-wrap">' +
-                (image
-                  ? '<img src="' + esc(image) + '" alt="Profile picture" class="profile-avatar">'
-                  : '<div class="profile-avatar profile-avatar-fallback">' + initial + '</div>') +
-              '</div>' +
-              '<div class="profile-identity">' +
-                '<div class="eyebrow">YOUR PLAYER</div>' +
-                '<h2>' + esc(profile.name) + '</h2>' +
-                '<p class="muted">Your player details and bib history.</p>' +
-                '<label class="btn btn-secondary profile-upload">Upload picture<input id="player-avatar-input" type="file" accept="image/*" style="display:none"></label>' +
-              '</div>' +
-            '</div>' +
-            '<div class="profile-form">' +
-              '<div class="profile-grid">' +
-                '<div class="profile-field"><span class="field-label">Name</span><div class="profile-value">' + esc(profile.name) + '</div></div>' +
-                '<div class="profile-field"><span class="field-label">Phone</span><div class="profile-value">' + esc(profile.phone || "—") + '</div></div>' +
-                '<div class="profile-field"><span class="field-label">Email</span><div class="profile-value">' + esc(profile.email || "—") + '</div></div>' +
-                '<div class="profile-field"><span class="field-label">Bibs taken</span><div class="profile-value profile-value-number">' + Number(profile.bibs_taken_count || 0) + '</div></div>' +
-              '</div>' +
-            '</div>' +
-          '</section>' +
-        '</div>';
-
-      document.getElementById("player-avatar-input")?.addEventListener("change", uploadAvatar);
-    } catch (error) {
-      document.getElementById("app").innerHTML = '<section class="card error-card"><h2>Profile unavailable</h2><p>' + esc(error.message || "Could not load your player profile.") + '</p></section>';
-    } finally {
-      busy = false;
-    }
-  }
-
-  async function uploadAvatar(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const user = await sb.auth.getUser();
-    const uid = user.data?.user?.id;
-    if (!uid) return alert("You are not signed in.");
-    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-    const path = uid + "/avatar." + ext;
-    const upload = await sb.storage.from("player-avatars").upload(path, file, { upsert: true, contentType: file.type || "image/jpeg" });
-    if (upload.error) return alert("Could not upload picture: " + upload.error.message);
-    const save = await sb.rpc("member_update_profile", { p_phone: "", p_email: "", p_avatar_path: path });
-    if (save.error) return alert("Could not save profile picture: " + save.error.message);
-    renderProfile();
+    if (view === "games") renderPlayerGames();
+    // Profile rendering is handled exclusively by member-profile.js. Keeping a
+    // second implementation here caused a race where the correct profile UI
+    // briefly appeared and was then replaced by the legacy read-only version.
   }
 
   async function renderPlayerGames() {
@@ -216,7 +146,12 @@
   document.addEventListener("click", event => {
     if (!isPlayer()) return;
     const profile = event.target.closest("[data-player-profile]");
-    if (profile) { event.preventDefault(); event.stopPropagation(); route("profile"); return; }
+    if (profile) {
+      event.preventDefault();
+      event.stopPropagation();
+      route("profile");
+      return;
+    }
     const view = event.target.closest('.nav-item[data-view]');
     if (!view) return;
     const target = view.dataset.view;
@@ -262,8 +197,9 @@
   function apply() {
     if (!isPlayer()) return;
     window.__playerView = "profile";
-    enforcePlayerView();
-    route("profile");
+    // Do not render a profile here. member-profile.js is the single owner of
+    // the profile UI and its editable phone/email fields.
+    addProfileNav();
   }
 
   async function init() {
@@ -278,7 +214,6 @@
             await addPlayerAdminControls();
             await addPlayerPermissionColumn();
           }
-          if (window.__playerView === "profile" && !document.querySelector("#player-avatar-input")) renderProfile();
         }
       }, 20);
     });
