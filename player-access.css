@@ -1,0 +1,1 @@
+.permission-table{overflow-x:auto}.permission-head,.permission-row{grid-template-columns:minmax(220px,2fr) repeat(5,minmax(120px,1fr))!important;align-items:center}.permission-head>* ,.permission-row>*{min-width:0}.permission-head>b,.permission-row>.perm-toggle{justify-self:center}

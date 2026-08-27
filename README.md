@@ -84,7 +84,7 @@ There is intentionally no dependency on the removed `players.model` or `players.
 - Supabase
 - PostgreSQL
 - Supabase Auth
-- Static hosting such as GitHub Pages
+- Static hosting
 
 There is no frontend build framework or bundling step.
 
@@ -112,13 +112,60 @@ One-off SQL import/setup scripts are intentionally not retained after execution.
 
 This is a static application. Serve it through a local HTTP server rather than opening `index.html` directly.
 
+### 1. Clone the repository
+
 ```bash
-python3 -m http.server 8000
+git clone https://github.com/GerbenKG/Football-Castellon.git
+cd Football-Castellon
 ```
 
-Then open `http://localhost:8000`.
+### 2. Switch to the branch you want to test
 
-A configured Supabase project and the appropriate authentication/database settings are required.
+For example:
+
+```bash
+git checkout feature/player-access
+```
+
+To get the latest commits on that branch later:
+
+```bash
+git pull
+```
+
+### 3. Start the local server
+
+The easiest option on Windows for this repository is:
+
+```bash
+npx serve .
+```
+
+The first run may ask for permission to install the `serve` package. Confirm with `y`.
+
+The terminal will show a local address such as:
+
+```text
+Local: http://localhost:3000
+```
+
+### 4. Open the application
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+Keep the terminal window running while testing. Stop the server with:
+
+```text
+Ctrl+C
+```
+
+### Authentication
+
+The application uses Supabase Auth. The local site runs against the Supabase project configured in `supabase-config.js`, so the required Supabase authentication and database configuration must already be available. A local browser session may need to sign in again.
 
 ## Database changes
 
@@ -141,6 +188,7 @@ The application uses role-based access control through Supabase. Current roles i
 - Attendance
 - Finance
 - Viewer
+- Player
 
 Permissions determine which areas users can view or modify. Access should be managed through **Admin & Access**, not hard-coded in the frontend.
 
@@ -153,11 +201,13 @@ Permissions determine which areas users can view or modify. Access should be man
 5. **Integrate functionality into the real renderer.** Avoid temporary DOM patches and duplicate override scripts.
 6. **Keep schema changes reproducible.** Commit database migrations under `supabase/migrations/`.
 
-## Deployment
+## Development workflow
 
-The application can be deployed as a static site. Push changes to `main` and let the configured hosting platform publish the updated assets.
+The primary development workflow is local:
 
-When JavaScript or CSS changes, update the cache-busting query string in `index.html` when necessary so clients do not continue using an older asset.
+**edit → commit to a branch → `git pull` locally → run `npx serve .` → test at `http://localhost:3000`**
+
+No deployment step is required to test frontend changes locally.
 
 ## Current status
 
