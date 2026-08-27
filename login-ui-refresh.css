@@ -1,0 +1,155 @@
+/* Login experience refresh — intentionally scoped to authentication screens. */
+body:has(.auth-card){
+  min-height:100vh;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(22,163,74,.10), transparent 28%),
+    radial-gradient(circle at 85% 82%, rgba(15,118,110,.07), transparent 30%),
+    linear-gradient(135deg,#f7faf8 0%,#eef4f0 52%,#e8efeb 100%);
+}
+body:has(.auth-card) .topbar{
+  position:relative;
+  padding-top:18px;
+  padding-bottom:18px;
+  background:rgba(5,27,18,.97);
+  box-shadow:0 8px 30px rgba(7,27,18,.16);
+}
+body:has(.auth-card) .container{
+  max-width:none;
+  padding:0;
+}
+body:has(.auth-card) .auth-card{
+  position:relative;
+  width:min(900px,calc(100vw - 40px));
+  min-height:500px;
+  margin:72px auto 90px;
+  padding:58px 72px 58px 49%;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:flex-start;
+  overflow:hidden;
+  border:1px solid rgba(207,222,213,.95);
+  border-radius:28px;
+  background:rgba(255,255,255,.94);
+  box-shadow:0 28px 80px rgba(21,55,40,.13),0 3px 12px rgba(21,55,40,.05);
+  backdrop-filter:blur(14px);
+}
+body:has(.auth-card) .auth-card::before{
+  content:"CASTELLÓN\A\AFOOTBALL HUB";
+  white-space:pre;
+  position:absolute;
+  inset:0 auto 0 0;
+  width:43%;
+  padding:58px 42px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:flex-start;
+  color:#d8f5e2;
+  font-size:12px;
+  line-height:1.35;
+  font-weight:950;
+  letter-spacing:.18em;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 74px, rgba(255,255,255,.22) 75px 77px, transparent 78px),
+    linear-gradient(90deg,rgba(255,255,255,.10) 1px,transparent 1px),
+    linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px),
+    linear-gradient(145deg,#063d23 0%,#08703a 56%,#0b8245 100%);
+  background-size:auto,72px 72px,72px 72px,auto;
+  box-shadow:inset -1px 0 rgba(255,255,255,.14);
+}
+body:has(.auth-card) .auth-card::after{
+  content:"⚽";
+  position:absolute;
+  left:calc(21.5% - 42px);
+  top:50%;
+  transform:translateY(-8%);
+  width:84px;
+  height:84px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(255,255,255,.22);
+  border-radius:50%;
+  color:#fff;
+  font-size:44px;
+  background:rgba(255,255,255,.09);
+  box-shadow:0 18px 40px rgba(0,0,0,.15),inset 0 0 0 10px rgba(255,255,255,.035);
+}
+body:has(.auth-card) .auth-card > *{
+  position:relative;
+  z-index:1;
+  width:100%;
+}
+body:has(.auth-card) .auth-card > .ball-logo{
+  width:50px;
+  height:50px;
+  margin:0 0 22px;
+  border-radius:15px;
+  font-size:25px;
+  box-shadow:0 10px 24px rgba(22,163,74,.18),inset 0 0 0 1px rgba(255,255,255,.25);
+}
+body:has(.auth-card) .auth-card .eyebrow{
+  margin-bottom:7px;
+  color:#23824a;
+  font-size:10px;
+  letter-spacing:.16em;
+}
+body:has(.auth-card) .auth-card h1{
+  margin:0;
+  color:#10251b;
+  font-size:42px;
+  line-height:1;
+  letter-spacing:-.055em;
+}
+body:has(.auth-card) .auth-card p.muted{
+  margin:13px 0 26px;
+  color:#64766d;
+  font-size:15px;
+  line-height:1.6;
+}
+body:has(.auth-card) #google-login{
+  width:100%;
+  min-height:52px;
+  border-radius:13px;
+  font-size:14px;
+  letter-spacing:-.01em;
+  box-shadow:0 10px 24px rgba(22,163,74,.18);
+}
+body:has(.auth-card) #google-login::before{
+  content:"G";
+  display:inline-grid;
+  place-items:center;
+  width:22px;
+  height:22px;
+  margin-right:9px;
+  border-radius:50%;
+  background:#fff;
+  color:#4285f4;
+  font-size:13px;
+  font-weight:950;
+  vertical-align:-2px;
+}
+body:has(.auth-card) #google-login:hover{
+  transform:translateY(-2px);
+  box-shadow:0 14px 28px rgba(22,163,74,.24);
+}
+body:has(.auth-card) .auth-error{
+  min-height:20px;
+  margin:12px 0 0;
+  color:#a23c3c;
+  font-size:12px;
+}
+body:has(.auth-card) .access-denied{
+  min-height:420px;
+}
+@media(max-width:700px){
+  body:has(.auth-card) .auth-card{
+    width:min(520px,calc(100vw - 24px));
+    min-height:0;
+    margin:28px auto 50px;
+    padding:34px 28px 32px;
+    border-radius:22px;
+  }
+  body:has(.auth-card) .auth-card::before,
+  body:has(.auth-card) .auth-card::after{display:none}
+  body:has(.auth-card) .auth-card h1{font-size:34px}
+}
