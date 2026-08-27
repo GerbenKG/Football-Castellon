@@ -38,11 +38,36 @@
     }
   }
 
+  function normalize(value) {
+    return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+  }
+
   function playerForRow(row) {
     const cells = [...row.querySelectorAll("td")];
-    const text = cells.map(cell => cell.textContent.trim()).join(" ");
-    return players.find(p => String(p.name || "").trim() === String(cells[0]?.textContent || "").trim()) ||
-      players.find(p => text.includes(String(p.name || "").trim()));
+    if (!cells.length) return null;
+
+    // The first cell contains an avatar initial plus the player's name. Match the
+    // complete displayed name instead of using a generic substring search; e.g.
+    // "Gerben Test" must not resolve to the separate player "Gerben".
+    const firstCell = normalize(cells[0].textContent);
+    const nameMatches = players.filter(player => {
+      const name = normalize(player.name);
+      return name && (firstCell === name || firstCell.endsWith(" " + name));
+    });
+
+    if (nameMatches.length === 1) return nameMatches[0];
+
+    // If names are ambiguous, use the player's email as the stable secondary key.
+    const rowText = normalize(cells.map(cell => cell.textContent).join(" "));
+    const emailMatches = players.filter(player => {
+      const email = normalize(player.email);
+      return email && rowText.includes(email);
+    });
+    if (emailMatches.length === 1) return emailMatches[0];
+
+    // Last resort: choose the longest matching name so a player named "Gerben
+    // Test" wins over the shorter "Gerben" match.
+    return nameMatches.sort((a, b) => normalize(b.name).length - normalize(a.name).length)[0] || null;
   }
 
   function linkedMember(playerId) {
