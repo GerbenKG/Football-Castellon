@@ -2,12 +2,12 @@
 -- access_profiles is the source of truth because every Member is linked to a Player.
 
 create or replace function public.list_player_avatars()
-returns table(player_id uuid, avatar_path text)
+returns table(player_id uuid, player_name text, avatar_path text)
 language sql
 security definer
 set search_path to ''
 as $$
-  select a.player_id, a.avatar_path
+  select a.player_id, p.name, a.avatar_path
   from public.access_profiles a
   join public.players p on p.id = a.player_id
   where a.active = true
