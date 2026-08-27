@@ -5,6 +5,7 @@
   if (!sb) return;
 
   let isPlayer = false;
+  let accessResolved = false;
   let busy = false;
   let timer = null;
   let currentGame = null;
@@ -145,22 +146,11 @@
       if (!target) return;
       const text = target.textContent.trim().toLowerCase();
       if (text !== "sign me up!" && text !== "i'm playing ✓" && text !== "i’m playing ✓" && text !== "i'm playing" && text !== "i’m playing") return;
-      if (!isGamesPage()) return;
+      if (!isGamesPage() || !accessResolved || !isPlayer) return;
 
       event.preventDefault();
       event.stopImmediatePropagation();
-
-      if (!isPlayer) {
-        try {
-          const access = await sb.rpc("get_my_access");
-          isPlayer = access.data?.allowed === true && access.data?.profile?.role === "player";
-          window.__footballPlayerName = access.data?.profile?.display_name || "";
-        } catch (_) {
-          return;
-        }
-      }
-
-      if (isPlayer) await handleSignup(event);
+      await handleSignup(event);
     }, true);
   }
 
@@ -170,10 +160,12 @@
     try {
       const access = await sb.rpc("get_my_access");
       isPlayer = access.data?.allowed === true && access.data?.profile?.role === "player";
+      accessResolved = true;
       if (!isPlayer) return;
       window.__footballPlayerName = access.data?.profile?.display_name || "";
       schedule();
     } catch (error) {
+      accessResolved = true;
       console.warn("[Football] Could not determine player access", error);
       return;
     }
