@@ -79,8 +79,8 @@
         .players-roster-table td[data-skill-level],
         .players-roster-table th[data-bibs-count-column],
         .players-roster-table td[data-bibs-count-cell] { width: 105px; min-width: 105px; }
-        .players-roster-table th[data-member-action-head],
-        .players-roster-table td[data-member-action-cell] { width: 150px; min-width: 150px; }
+        .players-roster-table thead th:last-child,
+        .players-roster-table tbody td:last-child { width: 150px; min-width: 150px; }
         .players-roster-table tbody td:last-child { white-space: nowrap; }
         .players-roster-table tbody td:last-child .actions { flex-wrap: nowrap; }
       `;
