@@ -1,0 +1,144 @@
+/* Stable player next-game layout. Kept separate so portal fixes cannot destabilise admin game cards. */
+.player-next-game-card {
+  display: block !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  width: 100% !important;
+  min-height: 0 !important;
+}
+.player-next-game-main {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 24px !important;
+  padding: 22px 24px !important;
+  border-bottom: 1px solid #edf2ee !important;
+}
+.player-next-game-info { min-width: 0 !important; flex: 1 1 auto !important; }
+.player-next-game-info h2 {
+  margin: 4px 0 5px !important;
+  font-size: 24px !important;
+  line-height: 1.15 !important;
+  letter-spacing: -.035em !important;
+  white-space: nowrap !important;
+}
+.player-next-game-info p {
+  margin: 0 !important;
+  color: #697a71 !important;
+  font-size: 12px !important;
+}
+.player-next-game-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex: 0 0 auto !important;
+}
+.player-playing-count {
+  min-width: 82px !important;
+  padding: 10px 13px !important;
+  border-radius: 12px !important;
+  background: #effaf2 !important;
+  text-align: center !important;
+}
+.player-playing-count strong {
+  display: block !important;
+  color: #087331 !important;
+  font-size: 25px !important;
+  line-height: 1 !important;
+}
+.player-playing-count span {
+  display: block !important;
+  margin-top: 3px !important;
+  color: #557063 !important;
+  font-size: 9px !important;
+  font-weight: 900 !important;
+  letter-spacing: .08em !important;
+}
+.player-next-game-actions .btn { white-space: nowrap !important; }
+.player-next-game-squad {
+  padding: 16px 24px 20px !important;
+}
+.player-squad-heading {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  margin-bottom: 11px !important;
+  color: #52655b !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  letter-spacing: .08em !important;
+}
+.player-squad-heading b {
+  display: grid !important;
+  place-items: center !important;
+  min-width: 28px !important;
+  height: 28px !important;
+  padding: 0 7px !important;
+  border-radius: 999px !important;
+  background: #e8f7ed !important;
+  color: #087331 !important;
+  font-size: 12px !important;
+}
+.player-squad-chips {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+.player-squad-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  min-height: 36px !important;
+  padding: 5px 10px 5px 6px !important;
+  border: 1px solid #dce8df !important;
+  border-radius: 999px !important;
+  background: #fff !important;
+  color: #24362d !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+.player-squad-chip.is-me {
+  border-color: #9fe0b4 !important;
+  background: #f2fcf5 !important;
+}
+.player-squad-chip small {
+  color: #13803d !important;
+  font-size: 9px !important;
+  font-weight: 900 !important;
+  letter-spacing: .06em !important;
+}
+.player-squad-avatar {
+  display: grid !important;
+  place-items: center !important;
+  width: 25px !important;
+  height: 25px !important;
+  border-radius: 50% !important;
+  background: #dff3e5 !important;
+  color: #126733 !important;
+  font-size: 9px !important;
+  font-weight: 900 !important;
+  flex: 0 0 auto !important;
+}
+.player-squad-empty {
+  padding: 8px 0 2px !important;
+  color: #748078 !important;
+  font-size: 12px !important;
+}
+@media (max-width: 760px) {
+  .player-next-game-main {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    padding: 18px !important;
+  }
+  .player-next-game-info h2 {
+    white-space: normal !important;
+    font-size: 22px !important;
+  }
+  .player-next-game-actions {
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+  .player-next-game-squad { padding: 14px 18px 18px !important; }
+}
