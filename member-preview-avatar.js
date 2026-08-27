@@ -18,7 +18,6 @@
     const target = identity();
     const key = target ? target.name + "|" + target.role : "";
     if (!target || key === currentKey || loading) return;
-    currentKey = key;
     loading = true;
     try {
       const members = await sb.rpc("admin_list_access");
@@ -38,6 +37,7 @@
       const trigger = document.querySelector("#member-user-menu .member-user-trigger");
       const avatar = trigger?.querySelector(".member-user-avatar");
       if (!avatar || avatar.tagName === "IMG") return;
+
       const image = document.createElement("img");
       image.src = url;
       image.alt = "";
@@ -45,6 +45,7 @@
       image.loading = "lazy";
       image.style.objectFit = "cover";
       avatar.replaceWith(image);
+      currentKey = key;
     } finally {
       loading = false;
     }
