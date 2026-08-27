@@ -7,48 +7,40 @@ body:has(.auth-card){
     linear-gradient(135deg,#f7faf8 0%,#eef4f0 52%,#e7efea 100%);
 }
 
-body:has(.auth-card) .topbar{
-  position:relative;
-  padding-top:18px;
-  padding-bottom:18px;
-  background:#061c12;
-  box-shadow:0 8px 30px rgba(7,27,18,.16);
-}
-
+/* Login is a focused entry point: no application header/banner. */
+body:has(.auth-card) .topbar{display:none !important}
 body:has(.auth-card) .container{
-  max-width:none;
-  padding:0;
+  max-width:none !important;
+  width:100% !important;
+  padding:0 !important;
+  margin:0 !important;
 }
 
-/* Use a real two-column grid. The previous version combined a grid-like
-   pseudo-panel with 49% left padding, which could squeeze the form down to
-   a narrow strip on some browsers. */
 body:has(.auth-card) .auth-card{
-  position:relative;
-  width:min(980px,calc(100vw - 48px));
-  min-height:540px;
-  margin:68px auto 88px;
-  padding:0;
-  display:grid;
-  grid-template-columns:44% 56%;
+  position:relative !important;
+  width:min(980px,calc(100vw - 48px)) !important;
+  min-height:560px !important;
+  margin:64px auto 80px !important;
+  padding:0 !important;
+  display:grid !important;
+  grid-template-columns:48% 52% !important;
   grid-auto-rows:auto;
   align-content:center;
-  row-gap:0;
-  overflow:hidden;
+  overflow:hidden !important;
   border:1px solid rgba(207,222,213,.95);
   border-radius:28px;
   background:#fff;
   box-shadow:0 30px 80px rgba(21,55,40,.14),0 4px 14px rgba(21,55,40,.05);
 }
 
-/* Left brand / football panel */
+/* Football / club panel */
 body:has(.auth-card) .auth-card::before{
   content:"CASTELLÓN\A\AFOOTBALL HUB\A\AMATCHDAY ACCESS";
   white-space:pre;
   position:absolute;
   inset:0 auto 0 0;
-  width:44%;
-  padding:54px 46px;
+  width:48%;
+  padding:54px 48px;
   display:flex;
   align-items:flex-start;
   justify-content:flex-start;
@@ -71,7 +63,7 @@ body:has(.auth-card) .auth-card::before{
 body:has(.auth-card) .auth-card::after{
   content:"⚽";
   position:absolute;
-  left:calc(22% - 46px);
+  left:calc(24% - 46px);
   top:56%;
   transform:translateY(-50%);
   width:92px;
@@ -87,29 +79,28 @@ body:has(.auth-card) .auth-card::after{
   box-shadow:0 20px 42px rgba(0,0,0,.18),inset 0 0 0 10px rgba(255,255,255,.035);
 }
 
-/* All form content lives in the right-hand column. */
+/* Keep the form comfortably inside the right panel. */
 body:has(.auth-card) .auth-card > *{
   position:relative;
   z-index:1;
   grid-column:2;
-  width:auto;
-  margin-left:72px;
-  margin-right:72px;
+  width:auto !important;
+  margin-left:68px !important;
+  margin-right:68px !important;
 }
 
 body:has(.auth-card) .auth-card > .ball-logo{
-  width:52px;
+  width:52px !important;
   height:52px;
-  margin-top:0;
+  margin-top:0 !important;
   margin-bottom:20px;
-  margin-left:72px;
   border-radius:15px;
   font-size:25px;
   box-shadow:0 10px 24px rgba(22,163,74,.18),inset 0 0 0 1px rgba(255,255,255,.25);
 }
 
 body:has(.auth-card) .auth-card .eyebrow{
-  margin-bottom:7px;
+  margin-bottom:8px;
   color:#23824a;
   font-size:10px;
   letter-spacing:.16em;
@@ -131,7 +122,7 @@ body:has(.auth-card) .auth-card p.muted{
 }
 
 body:has(.auth-card) #google-login{
-  width:100%;
+  width:100% !important;
   min-height:54px;
   margin-top:0;
   border-radius:13px;
@@ -169,16 +160,16 @@ body:has(.auth-card) .auth-error{
 }
 
 body:has(.auth-card) .access-denied{
-  min-height:420px;
+  min-height:420px !important;
 }
 
 @media(max-width:760px){
   body:has(.auth-card) .auth-card{
-    width:min(540px,calc(100vw - 24px));
-    min-height:0;
-    margin:28px auto 50px;
-    padding:38px 28px 34px;
-    display:flex;
+    width:min(540px,calc(100vw - 24px)) !important;
+    min-height:0 !important;
+    margin:24px auto 40px !important;
+    padding:38px 28px 34px !important;
+    display:flex !important;
     flex-direction:column;
     align-items:stretch;
     border-radius:22px;
@@ -188,14 +179,14 @@ body:has(.auth-card) .access-denied{
   body:has(.auth-card) .auth-card::after{display:none}
 
   body:has(.auth-card) .auth-card > *{
-    width:auto;
-    margin-left:0;
-    margin-right:0;
+    width:auto !important;
+    margin-left:0 !important;
+    margin-right:0 !important;
   }
 
   body:has(.auth-card) .auth-card > .ball-logo{
-    margin-left:0;
-    margin-top:0;
+    margin-left:0 !important;
+    margin-top:0 !important;
   }
 
   body:has(.auth-card) .auth-card h1{font-size:36px}
