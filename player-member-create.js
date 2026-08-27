@@ -63,11 +63,14 @@
     }
 
     table.querySelectorAll("tbody tr").forEach(row => {
-      if (row.querySelector("[data-create-member]")) return;
+      // Mark the action cell so MutationObserver activity cannot append it repeatedly.
+      if (row.querySelector("[data-member-action-cell]")) return;
+
       const player = playerForRow(row);
       if (!player) return;
 
       const td = document.createElement("td");
+      td.dataset.memberActionCell = "true";
       const member = linkedMember(player.id);
       if (member) {
         td.innerHTML = '<span class="badge badge-green">Member</span>';
