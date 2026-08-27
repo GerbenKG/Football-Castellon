@@ -59,6 +59,15 @@
     if (!form || activeForm === form) return;
     activeForm = form;
 
+    // A Member does not have an independent name. The linked Player is the
+    // single source of truth for the person's name.
+    const nameInput = form.querySelector('input[name="display_name"]');
+    if (nameInput) {
+      const nameLabel = nameInput.closest("label");
+      if (nameLabel) nameLabel.remove();
+      else nameInput.remove();
+    }
+
     const roleSelect = form.querySelector('select[name="role"]');
     if (!roleSelect) return;
 
@@ -100,14 +109,19 @@
 
     const f = new FormData(form);
     const playerId = String(f.get("player_id") || "").trim();
-    if (!playerId) {
+    const playerSelect = form.querySelector('select[name="player_id"]');
+    const selectedPlayerName = playerSelect?.selectedOptions?.[0]?.textContent
+      ?.replace(/\s*\(already linked\)\s*$/, "")
+      ?.trim() || "";
+
+    if (!playerId || !selectedPlayerName) {
       alert("Select the Player this Member belongs to.");
       return;
     }
 
     const result = await sb.rpc("admin_upsert_access", {
       p_email: String(f.get("email") || "").trim().toLowerCase(),
-      p_display_name: String(f.get("display_name") || "").trim(),
+      p_display_name: selectedPlayerName,
       p_role: String(f.get("role") || "").trim(),
       p_active: f.has("active"),
       p_player_id: playerId
