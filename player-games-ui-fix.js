@@ -82,15 +82,12 @@
             }).join("") + '</div>'
           : '<div class="player-squad-empty">No players signed up yet.</div>') +
       '</div>';
-
-    const action = card.querySelector("[data-player-signup-action]");
-    if (action) action.addEventListener("click", handleSignup, true);
   }
 
   async function enhance() {
     if (!isPlayer || !isGamesPage() || busy) return;
     const card = getCandidate();
-    if (!card) return;
+    if (!card || card.classList.contains("player-next-game-card")) return;
     try {
       const game = await loadGameState();
       if (!game) return;
@@ -107,7 +104,7 @@
     if (busy) return;
     busy = true;
 
-    const button = event.currentTarget || event.target.closest("[data-player-signup-action]");
+    const button = event.target.closest("[data-player-signup-action], button");
     if (button) {
       button.disabled = true;
       button.textContent = currentPlaying ? "Updating…" : "Signing up…";
@@ -142,7 +139,34 @@
     timer = setTimeout(enhance, 40);
   }
 
+  function installSignupInterceptor() {
+    document.addEventListener("click", async event => {
+      const target = event.target.closest("button");
+      if (!target) return;
+      const text = target.textContent.trim().toLowerCase();
+      if (text !== "sign me up!" && text !== "i'm playing ✓" && text !== "i’m playing ✓" && text !== "i'm playing" && text !== "i’m playing") return;
+      if (!isGamesPage()) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      if (!isPlayer) {
+        try {
+          const access = await sb.rpc("get_my_access");
+          isPlayer = access.data?.allowed === true && access.data?.profile?.role === "player";
+          window.__footballPlayerName = access.data?.profile?.display_name || "";
+        } catch (_) {
+          return;
+        }
+      }
+
+      if (isPlayer) await handleSignup(event);
+    }, true);
+  }
+
   async function init() {
+    installSignupInterceptor();
+
     try {
       const access = await sb.rpc("get_my_access");
       isPlayer = access.data?.allowed === true && access.data?.profile?.role === "player";
@@ -156,15 +180,6 @@
 
     const app = document.getElementById("app");
     if (app) new MutationObserver(schedule).observe(app, { childList: true, subtree: true });
-
-    document.addEventListener("click", event => {
-      const target = event.target.closest("button");
-      if (!target) return;
-      const text = target.textContent.trim().toLowerCase();
-      if (text !== "sign me up!" && text !== "i'm playing ✓" && text !== "i’m playing ✓" && text !== "i'm playing" && text !== "i’m playing") return;
-      if (!isPlayer || !isGamesPage()) return;
-      handleSignup(event);
-    }, true);
   }
 
   init();
