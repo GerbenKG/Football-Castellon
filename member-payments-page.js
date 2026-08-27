@@ -8,6 +8,7 @@
   let previewTarget = null;
   let initialized = false;
   let rendering = false;
+  let badgeRefreshInFlight = false;
 
   const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"
@@ -67,10 +68,39 @@
   const isMember = () => !!access?.profile?.active;
   const isPreview = () => !!previewTarget;
 
+  function ensurePaymentBadge() {
+    const item = document.querySelector('.nav [data-member-payments]');
+    if (!item) return null;
+    let badge = item.querySelector('.member-payment-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'member-payment-badge hidden';
+      badge.setAttribute('aria-hidden', 'true');
+      item.appendChild(badge);
+    }
+    return badge;
+  }
+
+  function updatePaymentBadge(openCount) {
+    const badge = ensurePaymentBadge();
+    if (!badge) return;
+    const count = Math.max(0, Number(openCount) || 0);
+    if (count > 0 && (isMember() || isPreview())) {
+      badge.textContent = String(count);
+      badge.classList.remove('hidden');
+      badge.setAttribute('aria-label', `${count} open payment${count === 1 ? '' : 's'}`);
+    } else {
+      badge.textContent = '';
+      badge.classList.add('hidden');
+      badge.removeAttribute('aria-label');
+    }
+  }
+
   function setNavVisibility() {
     const item = document.querySelector('.nav [data-member-payments]');
     if (!item) return;
     item.style.display = isMember() || isPreview() ? "" : "none";
+    ensurePaymentBadge();
   }
 
   function setActiveNav(active) {
@@ -92,6 +122,19 @@
     return result.data || { summary: {}, items: [] };
   }
 
+  async function refreshPaymentBadge() {
+    if ((!isMember() && !isPreview()) || badgeRefreshInFlight) return;
+    badgeRefreshInFlight = true;
+    try {
+      const history = await loadHistory();
+      updatePaymentBadge(history?.summary?.open || 0);
+    } catch (error) {
+      console.error("Could not load open payment count", error);
+    } finally {
+      badgeRefreshInFlight = false;
+    }
+  }
+
   function renderLoading() {
     const app = document.getElementById("app");
     if (app) {
@@ -109,6 +152,7 @@
     const paid = Number(summary.paid || 0);
     const open = Number(summary.open || 0);
     const outstanding = Number(summary.outstanding || 0);
+    updatePaymentBadge(open);
 
     const summaryClass = open > 0 ? "has-open" : "all-paid";
     const summaryText = open > 0
@@ -218,6 +262,7 @@
     await loadAccess();
     await loadPreviewTarget();
     setNavVisibility();
+    await refreshPaymentBadge();
     if (isPaymentsRoute()) await renderPage();
 
     const observer = new MutationObserver(async () => {
@@ -227,6 +272,7 @@
       const next = identity ? `${identity.name}|${identity.role}` : "";
       if (current !== next) {
         await loadPreviewTarget();
+        await refreshPaymentBadge();
         if (isPaymentsRoute()) renderPage();
       }
     });
