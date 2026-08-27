@@ -80,8 +80,18 @@
       return "https://calendar.google.com/calendar/render?" + new URLSearchParams({ action: "TEMPLATE", text: "Football game", dates: day + "T" + start + "/" + day + "T" + end, location: g.location || "Castellón" }).toString();
     };
     const today = new Date().toISOString().slice(0, 10);
+    const nextGame = games.find(g => g.game_date >= today);
+    const nextPlaying = nextGame ? (Number(nextGame.playing_count ?? nextGame.players_playing ?? 0) || (nextGame.playing ? 1 : 0)) : 0;
+    const nextCard = nextGame
+      ? '<section class="game-overview-hero card">' +
+        '<div><div class="eyebrow">NEXT GAME</div><h2>' + esc(new Date(nextGame.game_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })) + '</h2><p>⚽ ' + esc(String(nextGame.start_time).slice(0, 5)) + '–' + esc(String(nextGame.end_time).slice(0, 5)) + ' · ' + esc(nextGame.location || "Castellón") + '</p></div>' +
+        '<div class="next-count"><strong>' + nextPlaying + '</strong><span>playing</span></div>' +
+      '</section>'
+      : '';
+
     document.getElementById("app").innerHTML =
       '<div class="page-head"><div><div class="eyebrow">GAME OVERVIEW</div><h1 class="title">Games</h1><p class="muted">Upcoming and previous games.</p></div></div>' +
+      nextCard +
       '<div class="game-overview-list">' + games.map(g =>
         '<article class="card game-overview-card ' + (g.game_date < today ? "past" : "upcoming") + '">' +
         '<div class="game-overview-main"><div class="game-overview-date"><span class="game-day">' + esc(new Date(g.game_date + "T12:00:00").toLocaleDateString("en-GB", { day: "2-digit" })) + '</span><div><div class="eyebrow">' + (g.game_date < today ? "PLAYED" : "UP NEXT") + '</div><h3>' + esc(dateText(g.game_date)) + '</h3><p>⚽ ' + esc(String(g.start_time).slice(0, 5)) + '–' + esc(String(g.end_time).slice(0, 5)) + ' · ' + esc(g.location || "Castellón") + '</p></div></div></div>' +
