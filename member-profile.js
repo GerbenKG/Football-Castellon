@@ -209,7 +209,9 @@
     ensureNav();
     await loadPreviewTarget();
 
-    if (access.profile.role === "player" || isPreview()) {
+    // Every active member has a profile and can update their phone number.
+    // Player-only content (such as bib history) is handled inside renderProfile().
+    if (isPreview() || access.profile?.active) {
       window.__memberView = "profile";
       await renderProfile();
     }
