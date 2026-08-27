@@ -1,217 +1,398 @@
-/* Login experience refresh — authentication screens only. */
-
-/* The login screen is intentionally independent from the application shell. */
-body:has(.auth-card){
-  min-height:100vh !important;
+/* Polished authentication experience. The application shell stays hidden while auth is active. */
+body:has(.auth-card) {
+  min-height: 100vh !important;
   background:
-    radial-gradient(circle at 12% 18%,rgba(22,163,74,.12),transparent 28%),
-    radial-gradient(circle at 88% 78%,rgba(15,118,110,.08),transparent 30%),
-    linear-gradient(135deg,#f7faf8 0%,#eef4f0 52%,#e7efea 100%) !important;
+    radial-gradient(circle at 10% 20%, rgba(22,163,74,.13), transparent 30%),
+    radial-gradient(circle at 90% 78%, rgba(16,110,62,.10), transparent 32%),
+    linear-gradient(135deg, #f6faf7 0%, #edf4ef 52%, #e6eee9 100%) !important;
 }
 
-body:has(.auth-card) .topbar{display:none !important}
-body:has(.auth-card) .container{
-  width:100% !important;
-  max-width:none !important;
-  margin:0 !important;
-  padding:0 !important;
+body:has(.auth-card) .topbar,
+body:has(.auth-card) .nav {
+  display: none !important;
 }
 
-/* Desktop: fixed, predictable two-column composition. */
-body:has(.auth-card) .auth-card{
-  position:relative !important;
-  display:grid !important;
-  grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;
-  width:min(960px,calc(100vw - 48px)) !important;
-  min-width:0 !important;
-  min-height:520px !important;
-  margin:64px auto 80px !important;
-  padding:0 !important;
-  overflow:hidden !important;
-  align-content:center !important;
-  border:1px solid #d3e1d8 !important;
-  border-radius:28px !important;
-  background:#fff !important;
-  box-shadow:0 30px 80px rgba(21,55,40,.14),0 4px 14px rgba(21,55,40,.05) !important;
+body:has(.auth-card) .container {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
-/* Left football panel. */
-body:has(.auth-card) .auth-card::before{
-  content:"CASTELLÓN\A\AFOOTBALL HUB\A\AMATCHDAY ACCESS";
-  white-space:pre;
-  position:absolute;
-  inset:0 auto 0 0;
-  width:50% !important;
-  height:100% !important;
-  padding:52px 48px !important;
-  display:flex;
-  align-items:flex-start;
-  justify-content:flex-start;
-  z-index:0;
-  box-sizing:border-box;
-  color:#dcf8e5;
-  font-size:11px;
-  line-height:1.4;
-  font-weight:950;
-  letter-spacing:.18em;
+/* Main composition */
+body:has(.auth-card) .auth-card:not(.access-denied) {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  width: min(1180px, calc(100vw - 64px)) !important;
+  height: min(720px, calc(100vh - 80px)) !important;
+  min-height: 620px !important;
+  margin: 40px auto !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(207,221,212,.95) !important;
+  border-radius: 28px !important;
+  background: #fff !important;
+  box-shadow: 0 36px 90px rgba(20,55,39,.14), 0 8px 24px rgba(20,55,39,.06) !important;
+}
+
+/* Left visual panel */
+body:has(.auth-card) .auth-visual {
+  position: relative;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #063b23 url("login-stadium.svg") center / cover no-repeat;
+  isolation: isolate;
+}
+
+body:has(.auth-card) .auth-visual::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background:
-    radial-gradient(circle at 50% 56%,transparent 0 72px,rgba(255,255,255,.18) 73px 75px,transparent 76px),
-    radial-gradient(circle at 50% 56%,transparent 0 126px,rgba(255,255,255,.08) 127px 129px,transparent 130px),
-    linear-gradient(90deg,rgba(255,255,255,.085) 1px,transparent 1px),
-    linear-gradient(rgba(255,255,255,.065) 1px,transparent 1px),
-    linear-gradient(145deg,#063d23 0%,#08703a 58%,#0a8245 100%);
-  background-size:auto,auto,72px 72px,72px 72px,auto;
-  box-shadow:inset -1px 0 rgba(255,255,255,.16);
+    linear-gradient(180deg, rgba(0,20,12,.18), rgba(0,35,20,.08) 45%, rgba(0,20,12,.28)),
+    linear-gradient(90deg, rgba(1,18,11,.16), transparent 45%, rgba(1,18,11,.08));
 }
 
-body:has(.auth-card) .auth-card::after{
-  content:"⚽";
-  position:absolute;
-  left:calc(25% - 46px);
-  top:56%;
-  width:92px;
-  height:92px;
-  transform:translateY(-50%);
-  display:grid;
-  place-items:center;
-  z-index:0;
-  border:1px solid rgba(255,255,255,.24);
-  border-radius:50%;
-  color:#fff;
-  font-size:48px;
-  background:rgba(255,255,255,.10);
-  box-shadow:0 20px 42px rgba(0,0,0,.18),inset 0 0 0 10px rgba(255,255,255,.035);
+body:has(.auth-card) .auth-visual-copy {
+  width: min(82%, 470px);
+  margin-top: -110px;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 3px 24px rgba(0,0,0,.25);
 }
 
-/* Right form column. Every direct child is constrained to the same content rail. */
-body:has(.auth-card) .auth-card > *{
-  position:relative !important;
-  z-index:1 !important;
-  grid-column:2 !important;
-  width:auto !important;
-  max-width:360px !important;
-  margin-left:auto !important;
-  margin-right:auto !important;
-  box-sizing:border-box !important;
+body:has(.auth-card) .auth-brand-mark {
+  width: 74px;
+  height: 74px;
+  margin: 0 auto 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 50%;
+  background: rgba(22,163,74,.92);
+  box-shadow: 0 18px 42px rgba(0,0,0,.24), inset 0 0 0 7px rgba(255,255,255,.08);
+  font-size: 39px;
 }
 
-body:has(.auth-card) .auth-card > .ball-logo{
-  width:52px !important;
-  height:52px !important;
-  min-width:52px !important;
-  max-width:52px !important;
-  margin-top:0 !important;
-  margin-bottom:20px !important;
-  border-radius:15px !important;
-  font-size:25px !important;
+body:has(.auth-card) .auth-visual-kicker {
+  margin-bottom: 8px;
+  color: #a7e8bb;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .2em;
+  text-transform: uppercase;
 }
 
-body:has(.auth-card) .auth-card .eyebrow{
-  width:100% !important;
-  margin-bottom:8px !important;
-  color:#23824a !important;
-  font-size:10px !important;
-  line-height:1.2 !important;
-  letter-spacing:.16em !important;
+body:has(.auth-card) .auth-visual h2 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(54px, 6vw, 76px);
+  line-height: .96;
+  font-weight: 950;
+  letter-spacing: -.065em;
 }
 
-body:has(.auth-card) .auth-card h1{
-  width:100% !important;
-  margin:0 !important;
-  color:#10251b !important;
-  font-size:44px !important;
-  line-height:1 !important;
-  letter-spacing:-.055em !important;
+body:has(.auth-card) .auth-visual-rule {
+  width: 46px;
+  height: 3px;
+  margin: 27px auto 23px;
+  border-radius: 99px;
+  background: #22c55e;
+  box-shadow: 0 0 20px rgba(34,197,94,.45);
 }
 
-body:has(.auth-card) .auth-card p.muted{
-  width:100% !important;
-  margin:13px 0 27px !important;
-  color:#64766d !important;
-  font-size:15px !important;
-  line-height:1.55 !important;
+body:has(.auth-card) .auth-visual p {
+  margin: 0 0 6px;
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 600;
 }
 
-body:has(.auth-card) #google-login{
-  display:flex !important;
-  align-items:center !important;
-  justify-content:center !important;
-  width:100% !important;
-  min-height:54px !important;
-  margin:0 !important;
-  padding:0 18px !important;
-  border-radius:13px !important;
-  font-size:14px !important;
-  line-height:1.2 !important;
-  white-space:nowrap !important;
-  overflow:hidden !important;
-  box-sizing:border-box !important;
-  box-shadow:0 10px 24px rgba(22,163,74,.18) !important;
+body:has(.auth-card) .auth-visual span {
+  font-size: 14px;
+  color: rgba(255,255,255,.82);
 }
 
-body:has(.auth-card) #google-login::before{
-  content:"G";
-  display:inline-grid;
-  place-items:center;
-  flex:0 0 22px;
-  width:22px;
-  height:22px;
-  margin-right:9px;
-  border-radius:50%;
-  background:#fff;
-  color:#4285f4;
-  font-size:13px;
-  font-weight:950;
+/* Right content panel */
+body:has(.auth-card) .auth-content {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 54px 64px 42px;
+  background: #fff;
 }
 
-body:has(.auth-card) #google-login:hover{
-  transform:translateY(-2px);
-  box-shadow:0 14px 28px rgba(22,163,74,.24) !important;
+body:has(.auth-card) .auth-content-inner {
+  width: min(100%, 420px);
+  text-align: center;
 }
 
-body:has(.auth-card) .auth-error{
-  width:100% !important;
-  min-height:20px !important;
-  margin-top:12px !important;
-  margin-bottom:0 !important;
-  color:#a23c3c !important;
-  font-size:12px !important;
+body:has(.auth-card) .auth-logo {
+  width: 70px !important;
+  height: 70px !important;
+  min-width: 70px !important;
+  max-width: 70px !important;
+  margin: 0 auto 24px !important;
+  border-radius: 19px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: #16a34a !important;
+  color: #fff !important;
+  font-size: 34px !important;
+  box-shadow: 0 14px 30px rgba(22,163,74,.22), inset 0 0 0 1px rgba(255,255,255,.18) !important;
 }
 
-body:has(.auth-card) .access-denied{
-  min-height:420px !important;
+body:has(.auth-card) .auth-content .eyebrow {
+  margin: 0 0 11px !important;
+  color: #16a34a !important;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  font-weight: 950 !important;
+  letter-spacing: .2em !important;
 }
 
-/* At genuinely narrow viewport widths, stack the experience instead of squeezing it. */
-@media(max-width:760px){
-  body:has(.auth-card) .auth-card{
-    display:flex !important;
-    flex-direction:column !important;
-    align-items:stretch !important;
-    width:calc(100vw - 24px) !important;
-    max-width:540px !important;
-    min-height:0 !important;
-    margin:24px auto 40px !important;
-    padding:38px 28px 34px !important;
+body:has(.auth-card) .auth-content h1 {
+  margin: 0 !important;
+  color: #10251b !important;
+  font-size: clamp(42px, 4.2vw, 54px) !important;
+  line-height: 1 !important;
+  font-weight: 950 !important;
+  letter-spacing: -.06em !important;
+}
+
+body:has(.auth-card) .auth-content p.muted {
+  margin: 17px auto 34px !important;
+  color: #718078 !important;
+  font-size: 16px !important;
+  line-height: 1.55 !important;
+}
+
+body:has(.auth-card) #google-login.auth-google {
+  width: 100% !important;
+  min-height: 62px !important;
+  margin: 0 !important;
+  padding: 0 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 11px !important;
+  border-radius: 14px !important;
+  background: #16a34a !important;
+  color: #fff !important;
+  font-size: 15px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  box-shadow: 0 13px 28px rgba(22,163,74,.22) !important;
+  transition: transform .16s ease, box-shadow .16s ease, background .16s ease !important;
+}
+
+body:has(.auth-card) #google-login.auth-google:hover {
+  transform: translateY(-2px) !important;
+  background: #149447 !important;
+  box-shadow: 0 17px 34px rgba(22,163,74,.28) !important;
+}
+
+body:has(.auth-card) #google-login.auth-google:active {
+  transform: translateY(0) !important;
+}
+
+body:has(.auth-card) .google-mark {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff;
+  color: #4285f4;
+  font-size: 17px;
+  font-weight: 950;
+  font-family: Arial, sans-serif;
+}
+
+body:has(.auth-card) .auth-error {
+  min-height: 18px !important;
+  margin: 12px 0 0 !important;
+  color: #a23c3c !important;
+  font-size: 12px !important;
+}
+
+/* Three value propositions under the CTA */
+body:has(.auth-card) .auth-benefits {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 48px;
+  border-top: 1px solid #e3ebe5;
+  border-bottom: 1px solid #e3ebe5;
+}
+
+body:has(.auth-card) .auth-benefit {
+  min-width: 0;
+  padding: 20px 13px 21px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+body:has(.auth-card) .auth-benefit + .auth-benefit {
+  border-left: 1px solid #e3ebe5;
+}
+
+body:has(.auth-card) .benefit-icon {
+  width: 30px;
+  height: 30px;
+  margin-bottom: 3px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #16a34a;
+  background: #eaf8ee;
+  font-size: 17px;
+  font-weight: 950;
+}
+
+body:has(.auth-card) .auth-benefit strong {
+  color: #182b22;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+body:has(.auth-card) .auth-benefit > span:last-child {
+  max-width: 115px;
+  color: #78877f;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+body:has(.auth-card) .auth-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 27px;
+  color: #819087;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* Access-denied screen remains a simple single-column auth card. */
+body:has(.access-denied) .access-denied {
+  width: min(520px, calc(100vw - 32px)) !important;
+  min-height: 0 !important;
+  margin: 12vh auto !important;
+  padding: 42px !important;
+  text-align: center !important;
+}
+
+body:has(.access-denied) .access-denied > * {
+  position: relative !important;
+  z-index: 1 !important;
+  width: auto !important;
+  max-width: 100% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+body:has(.access-denied) .access-denied .ball-logo {
+  width: 58px !important;
+  height: 58px !important;
+  margin-bottom: 18px !important;
+}
+
+/* Responsive: keep the desktop concept, but turn the visual into a compact banner. */
+@media (max-width: 900px) {
+  body:has(.auth-card) .auth-card:not(.access-denied) {
+    width: min(680px, calc(100vw - 32px)) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 24px auto 40px !important;
+    grid-template-columns: 1fr !important;
   }
 
-  body:has(.auth-card) .auth-card::before,
-  body:has(.auth-card) .auth-card::after{display:none !important}
-
-  body:has(.auth-card) .auth-card > *{
-    grid-column:auto !important;
-    width:100% !important;
-    max-width:none !important;
-    margin-left:0 !important;
-    margin-right:0 !important;
+  body:has(.auth-card) .auth-visual {
+    min-height: 250px;
   }
 
-  body:has(.auth-card) .auth-card > .ball-logo{
-    width:52px !important;
-    min-width:52px !important;
-    max-width:52px !important;
-    margin-left:0 !important;
+  body:has(.auth-card) .auth-visual-copy {
+    margin-top: 0;
   }
 
-  body:has(.auth-card) .auth-card h1{font-size:36px !important}
+  body:has(.auth-card) .auth-brand-mark {
+    width: 56px;
+    height: 56px;
+    margin-bottom: 14px;
+    font-size: 29px;
+  }
+
+  body:has(.auth-card) .auth-visual h2 {
+    font-size: 48px;
+  }
+
+  body:has(.auth-card) .auth-visual-rule,
+  body:has(.auth-card) .auth-visual p,
+  body:has(.auth-card) .auth-visual span {
+    display: none;
+  }
+
+  body:has(.auth-card) .auth-content {
+    padding: 44px 34px 38px;
+  }
+}
+
+@media (max-width: 560px) {
+  body:has(.auth-card) .auth-card:not(.access-denied) {
+    width: calc(100vw - 24px) !important;
+    border-radius: 22px !important;
+    margin: 12px auto 24px !important;
+  }
+
+  body:has(.auth-card) .auth-visual {
+    min-height: 190px;
+  }
+
+  body:has(.auth-card) .auth-visual h2 {
+    font-size: 40px;
+  }
+
+  body:has(.auth-card) .auth-visual-kicker {
+    font-size: 9px;
+    letter-spacing: .15em;
+  }
+
+  body:has(.auth-card) .auth-content {
+    padding: 34px 22px 28px;
+  }
+
+  body:has(.auth-card) .auth-content h1 {
+    font-size: 39px !important;
+  }
+
+  body:has(.auth-card) .auth-content p.muted {
+    font-size: 14px !important;
+    margin-bottom: 25px !important;
+  }
+
+  body:has(.auth-card) .auth-benefits {
+    margin-top: 34px;
+  }
+
+  body:has(.auth-card) .auth-benefit {
+    padding: 16px 7px 17px;
+  }
+
+  body:has(.auth-card) .auth-benefit > span:last-child {
+    font-size: 10px;
+  }
+
+  body:has(.auth-card) .auth-desktop-break {
+    display: none;
+  }
 }
