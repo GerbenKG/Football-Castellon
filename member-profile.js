@@ -203,18 +203,30 @@
     if (savedStatus) savedStatus.textContent = "Profile saved successfully.";
   }, true);
 
+  async function openMemberProfile() {
+    if (!isMember()) return;
+    window.__memberView = "profile";
+    if (window.location.hash !== "#profile") {
+      history.pushState({ memberProfile: true }, "", "#profile");
+    }
+    await renderProfile();
+  }
+
   async function init() {
     await loadAccess();
     if (!isMember()) return;
     ensureNav();
     await loadPreviewTarget();
 
-    // Every active member has a profile and can update their phone number.
-    // Player-only content (such as bib history) is handled inside renderProfile().
-    if (isPreview() || access.profile?.active) {
-      window.__memberView = "profile";
+    // Keep the existing player experience, while making the profile available
+    // to every active member through the user menu.
+    if (access.profile?.role === "player" || isPreview() || window.location.hash === "#profile") {
       await renderProfile();
     }
+
+    window.addEventListener("hashchange", () => {
+      if (window.location.hash === "#profile") renderProfile();
+    });
 
     const observer = new MutationObserver(() => {
       if (!isMember()) return;
