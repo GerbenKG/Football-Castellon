@@ -38,8 +38,10 @@
       item.textContent = "Profile";
       n.appendChild(item);
     }
-    item.style.display = "";
-    item.classList.toggle("active", window.__playerView === "profile");
+
+    // Player profile remains available through the user menu, but is not a primary nav item.
+    item.style.display = "none";
+    item.classList.remove("active");
 
     n.querySelectorAll(".nav-item[data-view]").forEach(button => {
       const view = button.dataset.view;
@@ -80,17 +82,34 @@
       const image = await avatarUrl(profile.avatar_path);
       const initial = esc(profile.name || "P").slice(0, 1).toUpperCase();
       document.getElementById("app").innerHTML =
-        '<div class="page-head"><div><div class="eyebrow">PLAYER PROFILE</div><h1 class="title">My Profile</h1><p class="muted">Your personal information and bib history.</p></div></div>' +
-        '<section class="card" style="max-width:680px"><div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;margin-bottom:24px">' +
-        (image ? '<img src="' + esc(image) + '" alt="Profile picture" style="width:110px;height:110px;border-radius:50%;object-fit:cover">' : '<div class="avatar" style="width:110px;height:110px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:42px">' + initial + '</div>') +
-        '<div><h2 style="margin:0">' + esc(profile.name) + '</h2><p class="muted" style="margin:6px 0 0">' + Number(profile.bibs_taken_count || 0) + ' times took the bibs</p><label class="btn btn-secondary" style="display:inline-flex;margin-top:12px;cursor:pointer">Upload picture<input id="player-avatar-input" type="file" accept="image/*" style="display:none"></label></div>' +
-        '</div>' +
-        '<div class="form-grid" style="grid-template-columns:1fr 1fr">' +
-        '<label>Name<input value="' + esc(profile.name) + '" disabled></label>' +
-        '<label>Phone<input value="' + esc(profile.phone || "—") + '" disabled></label>' +
-        '<label>Email<input value="' + esc(profile.email || "—") + '" disabled></label>' +
-        '<label>Bibs taken<input value="' + Number(profile.bibs_taken_count || 0) + '" disabled></label>' +
-        '</div></section>';
+        '<div class="profile-shell player-profile-shell">' +
+          '<div class="page-head profile-head">' +
+            '<div><div class="eyebrow">PLAYER PROFILE</div><h1 class="title">My Profile</h1><p class="muted">Your personal information and bib history.</p></div>' +
+          '</div>' +
+          '<section class="card profile-card player-profile-card">' +
+            '<div class="profile-hero">' +
+              '<div class="profile-avatar-wrap">' +
+                (image
+                  ? '<img src="' + esc(image) + '" alt="Profile picture" class="profile-avatar">'
+                  : '<div class="profile-avatar profile-avatar-fallback">' + initial + '</div>') +
+              '</div>' +
+              '<div class="profile-identity">' +
+                '<div class="eyebrow">YOUR PLAYER</div>' +
+                '<h2>' + esc(profile.name) + '</h2>' +
+                '<p class="muted">Your player details and bib history.</p>' +
+                '<label class="btn btn-secondary profile-upload">Upload picture<input id="player-avatar-input" type="file" accept="image/*" style="display:none"></label>' +
+              '</div>' +
+            '</div>' +
+            '<div class="profile-form">' +
+              '<div class="profile-grid">' +
+                '<div class="profile-field"><span class="field-label">Name</span><div class="profile-value">' + esc(profile.name) + '</div></div>' +
+                '<div class="profile-field"><span class="field-label">Phone</span><div class="profile-value">' + esc(profile.phone || "—") + '</div></div>' +
+                '<div class="profile-field"><span class="field-label">Email</span><div class="profile-value">' + esc(profile.email || "—") + '</div></div>' +
+                '<div class="profile-field"><span class="field-label">Bibs taken</span><div class="profile-value profile-value-number">' + Number(profile.bibs_taken_count || 0) + '</div></div>' +
+              '</div>' +
+            '</div>' +
+          '</section>' +
+        '</div>';
 
       document.getElementById("player-avatar-input")?.addEventListener("change", uploadAvatar);
     } catch (error) {
