@@ -23,6 +23,95 @@
     .join("")
     .toUpperCase();
 
+  function installStableLayoutStyles() {
+    if (document.getElementById("player-next-game-stable-layout")) return;
+    const style = document.createElement("style");
+    style.id = "player-next-game-stable-layout";
+    style.textContent = `
+      .player-next-game-card.player-next-game-card {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+      }
+      .player-next-game-card.player-next-game-card > .player-next-game-main {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        gap: 24px !important;
+        padding: 22px 24px !important;
+        border-bottom: 1px solid #edf2ee !important;
+      }
+      .player-next-game-card .player-next-game-info {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+      }
+      .player-next-game-card .player-next-game-info h2 {
+        margin: 4px 0 5px !important;
+        font-size: 24px !important;
+        line-height: 1.15 !important;
+        white-space: nowrap !important;
+      }
+      .player-next-game-card .player-next-game-info p {
+        margin: 0 !important;
+      }
+      .player-next-game-card .player-next-game-actions {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        flex: 0 0 auto !important;
+        gap: 12px !important;
+      }
+      .player-next-game-card .player-playing-count {
+        flex: 0 0 auto !important;
+        min-width: 82px !important;
+      }
+      .player-next-game-card > .player-next-game-squad {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        padding: 16px 24px 20px !important;
+      }
+      .player-next-game-card .player-squad-chips {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        gap: 8px !important;
+      }
+      .player-next-game-card .player-squad-chip {
+        display: inline-flex !important;
+        width: auto !important;
+        max-width: 100% !important;
+      }
+      @media (max-width: 760px) {
+        .player-next-game-card.player-next-game-card > .player-next-game-main {
+          flex-direction: column !important;
+          align-items: stretch !important;
+          gap: 14px !important;
+          padding: 18px !important;
+        }
+        .player-next-game-card .player-next-game-info h2 {
+          white-space: normal !important;
+          font-size: 22px !important;
+        }
+        .player-next-game-card .player-next-game-actions {
+          width: 100% !important;
+          justify-content: flex-start !important;
+        }
+        .player-next-game-card > .player-next-game-squad {
+          padding: 14px 18px 18px !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function isGamesPage() {
     return !!document.querySelector('.nav-item.active[data-view="games"]');
   }
@@ -61,6 +150,7 @@
 
   function renderCard(card, game, squad) {
     if (!card || !game) return;
+    installStableLayoutStyles();
     card.classList.add("player-next-game-card");
     card.innerHTML =
       '<div class="player-next-game-main">' +
@@ -83,10 +173,14 @@
             }).join("") + '</div>'
           : '<div class="player-squad-empty">No players signed up yet.</div>') +
       '</div>';
+
+    const action = card.querySelector("[data-player-signup-action]");
+    if (action) action.addEventListener("click", handleSignup, true);
   }
 
   async function enhance() {
     if (!isPlayer || !isGamesPage() || busy) return;
+    installStableLayoutStyles();
     const card = getCandidate();
     if (!card || card.classList.contains("player-next-game-card")) return;
     try {
@@ -155,6 +249,7 @@
   }
 
   async function init() {
+    installStableLayoutStyles();
     installSignupInterceptor();
 
     try {
