@@ -5,6 +5,7 @@
   if (!sb) return;
 
   let access = null;
+  let syncQueued = false;
 
   const isPlayer = () => access?.profile?.role === "player" && access?.profile?.active === true;
   const isActiveMember = () => access?.profile?.active === true;
@@ -46,27 +47,10 @@
   }
 
   function itemAllowed(item) {
-    // Active members can access their profile and payment history.
     if (isMemberProfile(item)) return isActiveMember();
     if (isMemberPayments(item)) return isActiveMember();
-
-    // Players only get the member-facing Games item from the main navigation.
     if (isPlayer()) return item.dataset.view === "games";
-
     return hasPermission(item.dataset.permission);
-  }
-
-  function activeTarget() {
-    // Member-only pages have an explicit state because they do not use the
-    // application's normal `view` variable.
-    if (window.location.hash === "#profile" || window.__memberView === "profile") return "profile";
-    if (window.location.hash === "#payments" || window.__memberView === "payments") return "payments";
-
-    // For normal navigation, use the application's current view when exposed.
-    if (window.__appView) return window.__appView;
-    if (isPlayer()) return "games";
-
-    return null;
   }
 
   function itemTarget(item) {
@@ -75,24 +59,58 @@
     return item.dataset.view || null;
   }
 
+  function visibleItems(nav) {
+    return [...nav.querySelectorAll(".nav-item")].filter(item =>
+      getComputedStyle(item).display !== "none" &&
+      item.getAttribute("aria-hidden") !== "true"
+    );
+  }
+
+  function routeTarget() {
+    if (window.location.hash === "#profile" || window.__memberView === "profile") return "profile";
+    if (window.location.hash === "#payments" || window.__memberView === "payments") return "payments";
+    if (window.__appView) return window.__appView;
+    if (isPlayer()) return "games";
+    return null;
+  }
+
   function syncActiveState() {
     const nav = document.querySelector(".nav");
     if (!nav || !access) return;
 
     const items = [...nav.querySelectorAll(".nav-item")];
-    const visible = items.filter(item =>
-      getComputedStyle(item).display !== "none" &&
-      item.getAttribute("aria-hidden") !== "true"
-    );
+    const visible = visibleItems(nav);
+    if (!visible.length) return;
 
-    const target = activeTarget();
+    const currentActive = visible.filter(item => item.classList.contains("active"));
 
-    // The mobile menu must have exactly one active item. Never allow the
-    // Payments/Profile helpers to leave a stale active class behind when the
-    // user moves back to Games (or any other normal view).
+    // app.js is the authoritative owner of normal navigation. If it has
+    // marked a regular view (Games, Players, Dashboard, etc.) active, always
+    // remove any stale member-only active state. This is the key case that
+    // previously left Games + Payments highlighted together.
+    const normalActive = currentActive.find(item => !!item.dataset.view);
+    if (normalActive) {
+      items.forEach(item => item.classList.toggle("active", item === normalActive));
+      return;
+    }
+
+    const target = routeTarget();
+    if (!target) {
+      items.forEach(item => item.classList.remove("active"));
+      return;
+    }
+
     items.forEach(item => {
-      const shouldBeActive = !!target && visible.includes(item) && itemTarget(item) === target;
-      item.classList.toggle("active", shouldBeActive);
+      item.classList.toggle("active", visible.includes(item) && itemTarget(item) === target);
+    });
+  }
+
+  function queueSync() {
+    if (syncQueued) return;
+    syncQueued = true;
+    requestAnimationFrame(() => {
+      syncQueued = false;
+      syncActiveState();
     });
   }
 
@@ -102,7 +120,6 @@
 
     const items = [...nav.querySelectorAll(".nav-item")];
     items.forEach(item => setItemVisibility(item, itemAllowed(item)));
-
     syncActiveState();
   }
 
@@ -117,8 +134,8 @@
       window.__memberView = "payments";
       window.__appView = null;
     } else if (item.dataset.view) {
-      // Switching to a normal navigation item must explicitly clear any
-      // previous member-page state, especially Payments.
+      // Normal navigation clears the member-page route state. The app's own
+      // render then owns the active class for the selected normal view.
       window.__memberView = null;
       window.__appView = item.dataset.view;
       if (item.dataset.view === "games" && isPlayer()) {
@@ -126,16 +143,21 @@
       }
     }
 
-    // Run immediately and once after the other navigation click handlers.
-    // The delayed pass prevents another listener from re-adding a stale
-    // `.active` class after this handler has run.
-    syncActiveState();
+    queueSync();
     setTimeout(syncActiveState, 0);
   }, true);
 
-  window.addEventListener("hashchange", () => {
-    syncActiveState();
-    setTimeout(syncActiveState, 0);
+  window.addEventListener("hashchange", queueSync);
+
+  // Several legacy member-navigation helpers also touch `.active`. Observe
+  // the final DOM state and enforce the single-active-item invariant after
+  // every render, including renders initiated by app.js.
+  const observer = new MutationObserver(queueSync);
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "style", "aria-hidden"]
   });
 
   async function init() {
