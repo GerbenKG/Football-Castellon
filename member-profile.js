@@ -170,6 +170,7 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       window.__memberView = "profile";
+      if (window.location.hash) history.replaceState(history.state, "", window.location.pathname + window.location.search);
       renderProfile();
     }
   }, true);
@@ -219,9 +220,7 @@
   async function openMemberProfile() {
     if (!isMember()) return;
     window.__memberView = "profile";
-    if (window.location.hash !== "#profile") {
-      history.pushState({ memberProfile: true }, "", "#profile");
-    }
+    if (window.location.hash) history.replaceState(history.state, "", window.location.pathname + window.location.search);
     await renderProfile();
   }
 
@@ -231,9 +230,6 @@
     ensureNav();
     await loadPreviewTarget();
 
-    // Do not auto-open Profile for players on login. Profile is an explicit
-    // destination; players should land on Games unless a member route was
-    // explicitly requested.
     if (isPreview() || window.location.hash === "#profile" || window.__memberView === "profile") {
       await renderProfile();
     }

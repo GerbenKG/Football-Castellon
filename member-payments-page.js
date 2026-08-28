@@ -234,6 +234,12 @@
     return window.location.hash === "#payments";
   }
 
+  function clearUrlHash() {
+    if (window.location.hash) {
+      history.replaceState(history.state, "", window.location.pathname + window.location.search);
+    }
+  }
+
   function openPayments(event) {
     if (event) {
       event.preventDefault();
@@ -241,9 +247,9 @@
     }
     if (!isMember() && !isPreview()) return;
     window.__memberView = "payments";
+    clearUrlHash();
     setNavVisibility();
     setActiveNav(true);
-    if (window.location.hash !== "#payments") history.pushState({ memberPayments: true }, "", "#payments");
     renderPage();
   }
 
