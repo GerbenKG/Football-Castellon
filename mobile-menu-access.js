@@ -48,6 +48,12 @@
   function syncActive() {
     if (!isMember()) return;
 
+    // The explicit member view wins while its page is rendering. This prevents
+    // the Games fallback from re-activating itself during the Payments/Profile
+    // loading phase.
+    if (window.__memberView === "payments") return setActive("payments");
+    if (window.__memberView === "profile") return setActive("profile");
+
     if (document.querySelector(".profile-shell")) return setActive("profile");
     if (document.querySelector(".member-payments-shell")) return setActive("payments");
 
