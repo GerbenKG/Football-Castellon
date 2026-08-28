@@ -9,11 +9,24 @@
     const loginHandler = button.onclick;
     const existingError = document.getElementById("auth-error");
 
-    // The legacy auth view is rendered inside #app, which has application-shell
-    // sizing rules. Move the login surface to <body> so it owns the viewport and
-    // cannot inherit a narrow/legacy layout constraint.
-    if (card.parentElement !== document.body) document.body.appendChild(card);
+    // Detach the login surface from the application shell before styling it.
+    // This is important because legacy ancestors may have width/transform rules.
+    if (card.parentElement !== document.body) {
+      document.body.appendChild(card);
+    }
+
+    document.documentElement.classList.add("auth-page");
     document.body.classList.add("auth-screen-active");
+
+    // Remove legacy inline geometry if the original auth renderer supplied any.
+    card.removeAttribute("style");
+    card.style.setProperty("position", "fixed", "important");
+    card.style.setProperty("inset", "0", "important");
+    card.style.setProperty("width", "100vw", "important");
+    card.style.setProperty("height", "100vh", "important");
+    card.style.setProperty("max-width", "none", "important");
+    card.style.setProperty("margin", "0", "important");
+    card.style.setProperty("padding", "0", "important");
 
     card.dataset.loginEnhanced = "true";
     card.innerHTML = `
@@ -70,10 +83,12 @@
 
     const newButton = document.getElementById("google-login");
     if (newButton && loginHandler) newButton.onclick = loginHandler;
+
     if (existingError?.textContent) {
       const newError = document.getElementById("auth-error");
       if (newError) newError.textContent = existingError.textContent;
     }
+
     return true;
   };
 
