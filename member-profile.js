@@ -231,7 +231,10 @@
     ensureNav();
     await loadPreviewTarget();
 
-    if (access.profile?.role === "player" || isPreview() || window.location.hash === "#profile") {
+    // Do not auto-open Profile for players on login. Profile is an explicit
+    // destination; players should land on Games unless a member route was
+    // explicitly requested.
+    if (isPreview() || window.location.hash === "#profile" || window.__memberView === "profile") {
       await renderProfile();
     }
 

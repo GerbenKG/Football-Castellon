@@ -5,6 +5,7 @@
   if (!sb) return;
 
   let access = null;
+  let syncQueued = false;
 
   const isPlayer = () => access?.profile?.role === "player" && access?.profile?.active === true;
   const isActiveMember = () => access?.profile?.active === true;
@@ -46,19 +47,29 @@
   }
 
   function itemAllowed(item) {
-    // Active members can access their profile and payment history.
     if (isMemberProfile(item)) return isActiveMember();
     if (isMemberPayments(item)) return isActiveMember();
-
-    // Players only get the member-facing Games item from the main navigation.
     if (isPlayer()) return item.dataset.view === "games";
-
     return hasPermission(item.dataset.permission);
   }
 
-  function activeMemberTarget() {
+  function itemTarget(item) {
+    if (isMemberProfile(item)) return "profile";
+    if (isMemberPayments(item)) return "payments";
+    return item.dataset.view || null;
+  }
+
+  function visibleItems(nav) {
+    return [...nav.querySelectorAll(".nav-item")].filter(item =>
+      getComputedStyle(item).display !== "none" &&
+      item.getAttribute("aria-hidden") !== "true"
+    );
+  }
+
+  function routeTarget() {
     if (window.location.hash === "#profile" || window.__memberView === "profile") return "profile";
     if (window.location.hash === "#payments" || window.__memberView === "payments") return "payments";
+    if (window.__appView) return window.__appView;
     if (isPlayer()) return "games";
     return null;
   }
@@ -67,20 +78,37 @@
     const nav = document.querySelector(".nav");
     if (!nav || !access) return;
 
-    const memberItems = [...nav.querySelectorAll(".nav-item")].filter(item =>
-      isMemberProfile(item) || isMemberPayments(item) || item.dataset.view === "games"
+    const items = [...nav.querySelectorAll(".nav-item")];
+    const visible = visibleItems(nav);
+    if (!visible.length) return;
+
+    // The route is the source of truth. In particular, member pages must
+    // override any stale `.active` class left by the normal app navigation.
+    // This prevents Games from remaining highlighted after navigating to
+    // Payments or Profile.
+    const target = routeTarget();
+    if (target) {
+      const matching = visible.filter(item => itemTarget(item) === target);
+      if (matching.length) {
+        items.forEach(item => item.classList.toggle("active", matching.includes(item)));
+        return;
+      }
+    }
+
+    // If no route target is available, preserve the normal app navigation's
+    // selected item rather than guessing from stale member-navigation state.
+    const normalActive = visible.find(item =>
+      item.dataset.view && item.classList.contains("active")
     );
-    if (!memberItems.length) return;
+    items.forEach(item => item.classList.toggle("active", item === normalActive));
+  }
 
-    const target = activeMemberTarget();
-    if (!target) return;
-
-    memberItems.forEach(item => {
-      const matches =
-        (target === "profile" && isMemberProfile(item)) ||
-        (target === "payments" && isMemberPayments(item)) ||
-        (target === "games" && item.dataset.view === "games");
-      item.classList.toggle("active", matches && getComputedStyle(item).display !== "none");
+  function queueSync() {
+    if (syncQueued) return;
+    syncQueued = true;
+    requestAnimationFrame(() => {
+      syncQueued = false;
+      syncActiveState();
     });
   }
 
@@ -90,35 +118,7 @@
 
     const items = [...nav.querySelectorAll(".nav-item")];
     items.forEach(item => setItemVisibility(item, itemAllowed(item)));
-
-    const visible = items.filter(item =>
-      getComputedStyle(item).display !== "none" &&
-      item.getAttribute("aria-hidden") !== "true"
-    );
-
-    // For member navigation, never leave an unrelated item active.
-    const target = activeMemberTarget();
-    if (target) {
-      const memberItems = visible.filter(item =>
-        isMemberProfile(item) || isMemberPayments(item) || item.dataset.view === "games"
-      );
-      memberItems.forEach(item => item.classList.remove("active"));
-      const selected = memberItems.find(item =>
-        (target === "profile" && isMemberProfile(item)) ||
-        (target === "payments" && isMemberPayments(item)) ||
-        (target === "games" && item.dataset.view === "games")
-      );
-      selected?.classList.add("active");
-      return;
-    }
-
-    const active = nav.querySelector(".nav-item.active");
-    if (active && !visible.includes(active)) active.classList.remove("active");
-
-    if (!nav.querySelector(".nav-item.active") && visible.length) {
-      const preferred = visible.find(item => item.dataset.view === "dashboard") || visible[0];
-      preferred?.classList.add("active");
-    }
+    syncActiveState();
   }
 
   document.addEventListener("click", event => {
@@ -127,18 +127,36 @@
 
     if (isMemberProfile(item)) {
       window.__memberView = "profile";
-      syncActiveState();
+      window.__appView = null;
     } else if (isMemberPayments(item)) {
       window.__memberView = "payments";
-      syncActiveState();
-    } else if (item.dataset.view === "games" && isPlayer()) {
-      window.__memberView = "games";
-      window.__playerView = "games";
-      syncActiveState();
+      window.__appView = null;
+    } else if (item.dataset.view) {
+      // Normal navigation clears the member-page route state. The app's own
+      // render then owns the active class for the selected normal view.
+      window.__memberView = null;
+      window.__appView = item.dataset.view;
+      if (item.dataset.view === "games" && isPlayer()) {
+        window.__playerView = "games";
+      }
     }
+
+    queueSync();
+    setTimeout(syncActiveState, 0);
   }, true);
 
-  window.addEventListener("hashchange", syncActiveState);
+  window.addEventListener("hashchange", queueSync);
+
+  // Several legacy member-navigation helpers also touch `.active`. Observe
+  // the final DOM state and enforce the single-active-item invariant after
+  // every render, including renders initiated by app.js.
+  const observer = new MutationObserver(queueSync);
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "style", "aria-hidden"]
+  });
 
   async function init() {
     await loadAccess();
