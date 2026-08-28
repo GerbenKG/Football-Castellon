@@ -82,27 +82,25 @@
     const visible = visibleItems(nav);
     if (!visible.length) return;
 
-    const currentActive = visible.filter(item => item.classList.contains("active"));
-
-    // app.js is the authoritative owner of normal navigation. If it has
-    // marked a regular view (Games, Players, Dashboard, etc.) active, always
-    // remove any stale member-only active state. This is the key case that
-    // previously left Games + Payments highlighted together.
-    const normalActive = currentActive.find(item => !!item.dataset.view);
-    if (normalActive) {
-      items.forEach(item => item.classList.toggle("active", item === normalActive));
-      return;
-    }
-
+    // The route is the source of truth. In particular, member pages must
+    // override any stale `.active` class left by the normal app navigation.
+    // This prevents Games from remaining highlighted after navigating to
+    // Payments or Profile.
     const target = routeTarget();
-    if (!target) {
-      items.forEach(item => item.classList.remove("active"));
-      return;
+    if (target) {
+      const matching = visible.filter(item => itemTarget(item) === target);
+      if (matching.length) {
+        items.forEach(item => item.classList.toggle("active", matching.includes(item)));
+        return;
+      }
     }
 
-    items.forEach(item => {
-      item.classList.toggle("active", visible.includes(item) && itemTarget(item) === target);
-    });
+    // If no route target is available, preserve the normal app navigation's
+    // selected item rather than guessing from stale member-navigation state.
+    const normalActive = visible.find(item =>
+      item.dataset.view && item.classList.contains("active")
+    );
+    items.forEach(item => item.classList.toggle("active", item === normalActive));
   }
 
   function queueSync() {
