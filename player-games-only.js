@@ -57,6 +57,13 @@
     setTimeout(() => { redirecting = false; }, 100);
   }
 
+  function hasExplicitMemberRoute() {
+    return window.location.hash === "#profile" ||
+      window.location.hash === "#payments" ||
+      window.__memberView === "profile" ||
+      window.__memberView === "payments";
+  }
+
   function enforcePlayerArea() {
     if (!isEffectivePlayer()) return;
 
@@ -68,11 +75,13 @@
     showNavItem('.nav-item[data-view="games"]');
     hidePlayerGameActions();
 
-    // Preview mode keeps the Super Admin's real session, so the normal app
-    // can still render Dashboard. Replace that view immediately when the
-    // preview target is a Player.
+    // Games is the default landing page for players. Respect an explicit
+    // Profile/Payments route so normal member navigation is never overridden.
+    // This also replaces the admin app's default Dashboard on initial login.
     const active = document.querySelector('.nav-item.active');
-    if (active?.dataset.view === "dashboard") goToGames();
+    if (!hasExplicitMemberRoute() && (!active || active.dataset.view !== "games")) {
+      goToGames();
+    }
   }
 
   async function loadAccess() {
