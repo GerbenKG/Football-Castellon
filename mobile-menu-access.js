@@ -56,31 +56,43 @@
     return hasPermission(item.dataset.permission);
   }
 
-  function activeMemberTarget() {
+  function activeTarget() {
+    // Member-only pages have an explicit state because they do not use the
+    // application's normal `view` variable.
     if (window.location.hash === "#profile" || window.__memberView === "profile") return "profile";
     if (window.location.hash === "#payments" || window.__memberView === "payments") return "payments";
+
+    // For normal navigation, use the application's current view when exposed.
+    if (window.__appView) return window.__appView;
     if (isPlayer()) return "games";
+
     return null;
+  }
+
+  function itemTarget(item) {
+    if (isMemberProfile(item)) return "profile";
+    if (isMemberPayments(item)) return "payments";
+    return item.dataset.view || null;
   }
 
   function syncActiveState() {
     const nav = document.querySelector(".nav");
     if (!nav || !access) return;
 
-    const memberItems = [...nav.querySelectorAll(".nav-item")].filter(item =>
-      isMemberProfile(item) || isMemberPayments(item) || item.dataset.view === "games"
+    const items = [...nav.querySelectorAll(".nav-item")];
+    const visible = items.filter(item =>
+      getComputedStyle(item).display !== "none" &&
+      item.getAttribute("aria-hidden") !== "true"
     );
-    if (!memberItems.length) return;
 
-    const target = activeMemberTarget();
-    if (!target) return;
+    const target = activeTarget();
 
-    memberItems.forEach(item => {
-      const matches =
-        (target === "profile" && isMemberProfile(item)) ||
-        (target === "payments" && isMemberPayments(item)) ||
-        (target === "games" && item.dataset.view === "games");
-      item.classList.toggle("active", matches && getComputedStyle(item).display !== "none");
+    // The mobile menu must have exactly one active item. Never allow the
+    // Payments/Profile helpers to leave a stale active class behind when the
+    // user moves back to Games (or any other normal view).
+    items.forEach(item => {
+      const shouldBeActive = !!target && visible.includes(item) && itemTarget(item) === target;
+      item.classList.toggle("active", shouldBeActive);
     });
   }
 
@@ -91,34 +103,7 @@
     const items = [...nav.querySelectorAll(".nav-item")];
     items.forEach(item => setItemVisibility(item, itemAllowed(item)));
 
-    const visible = items.filter(item =>
-      getComputedStyle(item).display !== "none" &&
-      item.getAttribute("aria-hidden") !== "true"
-    );
-
-    // For member navigation, never leave an unrelated item active.
-    const target = activeMemberTarget();
-    if (target) {
-      const memberItems = visible.filter(item =>
-        isMemberProfile(item) || isMemberPayments(item) || item.dataset.view === "games"
-      );
-      memberItems.forEach(item => item.classList.remove("active"));
-      const selected = memberItems.find(item =>
-        (target === "profile" && isMemberProfile(item)) ||
-        (target === "payments" && isMemberPayments(item)) ||
-        (target === "games" && item.dataset.view === "games")
-      );
-      selected?.classList.add("active");
-      return;
-    }
-
-    const active = nav.querySelector(".nav-item.active");
-    if (active && !visible.includes(active)) active.classList.remove("active");
-
-    if (!nav.querySelector(".nav-item.active") && visible.length) {
-      const preferred = visible.find(item => item.dataset.view === "dashboard") || visible[0];
-      preferred?.classList.add("active");
-    }
+    syncActiveState();
   }
 
   document.addEventListener("click", event => {
@@ -127,18 +112,31 @@
 
     if (isMemberProfile(item)) {
       window.__memberView = "profile";
-      syncActiveState();
+      window.__appView = null;
     } else if (isMemberPayments(item)) {
       window.__memberView = "payments";
-      syncActiveState();
-    } else if (item.dataset.view === "games" && isPlayer()) {
-      window.__memberView = "games";
-      window.__playerView = "games";
-      syncActiveState();
+      window.__appView = null;
+    } else if (item.dataset.view) {
+      // Switching to a normal navigation item must explicitly clear any
+      // previous member-page state, especially Payments.
+      window.__memberView = null;
+      window.__appView = item.dataset.view;
+      if (item.dataset.view === "games" && isPlayer()) {
+        window.__playerView = "games";
+      }
     }
+
+    // Run immediately and once after the other navigation click handlers.
+    // The delayed pass prevents another listener from re-adding a stale
+    // `.active` class after this handler has run.
+    syncActiveState();
+    setTimeout(syncActiveState, 0);
   }, true);
 
-  window.addEventListener("hashchange", syncActiveState);
+  window.addEventListener("hashchange", () => {
+    syncActiveState();
+    setTimeout(syncActiveState, 0);
+  });
 
   async function init() {
     await loadAccess();
