@@ -7,6 +7,8 @@
   let cachedAccess = null;
   let refreshTimer = null;
   let avatarCache = new Map();
+  let avatarLoadPromise = null;
+  let lastRenderKey = "";
 
   function isPlayerPreview() {
     return /Viewing the site as\s+.+?\s*\(player\)/i.test(document.body?.textContent || "");
@@ -26,23 +28,34 @@
   }
 
   async function loadAvatars() {
-    const result = await sb.rpc("list_player_avatars");
-    if (result.error) {
-      console.error("Could not load player avatars", result.error);
-      return avatarCache;
-    }
+    if (avatarLoadPromise) return avatarLoadPromise;
 
-    const next = new Map();
-    await Promise.all((result.data || []).map(async row => {
-      if (!row.player_name || !row.avatar_path) return;
-      const signed = await sb.storage.from("player-avatars").createSignedUrl(row.avatar_path, 3600);
-      if (!signed.error && signed.data?.signedUrl) {
-        next.set(String(row.player_name).trim().toLowerCase(), signed.data.signedUrl);
+    avatarLoadPromise = (async () => {
+      const result = await sb.rpc("list_player_avatars");
+      if (result.error) {
+        console.error("Could not load player avatars", result.error);
+        return avatarCache;
       }
-    }));
 
-    avatarCache = next;
-    return avatarCache;
+      const next = new Map(avatarCache);
+      await Promise.all((result.data || []).map(async row => {
+        if (!row.player_name || !row.avatar_path) return;
+        const key = String(row.player_name).trim().toLowerCase();
+        if (next.has(key)) return;
+
+        const signed = await sb.storage.from("player-avatars").createSignedUrl(row.avatar_path, 3600);
+        if (!signed.error && signed.data?.signedUrl) {
+          next.set(key, signed.data.signedUrl);
+        }
+      }));
+
+      avatarCache = next;
+      return avatarCache;
+    })().finally(() => {
+      avatarLoadPromise = null;
+    });
+
+    return avatarLoadPromise;
   }
 
   async function getNextGame() {
@@ -120,6 +133,10 @@
     }
 
     const currentId = currentPlayerId ? String(currentPlayerId) : "";
+    const renderKey = squad.map(player => `${player.player_id || "guest"}:${player.name || ""}`).join("|") + `|self:${currentId}`;
+    if (renderKey === lastRenderKey && section.innerHTML) return;
+    lastRenderKey = renderKey;
+
     section.innerHTML = `
       <div class="member-game-squad__header">
         <h3 class="member-game-squad__title">Players playing</h3>
@@ -156,6 +173,7 @@
     const isRealPlayer = access?.profile?.role === "player" && access.profile.active === true;
     if (!isRealPlayer && !preview) {
       card.querySelector("[data-member-game-squad]")?.remove();
+      lastRenderKey = "";
       return;
     }
 
