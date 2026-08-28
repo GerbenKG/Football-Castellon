@@ -6,6 +6,7 @@
 
   let cachedAccess = null;
   let refreshTimer = null;
+  let avatarCache = new Map();
 
   function isPlayerPreview() {
     return /Viewing the site as\s+.+?\s*\(player\)/i.test(document.body?.textContent || "");
@@ -22,6 +23,26 @@
     if (result.error || !result.data?.allowed) return null;
     cachedAccess = result.data;
     return cachedAccess;
+  }
+
+  async function loadAvatars() {
+    const result = await sb.rpc("list_player_avatars");
+    if (result.error) {
+      console.error("Could not load player avatars", result.error);
+      return avatarCache;
+    }
+
+    const next = new Map();
+    await Promise.all((result.data || []).map(async row => {
+      if (!row.player_name || !row.avatar_path) return;
+      const signed = await sb.storage.from("player-avatars").createSignedUrl(row.avatar_path, 3600);
+      if (!signed.error && signed.data?.signedUrl) {
+        next.set(String(row.player_name).trim().toLowerCase(), signed.data.signedUrl);
+      }
+    }));
+
+    avatarCache = next;
+    return avatarCache;
   }
 
   async function getNextGame() {
@@ -48,7 +69,7 @@
     const result = await sb.rpc("admin_list_access");
     if (result.error) return null;
     return (result.data || []).find(m =>
-      String(m.display_name || m.name || "").trim().toLowerCase() === name.toLowerCase() &&
+      String(m.display_name || m.name || m.player_name || "").trim().toLowerCase() === name.toLowerCase() &&
       m.role === "player" && m.active !== false
     )?.player_id || null;
   }
@@ -65,7 +86,7 @@
       .member-game-squad__list { display:flex; flex-wrap:wrap; gap:8px; }
       .member-game-squad__player { display:inline-flex; align-items:center; gap:7px; padding:7px 10px 7px 7px; border:1px solid #e1e9e4; border-radius:999px; background:#fff; color:#17352b; font-size:13px; font-weight:700; }
       .member-game-squad__player--self { border-color:#b9e8cb; background:#f1fbf5; }
-      .member-game-squad__avatar { width:26px; height:26px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#e4f4e9; color:#087b3e; font-size:11px; font-weight:900; flex:0 0 26px; }
+      .member-game-squad__avatar { width:26px; height:26px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#e4f4e9; color:#087b3e; font-size:11px; font-weight:900; flex:0 0 26px; object-fit:cover; }
       .member-game-squad__you { font-size:10px; font-weight:900; color:#087b3e; text-transform:uppercase; letter-spacing:.04em; }
       .member-game-squad__empty { margin:0; color:#66766f; font-size:13px; }
       @media (max-width:640px) {
@@ -79,6 +100,13 @@
   function initials(name) {
     const parts = String(name || "?").trim().split(/\s+/).filter(Boolean);
     return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : parts[0]?.[0] || "?").toUpperCase();
+  }
+
+  function avatarMarkup(name) {
+    const url = avatarCache.get(String(name || "").trim().toLowerCase());
+    return url
+      ? `<img class="member-game-squad__avatar" src="${escapeHtml(url)}" alt="${escapeHtml(name)} profile picture" loading="lazy">`
+      : `<span class="member-game-squad__avatar">${initials(name)}</span>`;
   }
 
   function render(card, squad, currentPlayerId) {
@@ -100,7 +128,7 @@
       ${squad.length ? `<div class="member-game-squad__list">${squad.map(player => {
         const self = String(player.player_id) === currentId;
         return `<span class="member-game-squad__player${self ? " member-game-squad__player--self" : ""}">
-          <span class="member-game-squad__avatar">${initials(player.name)}</span>
+          ${avatarMarkup(player.name)}
           <span>${escapeHtml(player.name || "Player")}</span>
           ${self ? '<span class="member-game-squad__you">You</span>' : ""}
         </span>`;
@@ -113,7 +141,7 @@
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
+      .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#039;");
   }
 
@@ -140,6 +168,7 @@
       return;
     }
 
+    await loadAvatars();
     const currentPlayerId = preview
       ? await getPreviewPlayerId(previewName())
       : access.profile.player_id;
