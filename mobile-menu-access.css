@@ -1,5 +1,14 @@
 /* Mobile navigation — readable labels, consistent spacing, and permission-safe layout. */
-@media (max-width:720px){
+.nav-item[data-member-profile]::before,
+.nav-item[data-player-profile]::before{content:"♙"}
+
+@media(min-width:721px){
+  /* Profile is a member utility action exposed through the mobile navigation. */
+  .nav-item[data-member-profile],
+  .nav-item[data-player-profile]{display:none !important}
+}
+
+@media(max-width:720px){
   body{padding-bottom:calc(92px + env(safe-area-inset-bottom))}
   .nav{left:10px !important;right:10px !important;bottom:calc(10px + env(safe-area-inset-bottom)) !important;height:68px !important;padding:6px !important;gap:3px !important;justify-content:stretch !important;align-items:stretch !important;border-radius:20px !important;background:rgba(255,255,255,.98) !important;box-shadow:0 14px 38px rgba(7,27,18,.18),0 2px 8px rgba(7,27,18,.07) !important}
   .nav-item{position:relative !important;flex:1 1 0 !important;min-width:0 !important;height:56px !important;padding:7px 3px 6px !important;display:flex !important;flex-direction:column !important;align-items:center !important;justify-content:center !important;gap:4px !important;border:1px solid transparent !important;border-radius:14px !important;color:#617168 !important;background:transparent !important;font-size:11px !important;line-height:1.05 !important;font-weight:850 !important;white-space:nowrap !important;overflow:visible !important}
