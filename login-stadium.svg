@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1000" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#031b12"/>
+      <stop offset="0.48" stop-color="#07542f"/>
+      <stop offset="1" stop-color="#08733b"/>
+    </linearGradient>
+    <linearGradient id="field" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b6a36"/>
+      <stop offset="1" stop-color="#0b8a46"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop offset="0" stop-color="#fff" stop-opacity=".9"/>
+      <stop offset=".28" stop-color="#e9fff1" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ball" cx="38%" cy="30%">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".72" stop-color="#eef2ef"/>
+      <stop offset="1" stop-color="#c8d3cd"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="18" stdDeviation="14" flood-color="#00170d" flood-opacity=".55"/>
+    </filter>
+    <filter id="soft" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+    <pattern id="grid" width="72" height="72" patternUnits="userSpaceOnUse">
+      <path d="M72 0H0V72" fill="none" stroke="#fff" stroke-opacity=".08"/>
+    </pattern>
+  </defs>
+
+  <rect width="900" height="1000" fill="url(#sky)"/>
+  <ellipse cx="450" cy="610" rx="520" ry="420" fill="#16a34a" opacity=".13" filter="url(#soft)"/>
+
+  <!-- Stadium bowl -->
+  <path d="M0 400 Q450 170 900 400 V610 Q450 455 0 610Z" fill="#021a11" opacity=".72"/>
+  <path d="M0 470 Q450 285 900 470 V525 Q450 390 0 525Z" fill="#123b2a" opacity=".9"/>
+  <path d="M0 520 Q450 390 900 520 V570 Q450 475 0 570Z" fill="#31533f" opacity=".48"/>
+  <path d="M0 570 Q450 485 900 570 V620 Q450 550 0 620Z" fill="#55705a" opacity=".18"/>
+
+  <!-- Floodlights -->
+  <g opacity=".96">
+    <path d="M92 510L150 185" stroke="#9cb8aa" stroke-width="7"/>
+    <path d="M808 510L750 185" stroke="#9cb8aa" stroke-width="7"/>
+    <rect x="120" y="165" width="62" height="18" rx="8" fill="#e8fff0"/>
+    <rect x="718" y="165" width="62" height="18" rx="8" fill="#e8fff0"/>
+    <ellipse cx="151" cy="180" rx="150" ry="125" fill="url(#glow)" opacity=".75"/>
+    <ellipse cx="749" cy="180" rx="150" ry="125" fill="url(#glow)" opacity=".75"/>
+  </g>
+
+  <!-- Pitch -->
+  <path d="M0 600 Q450 545 900 600 V1000H0Z" fill="url(#field)"/>
+  <path d="M0 600 Q450 545 900 600 V1000H0Z" fill="url(#grid)"/>
+  <path d="M450 550V1000" stroke="#fff" stroke-opacity=".22" stroke-width="4"/>
+  <ellipse cx="450" cy="690" rx="110" ry="72" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="4"/>
+  <circle cx="450" cy="690" r="8" fill="#fff" fill-opacity=".28"/>
+  <path d="M250 1000 Q280 800 350 730 Q450 660 550 730 Q620 800 650 1000" fill="none" stroke="#fff" stroke-opacity=".16" stroke-width="4"/>
+
+  <!-- Football -->
+  <g filter="url(#shadow)" transform="translate(450 815)">
+    <circle r="122" fill="#fff" opacity=".13"/>
+    <circle r="102" fill="url(#ball)" stroke="#dbe4df" stroke-width="4"/>
+    <path d="M0-31L31-10L19 27H-19L-31-10Z" fill="#15231d"/>
+    <path d="M-31-10L-68-27L-77 18L-43 46L-19 27Z" fill="#f5f7f5" stroke="#b8c4bd" stroke-width="3"/>
+    <path d="M31-10L68-27L77 18L43 46L19 27Z" fill="#f5f7f5" stroke="#b8c4bd" stroke-width="3"/>
+    <path d="M-43 46L-30 83L0 96L30 83L43 46L19 27H-19Z" fill="#eef2ef" stroke="#b8c4bd" stroke-width="3"/>
+    <path d="M-68-27L-45-68L-8-83L0-31L-31-10Z" fill="#eef2ef" stroke="#b8c4bd" stroke-width="3"/>
+    <path d="M68-27L45-68L8-83L0-31L31-10Z" fill="#eef2ef" stroke="#b8c4bd" stroke-width="3"/>
+  </g>
+</svg>
