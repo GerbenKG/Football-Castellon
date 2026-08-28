@@ -45,7 +45,7 @@
       <section class="auth-content">
         <div class="auth-content-inner">
           <div class="auth-logo ball-logo">⚽</div>
-          <div class="eyebrow">ADMIN ACCESS</div>
+          <div class="eyebrow">PLAYER ACCESS</div>
           <h1>Welcome back</h1>
           <p class="muted">Sign in with your account to continue.</p>
 
@@ -59,7 +59,7 @@
             <div class="auth-benefit">
               <span class="benefit-icon">✓</span>
               <strong>Secure</strong>
-              <span>Protected administrator access</span>
+              <span>Protected access</span>
             </div>
             <div class="auth-benefit">
               <span class="benefit-icon">♙</span>
