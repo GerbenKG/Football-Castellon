@@ -71,10 +71,10 @@
   function ensurePaymentBadge() {
     const item = document.querySelector('.nav [data-member-payments]');
     if (!item) return null;
-    let badge = item.querySelector('.member-payment-badge');
+    let badge = item.querySelector('.member-payments-badge');
     if (!badge) {
       badge = document.createElement('span');
-      badge.className = 'member-payment-badge hidden';
+      badge.className = 'member-payments-badge hidden';
       badge.setAttribute('aria-hidden', 'true');
       item.appendChild(badge);
     }
