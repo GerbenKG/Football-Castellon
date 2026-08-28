@@ -59,7 +59,17 @@
     if (!nav) return;
 
     const item = nav.querySelector("[data-member-profile], [data-player-profile]");
-    if (item) item.style.display = "none";
+    if (item) item.style.removeProperty("display");
+  }
+
+  function setProfileNavActive() {
+    const nav = document.querySelector(".nav");
+    if (!nav) return;
+    const profile = nav.querySelector("[data-member-profile], [data-player-profile]");
+    if (!profile) return;
+
+    nav.querySelectorAll(".nav-item").forEach(item => item.classList.remove("active"));
+    if (getComputedStyle(profile).display !== "none") profile.classList.add("active");
   }
 
   async function getProfile() {
@@ -91,6 +101,7 @@
     if (!isMember() || rendering) return;
     rendering = true;
     try {
+      window.__memberView = "profile";
       renderLoading();
       const profile = await getProfile();
       const image = await signedAvatar(profile.avatar_path);
@@ -124,9 +135,11 @@
           '</section>' +
         '</div>';
 
+      setProfileNavActive();
       document.getElementById("member-avatar-input")?.addEventListener("change", uploadAvatar);
     } catch (error) {
       document.getElementById("app").innerHTML = '<section class="card error-card" style="max-width:820px;margin:0 auto"><h2>Profile unavailable</h2><p>' + esc(error.message || "Could not load your profile.") + '</p></section>';
+      setProfileNavActive();
     } finally {
       rendering = false;
     }
@@ -218,8 +231,6 @@
     ensureNav();
     await loadPreviewTarget();
 
-    // Keep the existing player experience, while making the profile available
-    // to every active member through the user menu.
     if (access.profile?.role === "player" || isPreview() || window.location.hash === "#profile") {
       await renderProfile();
     }
