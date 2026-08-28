@@ -47,7 +47,7 @@
           <div class="auth-logo ball-logo">⚽</div>
           <div class="eyebrow">ADMIN ACCESS</div>
           <h1>Welcome back</h1>
-          <p class="muted">Sign in with your Google account to continue.</p>
+          <p class="muted">Sign in with your account to continue.</p>
 
           <button id="google-login" class="btn btn-primary auth-google" type="button">
             <span class="google-mark">G</span>
