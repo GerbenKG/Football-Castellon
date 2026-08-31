@@ -11,7 +11,7 @@
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
-    '\"': "&quot;"
+    '"': "&quot;"
   }[c]));
 
   function isDashboard() {
@@ -69,8 +69,8 @@
         closeModal();
         busy = true;
         try {
-          const teams = await generateTeams(count);
-          showTeams(teams, count);
+          const result = await generateTeams(count);
+          showTeams(result, count);
         } catch (error) {
           console.warn("[Football] Team generation failed", error);
           window.alert("Could not generate teams: " + (error.message || "Unknown error"));
@@ -79,6 +79,33 @@
         }
       });
     });
+  }
+
+  async function captainCounts(players) {
+    const ids = players.filter(player => !player.guest).map(player => player.id);
+    const counts = new Map(ids.map(id => [String(id), 0]));
+    if (!ids.length) return counts;
+
+    const { data, error } = await sb
+      .from("team_captain_history")
+      .select("player_id")
+      .in("player_id", ids);
+    if (error) throw error;
+
+    (data || []).forEach(row => {
+      const id = String(row.player_id);
+      counts.set(id, (counts.get(id) || 0) + 1);
+    });
+    return counts;
+  }
+
+  function chooseCaptain(team, counts) {
+    const candidates = team.players.filter(player => !player.guest);
+    if (!candidates.length) return null;
+
+    const least = Math.min(...candidates.map(player => counts.get(String(player.id)) || 0));
+    const eligible = candidates.filter(player => (counts.get(String(player.id)) || 0) === least);
+    return eligible[Math.floor(Math.random() * eligible.length)] || null;
   }
 
   async function generateTeams(teamCount) {
@@ -110,7 +137,8 @@
     const teams = Array.from({ length: teamCount }, (_, i) => ({
       name: "Team " + String.fromCharCode(65 + i),
       players: [],
-      total: 0
+      total: 0,
+      captain: null
     }));
 
     players.forEach(player => {
@@ -119,21 +147,59 @@
       teams[0].total += player.skill;
     });
 
-    return teams.sort((a, b) => a.name.localeCompare(b.name));
+    const counts = await captainCounts(players);
+    teams.sort((a, b) => a.name.localeCompare(b.name));
+    teams.forEach(team => {
+      team.captain = chooseCaptain(team, counts);
+      if (team.captain) {
+        const id = String(team.captain.id);
+        counts.set(id, (counts.get(id) || 0) + 1);
+      }
+    });
+
+    return { gameId: game.id, teams };
   }
 
-  function showTeams(teams, count) {
+  async function selectTeams(result, button) {
+    const rows = result.teams
+      .filter(team => team.captain)
+      .map(team => ({
+        game_id: result.gameId,
+        team_name: team.name,
+        player_id: team.captain.id
+      }));
+
+    if (!rows.length) throw new Error("No captain could be assigned.");
+
+    button.disabled = true;
+    const { error } = await sb.from("team_captain_history").insert(rows);
+    if (error) {
+      button.disabled = false;
+      throw error;
+    }
+
+    button.textContent = "Teams selected ✓";
+  }
+
+  function showTeams(result, count) {
     const root = document.getElementById("modal-root");
     if (!root) return;
+    const teams = result.teams;
 
     root.innerHTML = '<div class="modal-bg"><div class="modal" style="max-width:760px"><div class="modal-head"><h2>Suggested teams</h2><button class="remove" data-team-close type="button">×</button></div>' +
       '<div class="analytics-grid" style="grid-template-columns:repeat(' + count + ',minmax(0,1fr))">' +
-      teams.map(team => '<section class="card analytics-card"><div class="card-title"><h3>' + esc(team.name) + '</h3></div><div class="history-list">' +
-        team.players.map(player => '<div class="history-row"><div><b>' + esc(player.name) + '</b></div></div>').join("") +
+      teams.map(team => '<section class="card analytics-card"><div class="card-title"><div><h3>' + esc(team.name) + '</h3><p class="muted">⭐ Captain: <b>' + esc(team.captain?.name || "Not assigned") + '</b></p></div></div><div class="history-list">' +
+        team.players.map(player => '<div class="history-row"><div><b>' + esc(player.name) + '</b>' + (team.captain?.id === player.id ? '<small>Captain</small>' : '') + '</div></div>').join("") +
       '</div></section>').join("") +
-      '</div><div class="modal-actions"><button class="btn btn-secondary" type="button" data-team-close>Close</button></div></div></div>';
+      '</div><div class="modal-actions"><button class="btn btn-secondary" type="button" data-team-close>Close</button><button class="btn btn-primary" type="button" data-select-teams>Select teams</button></div></div></div>';
 
     root.querySelectorAll("[data-team-close]").forEach(button => button.addEventListener("click", closeModal));
+    root.querySelector("[data-select-teams]")?.addEventListener("click", event => {
+      selectTeams(result, event.currentTarget).catch(error => {
+        console.warn("[Football] Could not save team captains", error);
+        window.alert("Could not save team captains: " + (error.message || "Unknown error"));
+      });
+    });
   }
 
   function schedule() {
