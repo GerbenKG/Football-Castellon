@@ -1,1 +1,0 @@
-Players view refactor is isolated on `refactor/eliminate-dom-patches`. Dashboard and Games remain on the existing renderer for the next slices.
