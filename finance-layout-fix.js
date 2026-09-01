@@ -12,14 +12,14 @@
 
     const seasonHeading = [...grid.querySelectorAll("h3")].find(h => h.textContent.trim() === "Season ticket holders");
     const seasonCard = seasonHeading?.closest(".card");
-    if (seasonCard && dueCard !== seasonCard && seasonCard.nextElementSibling !== dueCard) {
-      seasonCard.after(dueCard);
+    if (seasonCard && dueCard !== seasonCard && grid.firstElementChild !== dueCard) {
+      grid.insertBefore(dueCard, seasonCard);
     }
   }
 
   function schedule() {
     clearTimeout(schedule.timer);
-    schedule.timer = setTimeout(apply, 100);
+    schedule.timer = setTimeout(apply, 50);
   }
 
   const style = document.createElement("style");
