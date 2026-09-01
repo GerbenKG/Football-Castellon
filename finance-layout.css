@@ -1,0 +1,13 @@
+/* Finance layout */
+body:has(#finance-season-select) .analytics-grid{display:flex;flex-direction:column;gap:16px}
+body:has(#finance-season-select) .analytics-grid > .analytics-card:nth-child(1){order:2}
+body:has(#finance-season-select) .analytics-grid > .analytics-card:nth-child(2){order:1}
+
+.finance-paid-cell{width:110px;min-width:110px}
+.finance-paid-control{display:inline-flex;align-items:center;gap:8px;min-height:36px;cursor:pointer;font-weight:700;white-space:nowrap}
+.finance-paid-control input{appearance:auto;width:18px;height:18px;margin:0;accent-color:#159447;cursor:pointer}
+.finance-paid-control input:disabled{cursor:wait}
+@media (max-width:720px){
+  .finance-paid-cell{width:auto;min-width:0}
+  .finance-paid-control{gap:6px;font-size:12px}
+}

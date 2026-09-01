@@ -6,6 +6,11 @@
   visibility: visible;
 }
 
+/* The Present KPI is obsolete; keep the dashboard to the three active stats. */
+.hero + .stats > .stat:nth-child(2) {
+  display: none;
+}
+
 /* Admin permission matrix: keep the Player column after Viewer and aligned with the other role columns. */
 .permission-table {
   overflow-x: auto;

@@ -48,9 +48,9 @@
   function syncActive() {
     if (!isMember()) return;
 
-    // The explicit member view wins while its page is rendering. This prevents
-    // the Games fallback from re-activating itself during the Payments/Profile
-    // loading phase.
+    // Member-only routes own their active state. Normal application routes are
+    // owned by app.js, so this script must not re-activate Games or Payments
+    // after app.js has navigated elsewhere.
     if (window.__memberView === "payments") return setActive("payments");
     if (window.__memberView === "profile") return setActive("profile");
 
@@ -67,6 +67,14 @@
     }
   }
 
+  function clearMemberActiveState() {
+    document.querySelectorAll(".nav .nav-item").forEach(item => {
+      if (item.matches('[data-member-payments], [data-member-profile], [data-player-profile]')) {
+        item.classList.remove("active");
+      }
+    });
+  }
+
   function goToGames() {
     if (!isPlayer()) return;
     if (document.querySelector(".profile-shell, .member-payments-shell")) return;
@@ -75,6 +83,7 @@
     if (!game) return setTimeout(goToGames, 50);
 
     clearMemberRoute();
+    clearMemberActiveState();
     window.__appView = "games";
     game.click();
   }
@@ -88,12 +97,19 @@
       setActive("payments");
     } else if (item.matches('[data-member-profile], [data-player-profile]')) {
       clearMemberRoute();
+      clearMemberActiveState();
       window.__memberView = "profile";
       setActive("profile");
-    } else if (item.dataset.view === "games") {
+    } else {
+      // Any normal app route (Dashboard, Players, Games, Finance, Admin) exits
+      // the member-only route. In particular, this prevents Payments from
+      // retaining its active class when app.js navigates to another page.
       clearMemberRoute();
-      window.__appView = "games";
-      setActive("games");
+      clearMemberActiveState();
+      if (item.dataset.view === "games") window.__appView = "games";
+      else window.__appView = item.dataset.view || null;
+      // Do not call setActive here: app.js is the single owner of normal
+      // navigation active state.
     }
   }, true);
 
