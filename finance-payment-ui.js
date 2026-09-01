@@ -4,19 +4,21 @@
   const sb = window.supabaseClient;
   if (!sb) return;
 
-  let canManage = false;
+  let canManage = null;
   let checkedPermission = false;
+  let lastTable = null;
 
-  async function checkPermission() {
-    if (checkedPermission) return canManage;
+  async function hasPaymentPermission() {
+    if (checkedPermission) return canManage === true;
     checkedPermission = true;
     try {
       const { data } = await sb.rpc("get_my_access");
       canManage = data?.allowed === true && data?.permissions?.["payments.manage"] === true;
     } catch (error) {
       console.warn("[Football] Finance payment permission check failed", error);
+      canManage = false;
     }
-    return canManage;
+    return canManage === true;
   }
 
   function findCard(title) {
@@ -24,12 +26,9 @@
     return heading?.closest(".card") || null;
   }
 
-  function addPaidColumn() {
-    if (!canManage) return;
-
-    const dueCard = findCard("Who still needs to pay?");
-    const table = dueCard?.querySelector("table");
-    if (!table || table.dataset.financePaidReady === "true") return;
+  function addPaidColumn(table) {
+    const rows = [...(table.tBodies?.[0]?.querySelectorAll("tr") || [])];
+    if (!rows.length) return;
 
     const headRow = table.tHead?.rows?.[0];
     if (headRow && !headRow.querySelector("[data-finance-paid-head]")) {
@@ -39,7 +38,7 @@
       headRow.appendChild(th);
     }
 
-    table.tBodies?.[0]?.querySelectorAll("tr").forEach(row => {
+    rows.forEach(row => {
       if (row.querySelector("[data-finance-paid-control]")) return;
 
       const cells = row.querySelectorAll("td");
@@ -104,9 +103,9 @@
             const game = (games || []).find(g => String(g.game_date).slice(0, 10) === paymentFor.slice(0, 10));
             if (!game) throw new Error(`Game not found: ${paymentFor}`);
 
-            const { data: rows, error: rowsError } = await sb.from("game_players").select("id,guest_name,players(name)").eq("game_id", game.id);
+            const { data: gameRows, error: rowsError } = await sb.from("game_players").select("id,guest_name,players(name)").eq("game_id", game.id);
             if (rowsError) throw rowsError;
-            const paymentRow = (rows || []).find(r => r.guest_name === name || r.players?.name === name);
+            const paymentRow = (gameRows || []).find(r => r.guest_name === name || r.players?.name === name);
             if (!paymentRow) throw new Error(`Payment row not found for ${name}`);
 
             const { error } = await sb.from("game_players").update({ paid: true }).eq("id", paymentRow.id);
@@ -125,39 +124,17 @@
       cell.appendChild(label);
       row.appendChild(cell);
     });
-
-    table.dataset.financePaidReady = "true";
   }
 
-  function addStyles() {
-    if (document.getElementById("finance-payment-ui-style")) return;
-    const style = document.createElement("style");
-    style.id = "finance-payment-ui-style";
-    style.textContent = `
-      .finance-paid-cell { width:110px; min-width:110px; }
-      .finance-paid-control { display:inline-flex; align-items:center; gap:8px; min-height:36px; cursor:pointer; font-weight:700; white-space:nowrap; }
-      .finance-paid-control input { appearance:auto; width:18px; height:18px; margin:0; accent-color:#159447; cursor:pointer; }
-      .finance-paid-control input:disabled { cursor:wait; }
-      @media (max-width:720px) {
-        .finance-paid-cell { width:auto; min-width:0; }
-        .finance-paid-control { gap:6px; font-size:12px; }
-      }
-    `;
-    document.head.appendChild(style);
+  async function apply() {
+    const dueCard = findCard("Who still needs to pay?");
+    const table = dueCard?.querySelector("table");
+    if (!table || table === lastTable) return;
+    lastTable = table;
+
+    if (await hasPaymentPermission()) addPaidColumn(table);
   }
 
-  let scheduled = false;
-  function apply() {
-    if (scheduled) return;
-    scheduled = true;
-    requestAnimationFrame(async () => {
-      scheduled = false;
-      await checkPermission();
-      addStyles();
-      addPaidColumn();
-    });
-  }
-
-  new MutationObserver(apply).observe(document.getElementById("app") || document.body, { childList: true, subtree: true });
+  window.setInterval(apply, 250);
   apply();
 })();
