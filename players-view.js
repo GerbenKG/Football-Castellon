@@ -8,7 +8,7 @@
   let permissions = {};
   let superAdmin = false;
 
-  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;","%3E":">",'"':"&quot;"}[c]));
   const can = permission => permissions[permission] === true;
   const isPlayersPage = () => !!document.querySelector('.nav-item.active[data-view="players"]');
   const activeApp = () => document.getElementById("app");
@@ -45,7 +45,6 @@
   function playerRow(p) {
     const member = data.members.find(m => String(m.player_id || "") === String(p.id));
     const actions = [
-      '<button class="btn btn-secondary" data-pv-action="history" data-id="' + esc(p.id) + '">Attendance</button>',
       can("players.manage") ? '<button class="btn btn-secondary" data-pv-action="edit" data-id="' + esc(p.id) + '">Edit</button>' : "",
       can("players.manage") ? '<button class="btn btn-secondary" data-pv-action="archive" data-id="' + esc(p.id) + '">Archive</button>' : ""
     ].join("");
@@ -78,7 +77,7 @@
     rendered = true;
     const memberColumn = superAdmin ? '<th>Member</th>' : "";
     app.innerHTML = '<div class="page-head"><div><div class="eyebrow">ROSTER</div><h1 class="title">Players <span class="players-count">' + data.players.length + ' ' + (data.players.length === 1 ? 'player' : 'players') + '</span></h1><p class="muted">Roster and attendance history.</p></div>' + (can("players.manage") ? '<button class="btn btn-primary" data-pv-action="new">+ Add player</button>' : "") + '</div>' +
-      '<div class="card table-card"><table class="players-roster-table"><thead><tr><th>Player</th><th>Phone</th><th>Email</th>' + (superAdmin ? '<th>Skill Level</th>' : '') + '<th>Bibs taken</th>' + memberColumn + '<th></th></tr></thead><tbody>' + (data.players.length ? data.players.map(playerRow).join("") : '<tr><td colspan="7" class="empty">No active players.</td></tr>') + '</tbody></table></div>' + archiveSection();
+      '<div class="card table-card"><table class="players-roster-table"><thead><tr><th>Player</th><th>Phone</th><th>Email</th>' + (superAdmin ? '<th>Skill Level</th>' : '') + '<th>Bibs taken</th>' + memberColumn + '<th>Actions</th></tr></thead><tbody>' + (data.players.length ? data.players.map(playerRow).join("") : '<tr><td colspan="7" class="empty">No active players.</td></tr>') + '</tbody></table></div>' + archiveSection();
   }
 
   function modal(title, body) {
@@ -95,20 +94,9 @@
     if (superAdmin) document.querySelector('[name="skill_level"]').value = p?.skill_level ? String(p.skill_level) : "";
   }
 
-  async function history(id) {
-    const p = data.players.find(x => x.id === id);
-    if (!p) return;
-    const result = await sb.from("game_players").select("game_id,attended,paid,games(game_date,start_time,end_time,location)").eq("player_id", id).order("game_id", { ascending: false });
-    if (result.error) return alert(result.error.message);
-    const rows = (result.data || []).filter(x => x.games?.game_date && x.attended).sort((a,b) => b.games.game_date.localeCompare(a.games.game_date));
-    const body = rows.length ? '<div class="history-list">' + rows.map(x => '<div class="history-row"><div><b>' + esc(new Date(x.games.game_date + "T12:00:00").toLocaleDateString("en-GB", {weekday:"long",day:"numeric",month:"long"})) + '</b><small>⚽ ' + esc(String(x.games.start_time).slice(0,5)) + '–' + esc(String(x.games.end_time).slice(0,5)) + ' · ' + esc(x.games.location) + '</small></div><span class="badge badge-' + (x.paid ? 'green' : 'slate') + '">' + (x.paid ? 'Paid' : 'Attended') + '</span></div>').join("") + '</div>' : '<p class="muted">No attended games recorded yet.</p>';
-    modal("Attendance history — " + esc(p.name), body + '<div class="modal-actions"><button type="button" class="btn btn-secondary" data-pv-close>Close</button></div>');
-  }
-
   async function action(action, id) {
     if (action === "new") return editForm(null);
     if (action === "edit") return editForm(data.players.find(p => p.id === id));
-    if (action === "history") return history(id);
     if (action === "archive") {
       const p = data.players.find(x => x.id === id);
       if (!p || !confirm("Archive " + p.name + "? Historical game records will be kept.")) return;
