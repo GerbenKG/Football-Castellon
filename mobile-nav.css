@@ -1,8 +1,9 @@
-/* Mobile navigation: consistent icon-only bottom bar across every page */
+/* Shared navigation icons and layout */
 .nav-item[data-view="dashboard"]::before{content:"⌂"}
 .nav-item[data-view="players"]::before{content:"♟"}
 .nav-item[data-view="games"]::before{content:"⚽"}
-.nav-item[data-view="finance"]::before{content:"€"}
+.nav-item[data-member-payments="true"]::before{content:"€"}
+.nav-item[data-view="finance"]::before{content:"▣"}
 .nav-item[data-view="admin"]::before{content:"⚙"}
 
 .nav-item::before{
