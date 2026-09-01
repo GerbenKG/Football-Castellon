@@ -17,7 +17,7 @@ const PERMISSIONS=[
 ];
 const roleName=r=>(ROLES.find(x=>x[0]===r)||["",r])[1];
 const can=p=>effectivePermissions()?.[p]===true;
-const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const esc=s=>String(s??"").replace(/[&<>\"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const player=id=>state.players.find(p=>p.id===id);
 const game=()=>state.games.find(g=>g.id===gameId)||state.games[0]||{participants:[]};
 const dateText=d=>new Date(d+"T12:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
@@ -145,7 +145,7 @@ function players(){
      (can("players.manage")?'<button class="btn btn-secondary" data-a="edit" data-id="'+p.id+'">Edit</button>':"")+
      (can("players.manage")&&can("attendance.manage")?'<button class="btn btn-secondary" data-a="delete-player" data-id="'+p.id+'">Delete</button>':"");
    return '<tr><td><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><b>'+esc(p.name)+'</b></div></td><td>'+esc(p.phone||"—")+'</td><td>'+esc(p.email||"—")+'</td><td><div class="actions">'+actions+'</div></td></tr>';
- }).join("")+
+ }).join("")+ 
  '</tbody></table></div>';
 }
 function gameOverviewCard(g,today){
@@ -252,17 +252,17 @@ function finance(){
    return '<tr><td><div class="who"><span class="avatar">'+esc(p.name).slice(0,1).toUpperCase()+'</span><b>'+esc(p.name)+'</b></div></td><td>'+money(t?.amount??s.season_ticket_amount)+'</td><td>'+badge(t?.paid?"Paid":"Needs payment",t?.paid?"green":"red")+'</td><td>'+(can("payments.manage")?'<button class="btn btn-secondary" data-fin-ticket="'+p.id+'" data-paid="'+(t?.paid?"true":"false")+'">'+(t?.paid?"Mark unpaid":"Mark paid")+'</button>':"")+'</td></tr>';
  }).join("");
  const dueRows=[
-   ...unpaidSeason.map(p=>'<tr><td>'+esc(p.name)+'</td><td>Season ticket</td><td>'+money(s.season_ticket_amount)+'</td><td>'+badge("Due","red")+'</td></tr>'),
-   ...unpaidGame.map(({g,x})=>'<tr><td>'+esc(x.guest?(x.name||"Guest"):(player(x.playerId)?.name||"Player"))+'</td><td>'+esc(dateText(g.date))+'</td><td>'+money(s.pay_per_game_amount)+'</td><td>'+badge("Due","red")+'</td></tr>')
+   ...unpaidSeason.map(p=>'<tr><td>'+esc(p.name)+'</td><td>Season ticket</td><td>'+money(s.season_ticket_amount)+'</td><td>'+badge("Due","red")+'</td><td>'+(can("payments.manage")?'<button class="btn btn-secondary" data-fin-due-ticket="'+p.id+'">Mark paid</button>':"")+'</td></tr>'),
+   ...unpaidGame.map(({g,x})=>'<tr><td>'+esc(x.guest?(x.name||"Guest"):(player(x.playerId)?.name||"Player"))+'</td><td>'+esc(dateText(g.date))+'</td><td>'+money(s.pay_per_game_amount)+'</td><td>'+badge("Due","red")+'</td><td>'+(can("payments.manage")?'<button class="btn btn-secondary" data-fin-due-game="'+x.rowId+'">Mark paid</button>':"")+'</td></tr>')
  ].join("");
  const expenseRows=expenses.map(x=>'<tr><td>'+esc(new Date(x.due_date+"T12:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}))+'</td><td>'+esc(x.description)+'</td><td>'+money(x.amount)+'</td><td>'+badge(x.paid?"Paid":"Upcoming",x.paid?"green":x.due_date<new Date().toISOString().slice(0,10)?"red":"amber")+'</td><td>'+(can("payments.manage")?'<button class="btn btn-secondary" data-fin-expense="'+x.id+'">'+(x.paid?"Mark unpaid":"Mark paid")+'</button>':"")+'</td></tr>').join("");
  const forecastRows=expenses.filter(x=>!x.paid).reduce((m,x)=>{const k=x.due_date.slice(0,7);m[k]=(m[k]||0)+Number(x.amount);return m;},{});
- return '<div class="page-head"><div><div class="eyebrow">FINANCE</div><h1 class="title">Finances</h1><p class="muted">Season income, pitch costs, outstanding payments and forward balance.</p></div><div class="actions">'+(can("payments.manage")?'<button class="btn btn-secondary" data-a="new-finance-season">+ Season</button><button class="btn btn-primary" data-a="edit-finance-season" data-id="'+s.id+'">Edit pricing</button>':"")+'</div></div>'+
- '<section class="card finance-toolbar"><div><label>Season<select id="finance-season-select">'+financeData.seasons.map(x=>'<option value="'+x.id+'" '+(x.id===s.id?"selected":"")+'>'+esc(x.name)+'</option>').join("")+'</select></label></div><div class="finance-rates"><span>Season ticket <b>'+money(s.season_ticket_amount)+'</b></span><span>Pay per game <b>'+money(s.pay_per_game_amount)+'</b></span></div></section>'+
- '<div class="stats finance-stats"><div class="stat"><div class="stat-icon">€</div><div><small>CURRENT BALANCE</small><strong>'+money(balance)+'</strong></div></div><div class="stat"><div class="stat-icon">↑</div><div><small>EXPECTED INCOME</small><strong>'+money(outstandingSeason+unpaidGameAmount+projectedGame)+'</strong></div></div><div class="stat"><div class="stat-icon">↓</div><div><small>FUTURE PITCH COSTS</small><strong>'+money(futureExpenses)+'</strong></div></div><div class="stat"><div class="stat-icon">◎</div><div><small>PROJECTED END BALANCE</small><strong>'+money(projectedEnd)+'</strong></div></div></div>'+
- '<section class="analytics-grid"><div class="card analytics-card"><div class="card-title"><div><h3>Season ticket holders</h3><p>Who purchased a ticket and for which season.</p></div></div><div class="table-card finance-table"><table><thead><tr><th>Player</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>'+(seasonTicketRows||'<tr><td colspan="4" class="empty">No season-ticket players.</td></tr>')+'</tbody></table></div></div>'+
- '<div class="card analytics-card"><div class="card-title"><div><h3>Who still needs to pay?</h3><p>Outstanding season tickets and attended pay-per-game matches.</p></div></div><div class="table-card finance-table"><table><thead><tr><th>Person</th><th>For</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+(dueRows||'<tr><td colspan="4" class="empty">Nothing outstanding.</td></tr>')+'</tbody></table></div></div></section>'+
- '<section class="card finance-card"><div class="section-head"><div><h2>Pitch rental payments</h2><p>Scheduled costs for '+esc(s.name)+'.</p></div>'+(can("payments.manage")?'<button class="btn btn-primary" data-a="new-finance-expense">+ Add payment</button>':"")+'</div><div class="table-card finance-table"><table><thead><tr><th>Due</th><th>Description</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>'+expenseRows+'</tbody></table></div></section>'+
+ return '<div class="page-head"><div><div class="eyebrow">FINANCE</div><h1 class="title">Finances</h1><p class="muted">Season income, pitch costs, outstanding payments and forward balance.</p></div><div class="actions">'+(can("payments.manage")?'<button class="btn btn-secondary" data-a="new-finance-season">+ Season</button><button class="btn btn-primary" data-a="edit-finance-season" data-id="'+s.id+'">Edit pricing</button>':"")+'</div></div>'+ 
+ '<section class="card finance-toolbar"><div><label>Season<select id="finance-season-select">'+financeData.seasons.map(x=>'<option value="'+x.id+'" '+(x.id===s.id?"selected":"")+'>'+esc(x.name)+'</option>').join("")+'</select></label></div><div class="finance-rates"><span>Season ticket <b>'+money(s.season_ticket_amount)+'</b></span><span>Pay per game <b>'+money(s.pay_per_game_amount)+'</b></span></div></section>'+ 
+ '<div class="stats finance-stats"><div class="stat"><div class="stat-icon">€</div><div><small>CURRENT BALANCE</small><strong>'+money(balance)+'</strong></div></div><div class="stat"><div class="stat-icon">↑</div><div><small>EXPECTED INCOME</small><strong>'+money(outstandingSeason+unpaidGameAmount+projectedGame)+'</strong></div></div><div class="stat"><div class="stat-icon">↓</div><div><small>FUTURE PITCH COSTS</small><strong>'+money(futureExpenses)+'</strong></div></div><div class="stat"><div class="stat-icon">◎</div><div><small>PROJECTED END BALANCE</small><strong>'+money(projectedEnd)+'</strong></div></div></div>'+ 
+ '<section class="analytics-grid"><div class="card analytics-card"><div class="card-title"><div><h3>Season ticket holders</h3><p>Who purchased a ticket and for which season.</p></div></div><div class="table-card finance-table"><table><thead><tr><th>Player</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>'+(seasonTicketRows||'<tr><td colspan="4" class="empty">No season-ticket players.</td></tr>')+'</tbody></table></div></div>'+ 
+ '<div class="card analytics-card"><div class="card-title"><div><h3>Who still needs to pay?</h3><p>Outstanding season tickets and attended pay-per-game matches.</p></div></div><div class="table-card finance-table"><table><thead><tr><th>Person</th><th>For</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>'+(dueRows||'<tr><td colspan="5" class="empty">Nothing outstanding.</td></tr>')+'</tbody></table></div></div></section>'+ 
+ '<section class="card finance-card"><div class="section-head"><div><h2>Pitch rental payments</h2><p>Scheduled costs for '+esc(s.name)+'.</p></div>'+(can("payments.manage")?'<button class="btn btn-primary" data-a="new-finance-expense">+ Add payment</button>':"")+'</div><div class="table-card finance-table"><table><thead><tr><th>Due</th><th>Description</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>'+expenseRows+'</tbody></table></div></section>'+ 
  '<section class="card finance-card"><div class="section-head"><div><h2>Financial outlook</h2><p>Projection assumes all outstanding dues are collected and uses current pay-per-game attendance rates for future games.</p></div></div><div class="finance-outlook"><div><span>Collected so far</span><b>'+money(actualSeasonIncome+actualGameIncome)+'</b></div><div><span>Pitch costs paid</span><b>'+money(paidExpenses)+'</b></div><div><span>Projected game income</span><b>'+money(projectedGame)+'</b></div><div><span>Projected end balance</span><b>'+money(projectedEnd)+'</b></div></div><div class="forecast-list">'+Object.keys(forecastRows).sort().map(k=>'<div><span>'+esc(k)+'</span><b>'+money(forecastRows[k])+'</b></div>').join("")+'</div></section>';
 }
 
@@ -270,11 +270,11 @@ function admin(){
  if(!can("access.manage"))return '<section class="card empty"><h2>Access management</h2><p>You do not have permission to manage site access.</p></section>';
  const members=access.members||[],rp=access.rolePermissions||[],roles=ROLES.filter(x=>x[0]!=="super_admin");
  const enabled=(role,p)=>rp.some(x=>x.role===role&&x.permission===p&&x.enabled);
- return '<div class="page-head"><div><div class="eyebrow">CONTROL CENTRE</div><h1 class="title">Admin & Access</h1><p class="muted">Manage invited members and what each profile can see or do.</p></div><button class="btn btn-primary" data-a="new-member">+ Add member</button></div>'+
- '<section class="card access-card"><div class="section-head"><div><h2>Members</h2><p>Add an email to allow that Google account into the site.</p></div></div><div class="member-list">'+
- members.map(m=>'<div class="member-row"><div class="who"><span class="avatar">'+esc((m.display_name||m.email).slice(0,1).toUpperCase())+'</span><div><b>'+esc(m.display_name||m.email)+'</b><small>'+esc(m.email)+(m.user_id?" · linked":" · pending")+'</small></div></div><div class="member-role">'+badge(roleName(m.role),m.role==="super_admin"?"green":"slate")+' '+(m.active?badge("Active","green"):badge("Disabled","red"))+'</div><div class="actions"><button class="btn btn-secondary" data-a="login-as" data-id="'+esc(m.email)+'">Login as</button><button class="btn btn-secondary" data-a="edit-member" data-id="'+esc(m.email)+'">Edit</button>'+(m.email.toLowerCase()!==String(currentUser?.email||"").toLowerCase()?'<button class="btn btn-secondary" data-a="delete-member" data-id="'+esc(m.email)+'">Remove</button>':"")+'</div></div>').join("")+
- '</div></section><section class="card access-card"><div class="section-head"><div><h2>Profile permissions</h2><p>Super Admin is fixed. Other profiles can be tailored below.</p></div></div><div class="permission-table"><div class="permission-head"><span>Permission</span>'+roles.map(r=>'<b>'+r[1]+'</b>').join("")+'</div>'+
- PERMISSIONS.map(x=>'<div class="permission-row"><span><b>'+esc(x[1])+'</b><small>'+esc(x[0])+'</small></span>'+roles.map(r=>'<label class="perm-toggle"><input type="checkbox" data-perm-role="'+r[0]+'" data-perm="'+x[0]+'" '+(enabled(r[0],x[0])?"checked":"")+'><span></span></label>').join("")+'</div>').join("")+
+ return '<div class="page-head"><div><div class="eyebrow">CONTROL CENTRE</div><h1 class="title">Admin & Access</h1><p class="muted">Manage invited members and what each profile can see or do.</p></div><button class="btn btn-primary" data-a="new-member">+ Add member</button></div>'+ 
+ '<section class="card access-card"><div class="section-head"><div><h2>Members</h2><p>Add an email to allow that Google account into the site.</p></div></div><div class="member-list">'+ 
+ members.map(m=>'<div class="member-row"><div class="who"><span class="avatar">'+esc((m.display_name||m.email).slice(0,1).toUpperCase())+'</span><div><b>'+esc(m.display_name||m.email)+'</b><small>'+esc(m.email)+(m.user_id?" · linked":" · pending")+'</small></div></div><div class="member-role">'+badge(roleName(m.role),m.role==="super_admin"?"green":"slate")+' '+(m.active?badge("Active","green"):badge("Disabled","red"))+'</div><div class="actions"><button class="btn btn-secondary" data-a="login-as" data-id="'+esc(m.email)+'">Login as</button><button class="btn btn-secondary" data-a="edit-member" data-id="'+esc(m.email)+'">Edit</button>'+(m.email.toLowerCase()!==String(currentUser?.email||"").toLowerCase()?'<button class="btn btn-secondary" data-a="delete-member" data-id="'+esc(m.email)+'">Remove</button>':"")+'</div></div>').join("")+ 
+ '</div></section><section class="card access-card"><div class="section-head"><div><h2>Profile permissions</h2><p>Super Admin is fixed. Other profiles can be tailored below.</p></div></div><div class="permission-table"><div class="permission-head"><span>Permission</span>'+roles.map(r=>'<b>'+r[1]+'</b>').join("")+'</div>'+ 
+ PERMISSIONS.map(x=>'<div class="permission-row"><span><b>'+esc(x[1])+'</b><small>'+esc(x[0])+'</small></span>'+roles.map(r=>'<label class="perm-toggle"><input type="checkbox" data-perm-role="'+r[0]+'" data-perm="'+x[0]+'" '+(enabled(r[0],x[0])?"checked":"")+'><span></span></label>').join("")+'</div>').join("")+ 
  '</div></section>';
 }
 function modal(title,body){document.getElementById("modal-root").innerHTML='<div class="modal-bg"><div class="modal"><div class="modal-head"><h2>'+title+'</h2><button class="remove" data-close type="button">×</button></div>'+body+'</div></div>';}
@@ -364,6 +364,24 @@ document.querySelectorAll("[data-fin-ticket]").forEach(b=>b.onclick=async()=>{
  else q=await sb.from("finance_season_tickets").insert({season_id:financeSeasonId,player_id:pid,amount:Number(financeData.seasons.find(x=>x.id===financeSeasonId)?.season_ticket_amount||0),paid:true,paid_on:new Date().toISOString().slice(0,10)});
  if(q.error){alert(q.error.message);return;}await loadFinance();render();
 });
+document.querySelectorAll("[data-fin-due-ticket]").forEach(b=>b.onclick=async()=>{
+ const pid=b.dataset.finDueTicket;
+ if(!can("payments.manage"))return;
+ const existing=financeData.tickets.find(x=>x.season_id===financeSeasonId&&x.player_id===pid);
+ if(!existing)return;
+ const q=await sb.from("finance_season_tickets").update({paid:true,paid_on:new Date().toISOString().slice(0,10)}).eq("id",existing.id);
+ if(q.error){alert(q.error.message);return;}await loadFinance();render();
+});
+document.querySelectorAll("[data-fin-due-game]").forEach(b=>b.onclick=async()=>{
+ const rowId=b.dataset.finDueGame;
+ if(!can("payments.manage"))return;
+ const row=state.games.flatMap(g=>g.participants||[]).find(x=>x.rowId===rowId);
+ if(!row)return;
+ const q=await sb.from("game_players").update({paid:true}).eq("id",rowId);
+ if(q.error){alert(q.error.message);return;}
+ row.paid=true;
+ render();
+});
 document.querySelectorAll("[data-fin-expense]").forEach(b=>b.onclick=async()=>{
  const id=b.dataset.finExpense, x=financeData.expenses.find(x=>x.id===id);
  if(!x||!can("payments.manage"))return;
@@ -372,7 +390,7 @@ document.querySelectorAll("[data-fin-expense]").forEach(b=>b.onclick=async()=>{
 });
 document.querySelectorAll("[data-finance-season-select]").forEach(b=>b.onchange=()=>{financeSeasonId=b.value;render();});
 
- document.querySelectorAll("[data-perm-role]").forEach(b=>b.onchange=async()=>{const x=await sb.rpc("admin_update_permission",{p_role:b.dataset.permRole,p_permission:b.dataset.perm,p_enabled:b.checked});if(x.error){b.checked=!b.checked;alert(x.error.message);return;}await loadAccess();render();});
+document.querySelectorAll("[data-perm-role]").forEach(b=>b.onchange=async()=>{const x=await sb.rpc("admin_update_permission",{p_role:b.dataset.permRole,p_permission:b.dataset.perm,p_enabled:b.checked});if(x.error){b.checked=!b.checked;alert(x.error.message);return;}await loadAccess();render();});
  document.querySelectorAll("[data-t]").forEach(b=>b.onchange=async()=>{
   const p=game().participants.find(x=>x.rowId===b.dataset.id);
   if(!p)return;
