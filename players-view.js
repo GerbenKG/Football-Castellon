@@ -56,7 +56,7 @@
       '<td><div class="who"><span class="avatar">' + esc(p.name).slice(0,1).toUpperCase() + '</span><b>' + esc(p.name) + '</b></div></td>' +
       '<td>' + esc(p.phone || "—") + '</td>' +
       '<td>' + esc(p.email || "—") + '</td>' +
-      '<td data-skill-level>' + (superAdmin ? esc(p.skill_level ?? "—") : "—") + '</td>' +
+      (superAdmin ? '<td data-skill-level>' + esc(p.skill_level ?? "—") + '</td>' : '') +
       '<td data-bibs-count-cell>' + esc(data.bibs.get(p.id) || 0) + '</td>' +
       (superAdmin ? '<td>' + memberCell + '</td>' : "") +
       '<td><div class="actions">' + actions + '</div></td>' +
@@ -101,7 +101,8 @@
     const result = await sb.from("game_players").select("game_id,attended,paid,games(game_date,start_time,end_time,location)").eq("player_id", id).order("game_id", { ascending: false });
     if (result.error) return alert(result.error.message);
     const rows = (result.data || []).filter(x => x.games?.game_date && x.attended).sort((a,b) => b.games.game_date.localeCompare(a.games.game_date));
-    modal("Attendance history — " + esc(p.name), rows.length ? '<div class="history-list">' + rows.map(x => '<div class="history-row"><div><b>' + esc(new Date(x.games.game_date + "T12:00:00").toLocaleDateString("en-GB", {weekday:"long",day:"numeric",month:"long"})) + '</b><small>⚽ ' + esc(String(x.games.start_time).slice(0,5)) + '–' + esc(String(x.games.end_time).slice(0,5)) + ' · ' + esc(x.games.location) + '</small></div><span class="badge badge-' + (x.paid ? 'green' : 'slate') + '">' + (x.paid ? 'Paid' : 'Attended') + '</span></div>').join("") + '</div>' : '<p class="muted">No attended games recorded yet.</p>' + '<div class="modal-actions"><button type="button" class="btn btn-secondary" data-pv-close>Close</button></div>');
+    const body = rows.length ? '<div class="history-list">' + rows.map(x => '<div class="history-row"><div><b>' + esc(new Date(x.games.game_date + "T12:00:00").toLocaleDateString("en-GB", {weekday:"long",day:"numeric",month:"long"})) + '</b><small>⚽ ' + esc(String(x.games.start_time).slice(0,5)) + '–' + esc(String(x.games.end_time).slice(0,5)) + ' · ' + esc(x.games.location) + '</small></div><span class="badge badge-' + (x.paid ? 'green' : 'slate') + '">' + (x.paid ? 'Paid' : 'Attended') + '</span></div>').join("") + '</div>' : '<p class="muted">No attended games recorded yet.</p>';
+    modal("Attendance history — " + esc(p.name), body + '<div class="modal-actions"><button type="button" class="btn btn-secondary" data-pv-close>Close</button></div>');
   }
 
   async function action(action, id) {
@@ -160,8 +161,6 @@
     await load(); render();
   }, true);
 
-  // The main app owns routing. We only render when the Players route is explicitly
-  // selected; no MutationObserver or DOM-repair loop is used here.
   document.addEventListener("click", event => {
     const nav = event.target.closest('.nav-item[data-view="players"]');
     if (!nav) return;
