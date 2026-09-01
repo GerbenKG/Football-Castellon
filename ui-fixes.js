@@ -275,29 +275,6 @@
         }
       }
 
-      const dueCard = [...cards].find(card => card.querySelector("h3")?.textContent.trim() === "Who still needs to pay?");
-      if (dueCard) {
-        const body = dueCard.querySelector("tbody");
-        if (body) {
-          const unpaidTickets = tickets.filter(t => !t.paid);
-          const unpaidGames = gameRows.filter(x => {
-            const g = seasonGames.find(game => game.id === x.game_id);
-            if (!g || g.game_date > today() || !x.attended || x.paid) return false;
-            return !!x.guest_name || !tickets.some(t => t.player_id === x.player_id);
-          });
-
-          const rows = [
-            ...unpaidTickets.map(t => `<tr><td>${esc(playersById.get(t.player_id)?.name || "Unknown player")}</td><td>Season ticket ${esc(season.name)}</td><td>${money(t.amount)}</td><td><span class="badge badge-red">Due</span></td></tr>`),
-            ...unpaidGames.map(x => {
-              const g = seasonGames.find(game => game.id === x.game_id);
-              const name = x.guest_name || playersById.get(x.player_id)?.name || "Player";
-              return `<tr><td>${esc(name)}</td><td>${esc(g?.game_date || "Game")}</td><td>${money(season.pay_per_game_amount)}</td><td><span class="badge badge-red">Due</span></td></tr>`;
-            })
-          ];
-          body.innerHTML = rows.join("") || '<tr><td colspan="4" class="empty">Nothing outstanding.</td></tr>';
-        }
-      }
-
       const financeStats = document.querySelectorAll(".finance-stats .stat");
       if (financeStats[0]?.querySelector("strong")) financeStats[0].querySelector("strong").textContent = money(balance);
       if (financeStats[1]?.querySelector("strong")) financeStats[1].querySelector("strong").textContent = money(outstandingTicketIncome + projectedGameIncome);
