@@ -39,8 +39,7 @@
 
   function financeDueTable() {
     const heading = [...document.querySelectorAll("h3")].find(h => h.textContent.trim() === "Who still needs to pay?");
-    if (!heading) return null;
-    return heading.closest(".card")?.querySelector("table") || null;
+    return heading?.closest(".card")?.querySelector("table") || null;
   }
 
   function addStyles() {
@@ -52,6 +51,7 @@
       .finance-due-paid input { width:16px; height:16px; margin:0; cursor:pointer; }
       .finance-due-paid.is-busy { opacity:.55; pointer-events:none; }
       .finance-due-paid .label { font-weight:600; }
+      .finance-due-enhancing { visibility:hidden; }
     `;
     document.head.appendChild(style);
   }
@@ -117,9 +117,7 @@
       .eq("game_id", targetGame.id);
     if (error) throw error;
 
-    const row = (rows || []).find(item =>
-      item.guest_name === name || item.players?.name === name
-    );
+    const row = (rows || []).find(item => item.guest_name === name || item.players?.name === name);
     if (!row) throw new Error("Game-squad payment record could not be found for " + name);
 
     const { error: updateError } = await sb
@@ -129,47 +127,40 @@
     if (updateError) throw updateError;
   }
 
-  function refreshFinance() {
-    const seasonSelect = document.getElementById("finance-season-select");
-    if (seasonSelect) seasonSelect.dispatchEvent(new Event("change", { bubbles: true }));
-    else window.location.reload();
-  }
-
-  async function markPaid(button) {
+  async function markPaid(label) {
     if (busy) return;
-    const row = button.closest("tr");
+    const row = label.closest("tr");
     const cells = row?.querySelectorAll("td");
     if (!cells || cells.length < 2) return;
 
     const name = cells[0].textContent.trim();
     const forLabel = cells[1].textContent.trim();
-    const original = button.innerHTML;
     busy = true;
-    button.classList.add("is-busy");
-    button.querySelector(".label")?.replaceChildren(document.createTextNode("Saving…"));
+    label.classList.add("is-busy");
+    label.querySelector(".label")?.replaceChildren(document.createTextNode("Saving…"));
 
     try {
-      if (forLabel === "Season ticket") {
-        await markSeasonTicketPaid(name);
-      } else {
-        await markGamePaid(name, forLabel);
-      }
-      refreshFinance();
+      if (forLabel === "Season ticket" || forLabel.startsWith("Season ticket")) await markSeasonTicketPaid(name);
+      else await markGamePaid(name, forLabel);
+      row.remove();
     } catch (error) {
       console.warn("[Football] Could not mark finance payment as paid", error);
-      button.innerHTML = original;
+      label.querySelector(".label")?.replaceChildren(document.createTextNode("Paid"));
+      const checkbox = label.querySelector("input");
+      if (checkbox) checkbox.checked = false;
       window.alert("Could not mark payment as paid: " + (error.message || "Unknown error"));
     } finally {
       busy = false;
-      button.classList.remove("is-busy");
+      label.classList.remove("is-busy");
     }
   }
 
   function enhanceTable() {
     if (!canManagePayments) return;
     const table = financeDueTable();
-    if (!table) return;
+    if (!table || table.dataset.financeDueEnhanced === "true") return;
     addStyles();
+    table.classList.add("finance-due-enhancing");
 
     const headRow = table.tHead?.rows?.[0];
     if (headRow && !headRow.querySelector("[data-finance-due-actions]")) {
@@ -183,6 +174,7 @@
       if (row.querySelector("[data-finance-due-paid]")) return;
       const cells = row.querySelectorAll("td");
       if (cells.length < 2) return;
+
       const actionCell = document.createElement("td");
       const label = document.createElement("label");
       label.className = "finance-due-paid";
@@ -193,26 +185,27 @@
       checkbox.type = "checkbox";
       checkbox.setAttribute("aria-label", "Mark payment as paid");
       checkbox.addEventListener("change", () => {
-        if (!checkbox.checked) return;
-        markPaid(label);
+        if (checkbox.checked) markPaid(label);
       });
 
       const text = document.createElement("span");
       text.className = "label";
       text.textContent = "Paid";
-
       label.append(checkbox, text);
       actionCell.appendChild(label);
       row.appendChild(actionCell);
     });
+
+    table.dataset.financeDueEnhanced = "true";
+    table.classList.remove("finance-due-enhancing");
   }
 
-  async function schedule() {
+  function schedule() {
     clearTimeout(observerTimer);
     observerTimer = setTimeout(async () => {
       await loadPermission();
       enhanceTable();
-    }, 100);
+    }, 250);
   }
 
   const observer = new MutationObserver(schedule);
