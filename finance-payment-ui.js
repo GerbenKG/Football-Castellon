@@ -9,6 +9,7 @@
 
   async function checkPermission() {
     if (checkedPermission) return canManage;
+    checkedPermission = true;
     try {
       const { data } = await sb.rpc("get_my_access");
       canManage = data?.allowed === true && data?.permissions?.["payments.manage"] === true;
@@ -23,21 +24,12 @@
     return heading?.closest(".card") || null;
   }
 
-  function moveDueCardFirst() {
-    const dueCard = findCard("Who still needs to pay?");
-    const seasonCard = findCard("Season ticket holders");
-    if (!dueCard || !seasonCard || dueCard === seasonCard) return;
-    if (dueCard.parentElement === seasonCard.parentElement && seasonCard.previousElementSibling !== dueCard) {
-      seasonCard.parentElement.insertBefore(dueCard, seasonCard);
-    }
-  }
-
   function addPaidColumn() {
     if (!canManage) return;
 
     const dueCard = findCard("Who still needs to pay?");
     const table = dueCard?.querySelector("table");
-    if (!table) return;
+    if (!table || table.dataset.financePaidReady === "true") return;
 
     const headRow = table.tHead?.rows?.[0];
     if (headRow && !headRow.querySelector("[data-finance-paid-head]")) {
@@ -90,7 +82,14 @@
             const { data: existing, error: existingError } = await sb.from("finance_season_tickets").select("id").eq("season_id", seasonId).eq("player_id", playerId).limit(1);
             if (existingError) throw existingError;
 
-            const payload = { season_id: seasonId, player_id: playerId, amount: Number(season?.season_ticket_amount || 0), paid: true, paid_on: new Date().toISOString().slice(0, 10) };
+            const payload = {
+              season_id: seasonId,
+              player_id: playerId,
+              amount: Number(season?.season_ticket_amount || 0),
+              paid: true,
+              paid_on: new Date().toISOString().slice(0, 10)
+            };
+
             if (existing?.[0]?.id) {
               const { error } = await sb.from("finance_season_tickets").update(payload).eq("id", existing[0].id);
               if (error) throw error;
@@ -102,8 +101,6 @@
             const { data: games, error: gamesError } = await sb.from("games").select("id,game_date").order("game_date");
             if (gamesError) throw gamesError;
 
-            // The Finance table renders game dates as YYYY-MM-DD, so compare
-            // directly with the database value rather than a locale-formatted date.
             const game = (games || []).find(g => String(g.game_date).slice(0, 10) === paymentFor.slice(0, 10));
             if (!game) throw new Error(`Game not found: ${paymentFor}`);
 
@@ -128,6 +125,8 @@
       cell.appendChild(label);
       row.appendChild(cell);
     });
+
+    table.dataset.financePaidReady = "true";
   }
 
   function addStyles() {
@@ -135,7 +134,7 @@
     const style = document.createElement("style");
     style.id = "finance-payment-ui-style";
     style.textContent = `
-      .finance-paid-cell { width: 110px; min-width: 110px; }
+      .finance-paid-cell { width:110px; min-width:110px; }
       .finance-paid-control { display:inline-flex; align-items:center; gap:8px; min-height:36px; cursor:pointer; font-weight:700; white-space:nowrap; }
       .finance-paid-control input { appearance:auto; width:18px; height:18px; margin:0; accent-color:#159447; cursor:pointer; }
       .finance-paid-control input:disabled { cursor:wait; }
@@ -154,7 +153,6 @@
     requestAnimationFrame(async () => {
       scheduled = false;
       await checkPermission();
-      moveDueCardFirst();
       addStyles();
       addPaidColumn();
     });
