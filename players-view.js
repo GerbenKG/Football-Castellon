@@ -8,7 +8,7 @@
   let permissions = {};
   let superAdmin = false;
 
-  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;","%3E":">",'"':"&quot;"}[c]));
+  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const can = permission => permissions[permission] === true;
   const isPlayersPage = () => !!document.querySelector('.nav-item.active[data-view="players"]');
   const activeApp = () => document.getElementById("app");
