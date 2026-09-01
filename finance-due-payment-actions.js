@@ -5,16 +5,8 @@
   if (!sb) return;
 
   let canManagePayments = false;
-  let permissionLoaded = false;
   let busy = false;
   let observerTimer = null;
-
-  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '\"': "&quot;"
-  }[c]));
 
   function dateText(date) {
     return new Date(date + "T12:00:00").toLocaleDateString("en-GB", {
@@ -25,8 +17,7 @@
   }
 
   async function loadPermission() {
-    if (permissionLoaded) return canManagePayments;
-    permissionLoaded = true;
+    if (canManagePayments) return true;
     try {
       const result = await sb.rpc("get_my_access");
       canManagePayments = result.data?.allowed === true && result.data?.permissions?.["payments.manage"] === true;
@@ -37,9 +28,9 @@
     return canManagePayments;
   }
 
-  function financeDueTable() {
+  function financeDueCard() {
     const heading = [...document.querySelectorAll("h3")].find(h => h.textContent.trim() === "Who still needs to pay?");
-    return heading?.closest(".card")?.querySelector("table") || null;
+    return heading?.closest(".card") || null;
   }
 
   function addStyles() {
@@ -47,10 +38,11 @@
     const style = document.createElement("style");
     style.id = "finance-due-payment-actions-style";
     style.textContent = `
-      .finance-due-paid { display:inline-flex; align-items:center; gap:7px; font-size:13px; white-space:nowrap; cursor:pointer; }
-      .finance-due-paid input { width:16px; height:16px; margin:0; cursor:pointer; }
+      .finance-due-paid { display:inline-flex; align-items:center; justify-content:flex-start; gap:7px; min-height:32px; font-size:13px; white-space:nowrap; cursor:pointer; }
+      .finance-due-paid input { appearance:auto; width:18px; height:18px; margin:0; cursor:pointer; accent-color:#159447; }
+      .finance-due-paid .label { font-weight:700; }
       .finance-due-paid.is-busy { opacity:.55; pointer-events:none; }
-      .finance-due-paid .label { font-weight:600; }
+      .finance-due-actions-cell { min-width:86px; }
       .finance-due-enhancing { visibility:hidden; }
     `;
     document.head.appendChild(style);
@@ -65,23 +57,13 @@
   async function markSeasonTicketPaid(name) {
     const seasonId = document.getElementById("finance-season-select")?.value;
     if (!seasonId) throw new Error("No finance season is selected.");
-
     const playerId = await findPlayerId(name);
     if (!playerId) throw new Error("Player could not be found: " + name);
 
-    const { data: season, error: seasonError } = await sb
-      .from("finance_seasons")
-      .select("season_ticket_amount")
-      .eq("id", seasonId)
-      .single();
+    const { data: season, error: seasonError } = await sb.from("finance_seasons").select("season_ticket_amount").eq("id", seasonId).single();
     if (seasonError) throw seasonError;
 
-    const { data: existing, error: existingError } = await sb
-      .from("finance_season_tickets")
-      .select("id")
-      .eq("season_id", seasonId)
-      .eq("player_id", playerId)
-      .limit(1);
+    const { data: existing, error: existingError } = await sb.from("finance_season_tickets").select("id").eq("season_id", seasonId).eq("player_id", playerId).limit(1);
     if (existingError) throw existingError;
 
     const payload = {
@@ -111,19 +93,12 @@
     const targetGame = await findGameByLabel(gameLabel);
     if (!targetGame) throw new Error("Game could not be found: " + gameLabel);
 
-    const { data: rows, error } = await sb
-      .from("game_players")
-      .select("id,player_id,guest_name,players(name)")
-      .eq("game_id", targetGame.id);
+    const { data: rows, error } = await sb.from("game_players").select("id,player_id,guest_name,players(name)").eq("game_id", targetGame.id);
     if (error) throw error;
-
     const row = (rows || []).find(item => item.guest_name === name || item.players?.name === name);
     if (!row) throw new Error("Game-squad payment record could not be found for " + name);
 
-    const { error: updateError } = await sb
-      .from("game_players")
-      .update({ paid: true })
-      .eq("id", row.id);
+    const { error: updateError } = await sb.from("game_players").update({ paid: true }).eq("id", row.id);
     if (updateError) throw updateError;
   }
 
@@ -157,7 +132,8 @@
 
   function enhanceTable() {
     if (!canManagePayments) return;
-    const table = financeDueTable();
+    const card = financeDueCard();
+    const table = card?.querySelector("table");
     if (!table || table.dataset.financeDueEnhanced === "true") return;
     addStyles();
     table.classList.add("finance-due-enhancing");
@@ -174,8 +150,8 @@
       if (row.querySelector("[data-finance-due-paid]")) return;
       const cells = row.querySelectorAll("td");
       if (cells.length < 2) return;
-
       const actionCell = document.createElement("td");
+      actionCell.className = "finance-due-actions-cell";
       const label = document.createElement("label");
       label.className = "finance-due-paid";
       label.dataset.financeDuePaid = "true";
@@ -203,13 +179,12 @@
   function schedule() {
     clearTimeout(observerTimer);
     observerTimer = setTimeout(async () => {
-      await loadPermission();
-      enhanceTable();
-    }, 250);
+      const allowed = await loadPermission();
+      if (allowed) enhanceTable();
+    }, 50);
   }
 
   const observer = new MutationObserver(schedule);
   observer.observe(document.getElementById("app") || document.body, { childList: true, subtree: true });
-
-  loadPermission().then(enhanceTable);
+  schedule();
 })();
