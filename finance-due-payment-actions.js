@@ -43,7 +43,6 @@
       .finance-due-paid .label { font-weight:700; }
       .finance-due-paid.is-busy { opacity:.55; pointer-events:none; }
       .finance-due-actions-cell { min-width:86px; }
-      .finance-due-enhancing { visibility:hidden; }
     `;
     document.head.appendChild(style);
   }
@@ -136,7 +135,6 @@
     const table = card?.querySelector("table");
     if (!table || table.dataset.financeDueEnhanced === "true") return;
     addStyles();
-    table.classList.add("finance-due-enhancing");
 
     const headRow = table.tHead?.rows?.[0];
     if (headRow && !headRow.querySelector("[data-finance-due-actions]")) {
@@ -173,7 +171,6 @@
     });
 
     table.dataset.financeDueEnhanced = "true";
-    table.classList.remove("finance-due-enhancing");
   }
 
   function schedule() {
