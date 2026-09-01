@@ -39,7 +39,6 @@
     let target = null;
     if (name === "payments") target = n.querySelector('[data-member-payments="true"]');
     if (name === "profile") target = n.querySelector("[data-member-profile], [data-player-profile]");
-    if (name === "games") target = n.querySelector('[data-view="games"]');
     if (!target || getComputedStyle(target).display === "none") return;
 
     items().forEach(item => item.classList.toggle("active", item === target));
@@ -48,16 +47,13 @@
   function syncActive() {
     if (!isMember()) return;
 
-    // The explicit member view wins while its page is rendering. This prevents
-    // the Games fallback from re-activating itself during the Payments/Profile
-    // loading phase.
+    // app.js is the single owner of normal navigation state. This helper only
+    // handles member-only routes that do not have a corresponding app view.
     if (window.__memberView === "payments") return setActive("payments");
     if (window.__memberView === "profile") return setActive("profile");
 
     if (document.querySelector(".profile-shell")) return setActive("profile");
     if (document.querySelector(".member-payments-shell")) return setActive("payments");
-
-    if (isPlayer() || window.__appView === "games") setActive("games");
   }
 
   function clearMemberRoute() {
@@ -93,7 +89,7 @@
     } else if (item.dataset.view === "games") {
       clearMemberRoute();
       window.__appView = "games";
-      setActive("games");
+      // app.js owns the active state for normal app views.
     }
   }, true);
 
