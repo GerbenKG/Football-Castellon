@@ -9,7 +9,6 @@
 
   async function checkPermission() {
     if (checkedPermission) return canManage;
-    checkedPermission = true;
     try {
       const { data } = await sb.rpc("get_my_access");
       canManage = data?.allowed === true && data?.permissions?.["payments.manage"] === true;
@@ -102,7 +101,10 @@
           } else {
             const { data: games, error: gamesError } = await sb.from("games").select("id,game_date").order("game_date");
             if (gamesError) throw gamesError;
-            const game = (games || []).find(g => new Date(g.game_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) === paymentFor);
+
+            // The Finance table renders game dates as YYYY-MM-DD, so compare
+            // directly with the database value rather than a locale-formatted date.
+            const game = (games || []).find(g => String(g.game_date).slice(0, 10) === paymentFor.slice(0, 10));
             if (!game) throw new Error(`Game not found: ${paymentFor}`);
 
             const { data: rows, error: rowsError } = await sb.from("game_players").select("id,guest_name,players(name)").eq("game_id", game.id);
