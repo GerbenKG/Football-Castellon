@@ -12,10 +12,9 @@
   let gameId = null;
   let busy = false;
 
-  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '\"': "&quot;" }[c]));
+  const esc = value => String(value ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const can = permission => access.permissions?.[permission] === true || access.profile?.role === "super_admin";
   const dateText = date => new Date(date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
-  const shortDate = date => new Date(date + "T12:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
   const player = id => players.find(p => p.id === id);
   const currentGame = () => games.find(g => g.id === gameId) || games[0] || { participants: [] };
   const ticketFor = (playerId, date) => { const season = seasons.find(s => date >= s.starts_on && date <= s.ends_on); return season ? tickets.find(t => t.season_id === season.id && t.player_id === playerId) : null; };
@@ -24,7 +23,7 @@
   async function load() {
     const [accessResult, playersResult, gamesResult, rowsResult, seasonsResult, ticketsResult] = await Promise.all([
       sb.rpc("get_my_access"),
-      sb.from("players").select("id,name,phone,email").order("name"),
+      sb.from("players").select("id,name,phone,email,skill_level").order("name"),
       sb.from("games").select("*").order("game_date"),
       sb.from("game_players").select("*"),
       sb.from("finance_seasons").select("id,name,starts_on,ends_on,season_ticket_amount,pay_per_game_amount").order("starts_on", { ascending: false }),
@@ -57,7 +56,6 @@
         guest: !x.player_id,
         name: x.guest_name,
         playing: !!x.playing,
-        attended: !!x.attended,
         paid: !!x.paid,
         took_bibs: !!x.took_bibs
       }))
@@ -76,6 +74,11 @@
     render();
   }
 
+  function signupRate(p, gamesToDate) {
+    const signups = gamesToDate.filter(x => (x.participants || []).some(r => !r.guest && r.playerId === p.id));
+    return gamesToDate.length ? signups.length / gamesToDate.length * 100 : 0;
+  }
+
   function dashboardHtml() {
     const g = currentGame();
     const rows = g.participants || [];
@@ -84,27 +87,23 @@
     const currentSeason = seasons.find(s => cutoff >= s.starts_on && cutoff <= s.ends_on);
     const gamesToDate = currentSeason ? games.filter(x => x.date >= currentSeason.starts_on && x.date <= currentSeason.ends_on && x.date <= cutoff) : [];
     const playing = rows.filter(x => x.playing).length;
-    const present = rows.filter(x => x.attended).length;
     const season = players.filter(p => seasonTicket(p.id, g.date));
     const pay = players.filter(p => !seasonTicket(p.id, g.date));
     const due = rows.filter(x => {
       if (x.guest) return !x.paid;
-      const t = ticketFor(x.playerId, g.date);
-      return t ? !t.paid : !x.paid;
+      const ticket = ticketFor(x.playerId, g.date);
+      return ticket ? !ticket.paid : !x.paid;
     }).length;
-    const attendanceRate = p => {
-      const signups = gamesToDate.filter(x => (x.participants || []).some(r => !r.guest && r.playerId === p.id));
-      return gamesToDate.length ? signups.length / gamesToDate.length * 100 : 0;
-    };
-    const all = players.length ? players.reduce((a, p) => a + attendanceRate(p), 0) / players.length : 0;
-    const payAvg = pay.length ? pay.reduce((a, p) => a + attendanceRate(p), 0) / pay.length : 0;
+    const all = players.length ? players.reduce((a, p) => a + signupRate(p, gamesToDate), 0) / players.length : 0;
+    const payAvg = pay.length ? pay.reduce((a, p) => a + signupRate(p, gamesToDate), 0) / pay.length : 0;
     const gamesWithSignups = gamesToDate.filter(x => (x.participants || []).some(p => !p.guest)).length;
     const total = gamesToDate.reduce((a, x) => a + (x.participants || []).filter(p => !p.guest).length, 0);
     const avg = gamesToDate.length ? total / gamesToDate.length : 0;
-    const paid = games.reduce((a, x) => a + (x.participants || []).filter(p => p.attended && !p.guest && !seasonTicket(p.playerId, x.date) && p.paid).length, 0);
-    const payable = games.reduce((a, x) => a + (x.participants || []).filter(p => p.attended && !p.guest && !seasonTicket(p.playerId, x.date)).length, 0);
+    const payableRows = games.flatMap(x => (x.participants || []).filter(p => !p.guest && !seasonTicket(p.playerId, x.date)));
+    const paid = payableRows.filter(p => p.paid).length;
+    const payable = payableRows.length;
     const collection = payable ? paid / payable * 100 : 0;
-    const leaders = [...players].sort((a, b) => attendanceRate(b) - attendanceRate(a)).slice(0, 5);
+    const leaders = [...players].sort((a, b) => signupRate(b, gamesToDate) - signupRate(a, gamesToDate)).slice(0, 5);
 
     const ordered = [...games].sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
     const index = ordered.findIndex(x => x.id === g.id);
@@ -121,16 +120,15 @@
       '<button class="btn btn-ghost" data-dv-action="teams">⚽ Teams</button>' +
       '</div></div><div class="hero-ball">⚽</div></section>' +
       '<div class="stats"><div class="stat"><div class="stat-icon">⚽</div><div><small>PLAYING</small><strong>' + playing + '</strong></div></div>' +
-      '<div class="stat"><div class="stat-icon">✓</div><div><small>PRESENT</small><strong>' + present + '</strong></div></div>' +
       '<div class="stat"><div class="stat-icon">🎟</div><div><small>SEASON TICKETS</small><strong>' + season.length + '</strong></div></div>' +
       '<div class="stat"><div class="stat-icon">€</div><div><small>PAYMENTS DUE</small><strong>' + due + '</strong></div></div></div>' +
       '<section class="analytics-grid"><div class="card analytics-card"><div class="card-title"><div><h3>Signup overview</h3><p>Signup rate for games in the current season to date.</p></div></div>' +
       '<div class="metric-row"><div><small>ALL PLAYERS</small><strong>' + all.toFixed(0) + '%</strong></div><div><small>PAY PER GAME</small><strong>' + payAvg.toFixed(0) + '%</strong></div><div><small>AVG SIGNUPS / GAME</small><strong>' + avg.toFixed(1) + '</strong></div></div></div>' +
       '<div class="card analytics-card"><div class="card-title"><div><h3>Payments</h3><p>Collection performance.</p></div></div><div class="progress-value"><strong>' + collection.toFixed(0) + '%</strong><span>' + paid + ' of ' + payable + ' game payments collected</span></div><div class="progress"><i style="width:' + collection + '%"></i></div><div class="mini-stats"><span>Season tickets paid <b>' + season.filter(p => ticketFor(p.id, g.date)?.paid).length + '/' + season.length + '</b></span><span>Games with signups <b>' + gamesWithSignups + '</b></span></div></div></section>' +
-      '<section class="section"><div class="section-head"><div><h2>Attendance leaders</h2><p>Top players by signup rate.</p></div><button class="btn btn-secondary" data-view="players">View players →</button></div><div class="card leaders">' +
-      leaders.map(p => '<div class="leader-row"><div class="who"><span class="avatar">' + esc(p.name).slice(0, 1).toUpperCase() + '</span><div><b>' + esc(p.name) + '</b><small>' + (seasonTicket(p.id, g.date) ? '🎟 Season ticket' : 'Per game') + '</small></div></div><strong>' + attendanceRate(p).toFixed(0) + '%</strong></div>').join('') +
+      '<section class="section"><div class="section-head"><div><h2>Signup leaders</h2><p>Top players by signup rate.</p></div><button class="btn btn-secondary" data-view="players">View players →</button></div><div class="card leaders">' +
+      leaders.map(p => '<div class="leader-row"><div class="who"><span class="avatar">' + esc(p.name).slice(0, 1).toUpperCase() + '</span><div><b>' + esc(p.name) + '</b><small>' + (seasonTicket(p.id, g.date) ? '🎟 Season ticket' : 'Per game') + '</small></div></div><strong>' + signupRate(p, gamesToDate).toFixed(0) + '%</strong></div>').join('') +
       '</div></section>' +
-      '<section class="section"><div class="section-head"><div><h2>Game squad</h2><p>Manage attendance and payment for this match.</p></div></div><div class="squad card">' +
+      '<section class="section"><div class="section-head"><div><h2>Game squad</h2><p>Manage payment and bibs for this match.</p></div></div><div class="squad card">' +
       rows.map(x => squadRow(x, g)).join('') +
       '</div></section>';
   }
@@ -152,14 +150,13 @@
     const payLabel = x.guest ? (x.paid ? 'Paid' : 'Due') : ticket ? (ticket.paid ? 'Season paid' : 'Season unpaid') : (x.paid ? 'Paid' : 'Mark paid');
     const pc = x.guest || seasonTicket(p?.id, g.date) ? ((ticket?.paid || x.paid) ? 'green' : 'amber') : (x.paid ? 'green' : 'red');
     return '<div class="squad-row"><div class="who"><span class="avatar">' + esc(name).slice(0, 1).toUpperCase() + '</span><div><b>' + esc(name) + '</b><small>' + type + '</small></div></div>' +
-      (can("attendance.manage") ? '<label class="toggle"><input type="checkbox" data-dv-toggle="attended" data-id="' + esc(x.rowId) + '" ' + (x.attended ? 'checked' : '') + '><span>Present</span></label>' : '<span>' + (x.attended ? 'Present' : 'Not present') + '</span>') +
       (can("payments.manage") && (x.guest || !seasonTicket(p?.id, g.date)) ? '<label class="toggle payment-toggle"><input type="checkbox" data-dv-toggle="paid" data-id="' + esc(x.rowId) + '" ' + (x.paid ? 'checked' : '') + '><span>Paid</span></label>' : '<span class="badge badge-' + pc + '">' + esc(payLabel) + '</span>') +
       (can("attendance.manage") ? '<button class="remove" data-dv-action="remove" data-id="' + esc(x.rowId) + '">×</button>' : '') + '</div>';
   }
 
   async function chooseTeams() {
     const g = currentGame();
-    const squad = (g.participants || []).filter(x => x.playerId || x.guest).map((x, i) => ({ id: x.playerId || ('guest-' + i), name: x.guest ? x.name : player(x.playerId)?.name || 'Player', skill: x.guest ? 3 : Number(player(x.playerId)?.skill_level || 3), guest: x.guest }));
+    const squad = (g.participants || []).filter(x => x.playerId || x.guest).map((x, i) => ({ id: x.playerId || ('guest-' + i), name: x.guest ? x.name : player(x.playerId)?.name || 'Player', skill: x.guest ? 3 : Number(player(x.playerId)?.skill_level || 3) }));
     const count = Number(prompt('How many teams? Enter 2 or 3.', '2'));
     if (![2, 3].includes(count)) return;
     if (squad.length < count) return alert('There are not enough players for ' + count + ' teams.');
@@ -182,9 +179,8 @@
   }
 
   async function saveToggle(rowId, field, checked) {
-    const payload = { [field]: checked };
-    if (field === 'attended' && !checked) payload.paid = false;
-    const result = await sb.from('game_players').update(payload).eq('id', rowId);
+    if (field !== 'paid') return;
+    const result = await sb.from('game_players').update({ paid: checked }).eq('id', rowId);
     if (result.error) throw result.error;
     await refresh();
   }
@@ -243,7 +239,7 @@
       const id = new FormData(event.target).get('id');
       const g = currentGame();
       if (!id || !g) return;
-      const result = await sb.from('game_players').insert({ game_id: g.id, player_id: id, guest_name: null, playing: true, attended: false, paid: false }).select('*').single();
+      const result = await sb.from('game_players').insert({ game_id: g.id, player_id: id, guest_name: null, playing: true, paid: false }).select('*').single();
       if (result.error) return alert(result.error.message);
       document.getElementById('modal-root').innerHTML = '';
       await refresh();
@@ -253,7 +249,7 @@
       const name = String(new FormData(event.target).get('name') || '').trim();
       if (!name) return;
       const g = currentGame();
-      const result = await sb.from('game_players').insert({ game_id: g.id, player_id: null, guest_name: name, playing: true, attended: false, paid: false });
+      const result = await sb.from('game_players').insert({ game_id: g.id, player_id: null, guest_name: name, playing: true, paid: false });
       if (result.error) return alert(result.error.message);
       document.getElementById('modal-root').innerHTML = '';
       await refresh();
@@ -267,9 +263,7 @@
     app.innerHTML = dashboardHtml();
     document.querySelectorAll('#app [data-view]').forEach(button => {
       button.onclick = () => {
-        if (button.dataset.view === 'players') {
-          document.querySelector('.nav-item[data-view="players"]')?.click();
-        }
+        if (button.dataset.view === 'players') document.querySelector('.nav-item[data-view="players"]')?.click();
       };
     });
   }
