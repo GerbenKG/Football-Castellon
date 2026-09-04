@@ -8,6 +8,7 @@
   let refreshTimer = null;
   let lastGameKey = "";
   let lastPreviousGameKey = "";
+  let previousBibsRenderPromise = null;
 
   function currentGameTitle() { return document.querySelector(".hero h1")?.textContent?.trim() || ""; }
 
@@ -64,23 +65,30 @@
     const hero = document.querySelector(".hero");
     if (!hero) return;
     if (currentGame.id === lastPreviousGameKey && hero.querySelector("[data-previous-bibs]")) return;
-    hero.querySelector("[data-previous-bibs]")?.remove();
-    const { data: previousGames, error: gamesError } = await sb.from("games").select("id,game_date").lt("game_date", currentGame.game_date).order("game_date", { ascending: false }).limit(1);
-    if (gamesError) return;
-    const previous = previousGames?.[0];
-    if (!previous) { lastPreviousGameKey = currentGame.id; return; }
-    const { data: bibRows, error: bibError } = await sb.from("game_players").select("player_id,players(name)").eq("game_id", previous.id).eq("took_bibs", true).not("player_id", "is", null);
-    if (bibError) return;
-    const names = (bibRows || []).map(row => row.players?.name).filter(Boolean);
-    const label = names.length ? names.join(", ") : "Nobody recorded";
-    const date = new Date(previous.game_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
-    const banner = document.createElement("div");
-    banner.className = "previous-bibs-banner";
-    banner.dataset.previousBibs = "true";
-    banner.innerHTML = "🦺 Previous game bibs (" + esc(date) + "): <strong>" + esc(label) + "</strong>";
-    const gameNav = hero.querySelector(".game-nav");
-    if (gameNav) gameNav.insertAdjacentElement("afterend", banner); else hero.querySelector(".hero-copy")?.prepend(banner);
-    lastPreviousGameKey = currentGame.id;
+    if (previousBibsRenderPromise) return previousBibsRenderPromise;
+
+    previousBibsRenderPromise = (async () => {
+      hero.querySelectorAll("[data-previous-bibs]").forEach(node => node.remove());
+      const { data: previousGames, error: gamesError } = await sb.from("games").select("id,game_date").lt("game_date", currentGame.game_date).order("game_date", { ascending: false }).limit(1);
+      if (gamesError) return;
+      const previous = previousGames?.[0];
+      if (!previous) { lastPreviousGameKey = currentGame.id; return; }
+      const { data: bibRows, error: bibError } = await sb.from("game_players").select("player_id,players(name)").eq("game_id", previous.id).eq("took_bibs", true).not("player_id", "is", null);
+      if (bibError) return;
+      const names = (bibRows || []).map(row => row.players?.name).filter(Boolean);
+      const label = names.length ? names.join(", ") : "Nobody recorded";
+      const date = new Date(previous.game_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+      const banner = document.createElement("div");
+      banner.className = "previous-bibs-banner";
+      banner.dataset.previousBibs = "true";
+      banner.innerHTML = "🦺 Previous game bibs (" + esc(date) + "): <strong>" + esc(label) + "</strong>";
+      const gameNav = hero.querySelector(".game-nav");
+      if (gameNav) gameNav.insertAdjacentElement("afterend", banner); else hero.querySelector(".hero-copy")?.prepend(banner);
+      lastPreviousGameKey = currentGame.id;
+    })();
+
+    try { await previousBibsRenderPromise; }
+    finally { previousBibsRenderPromise = null; }
   }
 
   async function renderBibControls() {
