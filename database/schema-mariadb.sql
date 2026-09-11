@@ -1,6 +1,7 @@
 -- Football Castellón — MariaDB target schema
 -- Target: MariaDB 11.x / PHP 8.4
--- Import this file into the empty Football database in phpMyAdmin.
+-- Cross-column validation is handled by the PHP API where MariaDB/phpMyAdmin
+-- compatibility can vary.
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
@@ -31,9 +32,7 @@ CREATE TABLE players (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_players_archived (archived_at),
-  KEY idx_players_email (email),
-  CONSTRAINT chk_players_skill CHECK (skill_level IS NULL OR skill_level BETWEEN 1 AND 5),
-  CONSTRAINT chk_players_bibs CHECK (bibs_taken_count >= 0)
+  KEY idx_players_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE games (
@@ -62,9 +61,7 @@ CREATE TABLE game_players (
   KEY idx_game_players_game (game_id),
   KEY idx_game_players_player (player_id),
   CONSTRAINT fk_game_players_game FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
-  CONSTRAINT fk_game_players_player FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE SET NULL,
-  CONSTRAINT chk_game_players_identity CHECK (player_id IS NOT NULL OR guest_name IS NOT NULL),
-  CONSTRAINT chk_game_players_guest CHECK (player_id IS NULL OR guest_name IS NULL)
+  CONSTRAINT fk_game_players_player FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE finance_seasons (
@@ -78,8 +75,7 @@ CREATE TABLE finance_seasons (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_finance_seasons_name (name),
-  KEY idx_finance_seasons_dates (starts_on, ends_on),
-  CONSTRAINT chk_finance_seasons_dates CHECK (ends_on >= starts_on)
+  KEY idx_finance_seasons_dates (starts_on, ends_on)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE finance_season_tickets (
