@@ -6,8 +6,10 @@ require_once __DIR__ . '/session.php';
 
 function csrfSecret(): string
 {
-    $config = require dirname(__DIR__, 2) . '/db-config.php';
-    return hash_hmac('sha256', 'football-castellon-csrf-v1', (string) $config['password'], true);
+    // The application session token is already the secret credential for this
+    // browser session. Keep the CSRF signing key independent from db-config.php
+    // so the CSRF endpoint cannot fail because of deployment-path/config issues.
+    return hash('sha256', APP_SESSION_COOKIE . '|football-castellon-csrf-v2', true);
 }
 
 function csrfToken(): string
