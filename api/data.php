@@ -72,7 +72,16 @@ if ($method === 'GET') {
     }
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
-    jsonResponse(['data' => $stmt->fetchAll()]);
+    $rows = $stmt->fetchAll();
+    if ($tableName === 'players' && $rows) {
+        $ticketStmt = db()->query('SELECT fst.player_id FROM finance_season_tickets fst INNER JOIN finance_seasons fs ON fs.id = fst.season_id WHERE CURDATE() BETWEEN fs.starts_on AND fs.ends_on');
+        $seasonPlayerIds = array_fill_keys(array_column($ticketStmt->fetchAll(), 'player_id'), true);
+        foreach ($rows as &$row) {
+            $row['model'] = isset($seasonPlayerIds[$row['id']]) ? 'season' : 'game';
+        }
+        unset($row);
+    }
+    jsonResponse(['data' => $rows]);
 }
 
 if ($method !== 'POST') jsonResponse(['error' => 'Method not allowed'], 405);
