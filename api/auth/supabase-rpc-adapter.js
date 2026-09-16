@@ -55,12 +55,16 @@
   };
 
   const runMutation = async (tableName, action, data, filters) => {
-    const response = await api.post(`/api/data.php?table=${encodeURIComponent(tableName)}`, {
-      action,
-      data,
-      filters: filters || [],
-    });
-    return { data: response.data ?? null, error: null };
+    try {
+      const response = await api.post(`/api/data.php?table=${encodeURIComponent(tableName)}`, {
+        action,
+        data,
+        filters: filters || [],
+      });
+      return { data: response.data ?? null, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
   };
 
   const table = (name) => {
