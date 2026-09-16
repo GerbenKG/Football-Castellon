@@ -1,22 +1,48 @@
 (() => {
   "use strict";
 
-  const legacyClient = window.supabaseClient;
+  const api = window.api;
+  if (!api) return;
 
-  if (!legacyClient || !window.api) return;
+  const currentSession = async () => {
+    try {
+      return await api.get("/api/auth/me.php");
+    } catch (error) {
+      if (error?.status === 401) return { authenticated: false };
+      throw error;
+    }
+  };
 
-  async function phpAccess() {
-    return window.api.get("/api/auth/access.php");
-  }
+  const signInWithOAuth = async ({ provider } = {}) => {
+    if (provider !== "google") {
+      return { data: null, error: new Error("Only Google sign-in is supported") };
+    }
+    window.location.href = "/api/auth/google.php";
+    return { data: { provider: "google" }, error: null };
+  };
+
+  const signOut = async () => {
+    try {
+      await api.post("/api/auth/logout.php", {});
+    } catch (_) {
+      // The session is cleared server-side; reload regardless of the response.
+    }
+    return { error: null };
+  };
+
+  const onAuthStateChange = async (callback) => {
+    const me = await currentSession();
+    callback(me.authenticated ? "SIGNED_IN" : "SIGNED_OUT", me.authenticated ? me.user : null);
+    return { data: { subscription: { unsubscribe() {} } }, error: null };
+  };
 
   const rpc = async (name) => {
     try {
-      const data = await phpAccess();
+      const data = await api.get("/api/auth/access.php");
 
       if (name === "claim_access_profile") {
         return { data: true, error: null };
       }
-
       if (name === "get_my_access") {
         return {
           data: {
@@ -27,25 +53,49 @@
           error: null,
         };
       }
-
       if (name === "admin_list_access") {
         return { data: data.members || [], error: null };
       }
-
       if (name === "admin_list_permissions") {
         return { data: data.rolePermissions || [], error: null };
       }
-
       return { data: null, error: new Error(`Unsupported RPC: ${name}`) };
     } catch (error) {
       return { data: null, error };
     }
   };
 
-  window.supabaseClient = new Proxy(legacyClient, {
-    get(target, property, receiver) {
-      if (property === "rpc") return rpc;
-      return Reflect.get(target, property, receiver);
-    },
-  });
+  const readTable = async (table) => {
+    if (table === "players") return (await api.get("/api/players.php")).players || [];
+    if (table === "games") return (await api.get("/api/games.php")).games || [];
+    if (table === "game_players") return [];
+    if (table === "finance_seasons") return [];
+    if (table === "finance_season_tickets") return [];
+    if (table === "payments") return [];
+    throw new Error(`Unsupported table during migration: ${table}`);
+  };
+
+  const table = (name) => {
+    const runRead = async () => ({ data: await readTable(name), error: null });
+    const chain = {
+      select() { return chain; },
+      order() { return runRead(); },
+      eq() { return chain; },
+      neq() { return chain; },
+      async then(resolve, reject) {
+        try { resolve(await runRead()); } catch (error) { if (reject) reject(error); }
+      },
+      async upsert() { return { data: null, error: null }; },
+      async insert() { return { data: null, error: null }; },
+      delete() { return chain; },
+    };
+    return chain;
+  };
+
+  const auth = { getSession: async () => {
+    const me = await currentSession();
+    return { data: { session: me.authenticated ? { user: me.user } : null }, error: null };
+  }, signInWithOAuth, signOut, onAuthStateChange };
+
+  window.supabaseClient = { auth, rpc, from: table };
 })();
