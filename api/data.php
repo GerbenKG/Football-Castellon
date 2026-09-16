@@ -14,6 +14,7 @@ const DATA_TABLES = [
     'finance_seasons' => ['read' => 'payments.view', 'write' => 'payments.manage', 'columns' => ['id', 'name', 'starts_on', 'ends_on', 'season_ticket_amount', 'pay_per_game_amount'], 'order' => ['id', 'name', 'starts_on', 'ends_on', 'created_at', 'updated_at']],
     'finance_season_tickets' => ['read' => 'payments.view', 'write' => 'payments.manage', 'columns' => ['id', 'season_id', 'player_id', 'amount', 'paid', 'paid_on'], 'order' => ['id', 'season_id', 'player_id', 'paid_on', 'created_at', 'updated_at']],
     'finance_expenses' => ['read' => 'payments.view', 'write' => 'payments.manage', 'columns' => ['id', 'season_id', 'due_date', 'description', 'category', 'amount', 'paid', 'paid_on'], 'order' => ['id', 'season_id', 'due_date', 'description', 'created_at']],
+    'team_captain_history' => ['read' => 'games.view', 'write' => 'games.manage', 'columns' => ['id', 'game_id', 'team_name', 'player_id'], 'order' => ['id', 'game_id', 'team_name', 'created_at']],
 ];
 
 function hasPermission(string $role, string $permission): bool
