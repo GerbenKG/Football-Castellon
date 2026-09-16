@@ -45,24 +45,75 @@
     }
   };
 
-  const readTable = async (table) => {
-    if (table === "players") return (await api.get("/api/players.php")).players || [];
-    if (table === "games") return (await api.get("/api/games.php")).games || [];
-    if (table === "game_players" || table === "finance_seasons" || table === "finance_season_tickets" || table === "payments") return [];
-    throw new Error(`Unsupported table during migration: ${table}`);
+  const readTable = async (tableName, filters, order) => {
+    const params = new URLSearchParams();
+    params.set("table", tableName);
+    params.set("filters", JSON.stringify(filters || []));
+    if (order?.column) params.set("order", `${order.column}:${order.ascending === false ? "desc" : "asc"}`);
+    const response = await api.get(`/api/data.php?${params.toString()}`);
+    return response.data || [];
+  };
+
+  const runMutation = async (tableName, action, data, filters) => {
+    const response = await api.post(`/api/data.php?table=${encodeURIComponent(tableName)}`, {
+      action,
+      data,
+      filters: filters || [],
+    });
+    return { data: response.data ?? null, error: null };
   };
 
   const table = (name) => {
-    const runRead = async () => ({ data: await readTable(name), error: null });
     const chain = {
+      _filters: [],
+      _order: null,
+      _action: null,
+      _data: null,
+
       select() { return chain; },
-      order() { return runRead(); },
-      eq() { return chain; },
-      neq() { return chain; },
-      then(resolve, reject) { runRead().then(resolve, reject); },
-      async upsert() { return { data: null, error: null }; },
-      async insert() { return { data: null, error: null }; },
-      delete() { return chain; },
+      order(column, options = {}) {
+        chain._order = { column, ascending: options.ascending !== false };
+        return chain;
+      },
+      eq(column, value) {
+        chain._filters.push({ column, value, operator: "eq" });
+        return chain;
+      },
+      neq(column, value) {
+        chain._filters.push({ column, value, operator: "neq" });
+        return chain;
+      },
+      upsert(data) {
+        chain._action = "upsert";
+        chain._data = data;
+        return chain;
+      },
+      insert(data) {
+        chain._action = "insert";
+        chain._data = data;
+        return chain;
+      },
+      update(data) {
+        chain._action = "update";
+        chain._data = data;
+        return chain;
+      },
+      delete() {
+        chain._action = "delete";
+        return chain;
+      },
+      single() {
+        return chain.then(result => ({
+          data: result.data?.[0] || null,
+          error: result.error || (result.data?.length ? null : new Error("No rows found")),
+        }));
+      },
+      then(resolve, reject) {
+        const run = chain._action
+          ? runMutation(name, chain._action, chain._data, chain._filters)
+          : readTable(name, chain._filters, chain._order).then(data => ({ data, error: null }));
+        return run.then(resolve, reject);
+      },
     };
     return chain;
   };
