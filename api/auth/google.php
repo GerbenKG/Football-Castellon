@@ -13,7 +13,7 @@ ini_set('session.cookie_samesite', 'Lax');
 session_name('fc_oauth');
 session_start();
 
-$config = require dirname(__DIR__, 2) . '/google-config.php';
+$config = require dirname(__DIR__, 3) . '/google-config.php';
 $redirectUri = 'https://castellon.futbol/api/auth/google-callback.php';
 $state = bin2hex(random_bytes(32));
 
