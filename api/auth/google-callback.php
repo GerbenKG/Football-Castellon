@@ -192,7 +192,7 @@ try {
 
     setApplicationSession((string) $user['id']);
 
-    header('Location: /api/auth/me.php');
+    header('Location: /');
     exit;
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
