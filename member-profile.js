@@ -87,7 +87,7 @@
   }
 
   async function signedAvatar(path) {
-    if (!path) return null;
+    if (!path || !sb.storage?.from) return null;
     const result = await sb.storage.from("player-avatars").createSignedUrl(path, 3600);
     return result.error ? null : result.data?.signedUrl || null;
   }
@@ -108,7 +108,7 @@
       const initial = esc(profile.name || "M").slice(0, 1).toUpperCase();
       const bibs = profile.role === "player" ? '<div class="profile-field readonly-field"><span class="field-label">Bibs taken</span><strong>' + Number(profile.bibs_taken_count || 0) + '</strong></div>' : '';
       const previewNote = isPreview() ? '<p class="muted" style="margin:8px 0 0">Preview mode: viewing ' + esc(profile.name) + '\'s profile. Editing is disabled.</p>' : '';
-      const upload = isPreview() ? '' : '<label class="btn btn-secondary profile-upload">Upload picture<input id="member-avatar-input" type="file" accept="image/*" style="display:none"></label>';
+      const upload = isPreview() || !sb.storage?.from ? '' : '<label class="btn btn-secondary profile-upload">Upload picture<input id="member-avatar-input" type="file" accept="image/*" style="display:none"></label>';
       const fields = isPreview() ? ' disabled' : '';
 
       document.getElementById("app").innerHTML =
@@ -146,7 +146,7 @@
   }
 
   async function uploadAvatar(event) {
-    if (isPreview()) return;
+    if (isPreview() || !sb.storage?.from) return;
     const file = event.target.files?.[0];
     if (!file) return;
     const user = await sb.auth.getUser();
