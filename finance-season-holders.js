@@ -34,12 +34,10 @@
   function renderRows(section, tickets, players, seasonId) {
     if (!section) return;
 
+    const canManage = !!section.querySelector("[data-fin-ticket]");
     const playerById = new Map(players.map(player => [player.id, player]));
     const rows = tickets
-      .map(ticket => ({
-        ticket,
-        player: playerById.get(ticket.player_id)
-      }))
+      .map(ticket => ({ ticket, player: playerById.get(ticket.player_id) }))
       .sort((a, b) => String(a.player?.name || "").localeCompare(String(b.player?.name || "")));
 
     const key = JSON.stringify({
@@ -69,7 +67,7 @@
       ? `<table><thead><tr><th>Player</th><th>Type</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(({ ticket, player }) => {
           const name = player?.name || "Unknown player";
           const paid = !!ticket.paid;
-          return `<tr><td><div class="who"><span class="avatar">${esc(name).slice(0, 1).toUpperCase()}</span><b>${esc(name)}</b></div></td><td>Season ticket</td><td>${money(ticket.amount)}</td><td>${paid ? '<span class="badge badge-green">Paid</span>' : '<span class="badge badge-red">Needs payment</span>'}</td><td>${document.body.dataset.canPaymentsManage === "true" ? `<button class="btn btn-secondary" data-fin-ticket="${esc(ticket.player_id)}" data-paid="${paid ? "true" : "false"}">${paid ? "Mark unpaid" : "Mark paid"}</button>` : ""}</td></tr>`;
+          return `<tr><td><div class="who"><span class="avatar">${esc(name).slice(0, 1).toUpperCase()}</span><b>${esc(name)}</b></div></td><td>Season ticket</td><td>${money(ticket.amount)}</td><td>${paid ? '<span class="badge badge-green">Paid</span>' : '<span class="badge badge-red">Needs payment</span>'}</td><td>${canManage ? `<button class="btn btn-secondary" data-fin-ticket="${esc(ticket.player_id)}" data-paid="${paid ? "true" : "false"}">${paid ? "Mark unpaid" : "Mark paid"}</button>` : ""}</td></tr>`;
         }).join("")}</tbody><tfoot><tr><th colspan="2">Total</th><th>${money(total)}</th><th colspan="2"></th></tr></tfoot></table>`
       : `<div class="empty"><p>No season-ticket holders for this season.</p></div>`;
 
