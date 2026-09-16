@@ -129,10 +129,13 @@ if ($action === 'upsert' || $action === 'insert') {
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        foreach ($rows as $row) {
+        foreach ($rows as &$row) {
             if (!is_array($row) || !$row) throw new InvalidArgumentException('Invalid row');
             $row = array_intersect_key($row, array_flip($config['columns']));
-            if (!isset($row['id'])) throw new InvalidArgumentException('Every row must include id');
+            if (!isset($row['id'])) {
+                if ($action === 'insert') $row['id'] = uuidV4();
+                else throw new InvalidArgumentException('Every upsert row must include id');
+            }
 
             $columns = array_keys($row);
             $quoted = array_map(static fn(string $c): string => '`' . $c . '`', $columns);
@@ -142,7 +145,7 @@ if ($action === 'upsert' || $action === 'insert') {
             if ($action === 'upsert') {
                 $updates = [];
                 foreach ($columns as $column) {
-                    if ($column !== 'id') $updates[] = '`' . $column . '` = VALUES(`' . $column . '`)';
+                    if ($column !== 'id') $updates[] = '`' . $column . '` = VALUES(`' . $column . '`)' ;
                 }
                 if ($updates) $sql .= ' ON DUPLICATE KEY UPDATE ' . implode(',', $updates);
             }
@@ -151,6 +154,7 @@ if ($action === 'upsert' || $action === 'insert') {
             foreach ($row as $column => $value) $params[':v_' . $column] = $value;
             $pdo->prepare($sql)->execute($params);
         }
+        unset($row);
         $pdo->commit();
         jsonResponse(['data' => $rows]);
     } catch (Throwable $e) {
