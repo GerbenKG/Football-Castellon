@@ -4,22 +4,11 @@
   const api = window.api;
   if (!api) return;
 
-  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({
+  const esc = value => String(value ?? "").replace(/[&<>\"] /g, c => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;"
   }[c]));
 
-  const money = value => new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "EUR"
-  }).format(Number(value || 0));
-
   const today = () => new Date().toISOString().slice(0, 10);
-
-  async function getRows(table, filters = []) {
-    const params = new URLSearchParams({ table, filters: JSON.stringify(filters) });
-    const response = await api.get(`/api/data.php?${params.toString()}`);
-    return response.data || [];
-  }
 
   function financeSection() {
     return [...document.querySelectorAll("#app .card")].find(card =>
@@ -29,50 +18,6 @@
 
   function seasonSelect() {
     return document.getElementById("finance-season-select");
-  }
-
-  function renderRows(section, tickets, players, seasonId) {
-    if (!section) return;
-
-    const canManage = !!section.querySelector("[data-fin-ticket]");
-    const playerById = new Map(players.map(player => [player.id, player]));
-    const rows = tickets
-      .map(ticket => ({ ticket, player: playerById.get(ticket.player_id) }))
-      .sort((a, b) => String(a.player?.name || "").localeCompare(String(b.player?.name || "")));
-
-    const key = JSON.stringify({
-      seasonId,
-      rows: rows.map(({ ticket, player }) => [
-        ticket.id,
-        ticket.player_id,
-        player?.name || null,
-        ticket.amount,
-        !!ticket.paid,
-        ticket.paid_on || null
-      ])
-    });
-
-    const host = section.querySelector("[data-season-holder-table]");
-    if (host?.dataset.seasonHolderKey === key) return;
-
-    const target = host || section.querySelector(".table-card");
-    const replacement = document.createElement("div");
-    replacement.className = "table-card finance-table";
-    replacement.dataset.seasonHolderTable = "true";
-    replacement.dataset.seasonHolderKey = key;
-
-    const total = rows.reduce((sum, { ticket }) => sum + Number(ticket.amount || 0), 0);
-
-    replacement.innerHTML = rows.length
-      ? `<table><thead><tr><th>Player</th><th>Type</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(({ ticket, player }) => {
-          const name = player?.name || "Unknown player";
-          const paid = !!ticket.paid;
-          return `<tr><td><div class="who"><span class="avatar">${esc(name).slice(0, 1).toUpperCase()}</span><b>${esc(name)}</b></div></td><td>Season ticket</td><td>${money(ticket.amount)}</td><td>${paid ? '<span class="badge badge-green">Paid</span>' : '<span class="badge badge-red">Needs payment</span>'}</td><td>${canManage ? `<button class="btn btn-secondary" data-fin-ticket="${esc(ticket.player_id)}" data-paid="${paid ? "true" : "false"}">${paid ? "Mark unpaid" : "Mark paid"}</button>` : ""}</td></tr>`;
-        }).join("")}</tbody><tfoot><tr><th colspan="2">Total</th><th>${money(total)}</th><th colspan="2"></th></tr></tfoot></table>`
-      : `<div class="empty"><p>No season-ticket holders for this season.</p></div>`;
-
-    if (target) target.replaceWith(replacement);
-    else section.appendChild(replacement);
   }
 
   function installButton() {
@@ -93,19 +38,10 @@
     head.appendChild(button);
   }
 
-  async function refresh() {
-    const section = financeSection();
-    const select = seasonSelect();
-    if (!section || !select?.value) return;
-
-    const seasonId = select.value;
-    const [players, tickets] = await Promise.all([
-      getRows("players", []),
-      getRows("finance_season_tickets", [{ column: "season_id", value: seasonId, operator: "eq" }])
-    ]);
-
-    renderRows(section, tickets, players, seasonId);
-    installButton();
+  async function getRows(table, filters = []) {
+    const params = new URLSearchParams({ table, filters: JSON.stringify(filters) });
+    const response = await api.get(`/api/data.php?${params.toString()}`);
+    return response.data || [];
   }
 
   async function openModal() {
@@ -192,7 +128,7 @@
           }
         });
         root.innerHTML = "";
-        await refresh();
+        window.location.reload();
       } catch (e) {
         submit.disabled = false;
         submit.textContent = "Add holder";
@@ -201,20 +137,7 @@
     });
   }
 
-  let queued = false;
-  const scheduleRefresh = () => {
-    if (queued) return;
-    queued = true;
-    setTimeout(async () => {
-      queued = false;
-      try {
-        installButton();
-        await refresh();
-      } catch (_) {}
-    }, 100);
-  };
-
-  const observer = new MutationObserver(scheduleRefresh);
+  const observer = new MutationObserver(() => installButton());
   observer.observe(document.body, { childList: true, subtree: true });
-  scheduleRefresh();
+  installButton();
 })();
