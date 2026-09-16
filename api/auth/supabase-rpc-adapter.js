@@ -59,6 +59,30 @@
         return { data, error: null };
       }
 
+      if (name === "player_list_games") {
+        const data = await api.get("/api/auth/player-games.php");
+        return { data, error: null };
+      }
+
+      if (name === "member_profile") {
+        const data = await api.get("/api/auth/member-profile.php");
+        return { data, error: null };
+      }
+
+      if (name === "admin_preview_member_profile") {
+        const email = String(args?.p_email || "").trim();
+        const data = await api.get(`/api/auth/member-profile.php?preview_email=${encodeURIComponent(email)}`);
+        return { data, error: null };
+      }
+
+      if (name === "member_update_profile") {
+        const data = await api.post("/api/auth/member-profile.php", {
+          phone: String(args?.p_phone || "").trim(),
+          email: String(args?.p_email || "").trim().toLowerCase(),
+        });
+        return { data, error: null };
+      }
+
       const data = await api.get("/api/auth/access.php");
       if (name === "claim_access_profile") return { data: true, error: null };
       if (name === "get_my_access") return { data: { allowed: !!data.allowed, profile: data.profile || null, permissions: data.permissions || {} }, error: null };
