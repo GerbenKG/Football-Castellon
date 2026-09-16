@@ -75,15 +75,25 @@
     params.set("table", tableName);
     params.set("filters", JSON.stringify(filters || []));
     if (order?.column) params.set("order", `${order.column}:${order.ascending === false ? "desc" : "asc"}`);
-    const response = await api.get(`/api/data.php?${params.toString()}`);
-    const rows = response.data || [];
-    if (tableName === "finance_season_tickets") {
-      seasonTicketPlayerIds.clear();
-      rows.forEach(row => {
-        if (row?.player_id) seasonTicketPlayerIds.add(row.player_id);
-      });
+
+    try {
+      const response = await api.get(`/api/data.php?${params.toString()}`);
+      const rows = response.data || [];
+      if (tableName === "finance_season_tickets") {
+        seasonTicketPlayerIds.clear();
+        rows.forEach(row => {
+          if (row?.player_id) seasonTicketPlayerIds.add(row.player_id);
+        });
+      }
+      return rows;
+    } catch (error) {
+      // app.js still loads several legacy tables during startup. The PHP API
+      // correctly denies tables for roles without the matching permission;
+      // treat those denied reads as empty data so a limited role can still
+      // start and use the parts of the app it is allowed to access.
+      if (error?.status === 403 && /permission denied/i.test(error?.message || "")) return [];
+      throw error;
     }
-    return rows;
   };
 
   const runMutation = async (tableName, action, data, filters) => {
