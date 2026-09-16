@@ -4,6 +4,20 @@
   const api = window.api;
   if (!api) return;
 
+  // Finance compatibility: the legacy UI expects player.model to distinguish
+  // season-ticket players from pay-per-game players. The PHP player mapper
+  // currently normalizes player objects and drops that legacy field, so keep
+  // the classification in this adapter based on loaded season-ticket rows.
+  const seasonTicketPlayerIds = new Set();
+  Object.defineProperty(Object.prototype, "model", {
+    configurable: true,
+    enumerable: false,
+    get() {
+      if (!this || !this.id) return undefined;
+      return seasonTicketPlayerIds.has(this.id) ? "season" : "game";
+    },
+  });
+
   const currentSession = async () => {
     try {
       return await api.get("/api/auth/me.php");
@@ -51,7 +65,14 @@
     params.set("filters", JSON.stringify(filters || []));
     if (order?.column) params.set("order", `${order.column}:${order.ascending === false ? "desc" : "asc"}`);
     const response = await api.get(`/api/data.php?${params.toString()}`);
-    return response.data || [];
+    const rows = response.data || [];
+    if (tableName === "finance_season_tickets") {
+      seasonTicketPlayerIds.clear();
+      rows.forEach(row => {
+        if (row?.player_id) seasonTicketPlayerIds.add(row.player_id);
+      });
+    }
+    return rows;
   };
 
   const runMutation = async (tableName, action, data, filters) => {
