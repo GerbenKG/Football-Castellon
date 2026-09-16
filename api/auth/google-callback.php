@@ -59,7 +59,6 @@ curl_setopt_array($ch, [
 ]);
 $tokenResponse = curl_exec($ch);
 $tokenStatus = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$tokenError = curl_error($ch);
 curl_close($ch);
 
 if ($tokenResponse === false || $tokenStatus < 200 || $tokenStatus >= 300) {
@@ -67,9 +66,14 @@ if ($tokenResponse === false || $tokenStatus < 200 || $tokenStatus >= 300) {
 }
 
 $tokenData = json_decode($tokenResponse, true);
+
+if (!is_array($tokenData)) {
+    authError('Google returned an invalid token response.');
+}
+
 $accessToken = $tokenData['access_token'] ?? '';
 
-if (!is_array($tokenData) || !is_string($accessToken) || $accessToken === '') {
+if (!is_string($accessToken) || $accessToken === '') {
     authError('Google did not return a valid access token.');
 }
 
@@ -88,6 +92,11 @@ if ($userResponse === false || $userStatus < 200 || $userStatus >= 300) {
 }
 
 $googleUser = json_decode($userResponse, true);
+
+if (!is_array($googleUser)) {
+    authError('Google returned invalid account information.');
+}
+
 $googleSubject = $googleUser['sub'] ?? '';
 $email = strtolower(trim((string) ($googleUser['email'] ?? '')));
 $displayName = trim((string) ($googleUser['name'] ?? ''));
@@ -166,10 +175,11 @@ try {
     $pdo->prepare(
         'UPDATE access_profiles
          SET user_id = :user_id,
-             display_name = CASE WHEN :display_name <> \'\' THEN :display_name ELSE display_name END
+             display_name = CASE WHEN :profile_name <> \'\' THEN :display_name ELSE display_name END
          WHERE email = :email'
     )->execute([
         'user_id' => $user['id'],
+        'profile_name' => $displayName,
         'display_name' => $displayName,
         'email' => $email,
     ]);
