@@ -82,19 +82,18 @@
   }
 
   async function captainCounts(players) {
-    const ids = players.filter(player => !player.guest).map(player => player.id);
-    const counts = new Map(ids.map(id => [String(id), 0]));
-    if (!ids.length) return counts;
+    const ids = new Set(players.filter(player => !player.guest).map(player => String(player.id)));
+    const counts = new Map([...ids].map(id => [id, 0]));
+    if (!ids.size) return counts;
 
     const { data, error } = await sb
       .from("team_captain_history")
-      .select("player_id")
-      .in("player_id", ids);
+      .select("player_id");
     if (error) throw error;
 
     (data || []).forEach(row => {
       const id = String(row.player_id);
-      counts.set(id, (counts.get(id) || 0) + 1);
+      if (ids.has(id)) counts.set(id, (counts.get(id) || 0) + 1);
     });
     return counts;
   }
@@ -112,20 +111,33 @@
     const game = await currentGame();
     if (!game) throw new Error("Current game could not be identified.");
 
+    // The MariaDB compatibility adapter intentionally supports simple table
+    // queries, not Supabase nested relations. Load the squad and players
+    // separately and join them in the browser.
     const { data: squad, error: squadError } = await sb
       .from("game_players")
-      .select("id,player_id,guest_name,players(id,name,skill_level)")
+      .select("id,player_id,guest_name")
       .eq("game_id", game.id);
     if (squadError) throw squadError;
 
+    const { data: playerRows, error: playerError } = await sb
+      .from("players")
+      .select("id,name,skill_level")
+      .order("name");
+    if (playerError) throw playerError;
+
+    const playersById = new Map((playerRows || []).map(player => [String(player.id), player]));
     const players = (squad || [])
       .filter(row => row.player_id || row.guest_name)
-      .map((row, index) => ({
-        id: row.player_id || `guest-${row.id || index}`,
-        name: row.player_id ? (row.players?.name || "Player") : (row.guest_name || "Guest"),
-        skill: row.player_id ? Number(row.players?.skill_level || 3) : 3,
-        guest: !row.player_id
-      }))
+      .map((row, index) => {
+        const player = row.player_id ? playersById.get(String(row.player_id)) : null;
+        return {
+          id: row.player_id || `guest-${row.id || index}`,
+          name: row.player_id ? (player?.name || "Player") : (row.guest_name || "Guest"),
+          skill: row.player_id ? Number(player?.skill_level || 3) : 3,
+          guest: !row.player_id
+        };
+      })
       .filter(player => Number.isFinite(player.skill) && player.skill >= 1 && player.skill <= 5);
 
     if (players.length < teamCount) {
