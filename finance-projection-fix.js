@@ -2,7 +2,7 @@
 "use strict";
 
 function parseMoney(text) {
-  const value = String(text || "").replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", ".");
+  const value = String(text || "").replace(/[^0-9.-]/g, "");
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
 }
