@@ -22,11 +22,7 @@
   };
 
   const signOut = async () => {
-    try {
-      await api.post("/api/auth/logout.php", {});
-    } catch (_) {
-      // The session is cleared server-side; reload regardless of the response.
-    }
+    try { await api.post("/api/auth/logout.php", {}); } catch (_) {}
     return { error: null };
   };
 
@@ -39,26 +35,10 @@
   const rpc = async (name) => {
     try {
       const data = await api.get("/api/auth/access.php");
-
-      if (name === "claim_access_profile") {
-        return { data: true, error: null };
-      }
-      if (name === "get_my_access") {
-        return {
-          data: {
-            allowed: !!data.allowed,
-            profile: data.profile || null,
-            permissions: data.permissions || {},
-          },
-          error: null,
-        };
-      }
-      if (name === "admin_list_access") {
-        return { data: data.members || [], error: null };
-      }
-      if (name === "admin_list_permissions") {
-        return { data: data.rolePermissions || [], error: null };
-      }
+      if (name === "claim_access_profile") return { data: true, error: null };
+      if (name === "get_my_access") return { data: { allowed: !!data.allowed, profile: data.profile || null, permissions: data.permissions || {} }, error: null };
+      if (name === "admin_list_access") return { data: data.members || [], error: null };
+      if (name === "admin_list_permissions") return { data: data.rolePermissions || [], error: null };
       return { data: null, error: new Error(`Unsupported RPC: ${name}`) };
     } catch (error) {
       return { data: null, error };
@@ -68,10 +48,7 @@
   const readTable = async (table) => {
     if (table === "players") return (await api.get("/api/players.php")).players || [];
     if (table === "games") return (await api.get("/api/games.php")).games || [];
-    if (table === "game_players") return [];
-    if (table === "finance_seasons") return [];
-    if (table === "finance_season_tickets") return [];
-    if (table === "payments") return [];
+    if (table === "game_players" || table === "finance_seasons" || table === "finance_season_tickets" || table === "payments") return [];
     throw new Error(`Unsupported table during migration: ${table}`);
   };
 
@@ -82,9 +59,7 @@
       order() { return runRead(); },
       eq() { return chain; },
       neq() { return chain; },
-      async then(resolve, reject) {
-        try { resolve(await runRead()); } catch (error) { if (reject) reject(error); }
-      },
+      then(resolve, reject) { runRead().then(resolve, reject); },
       async upsert() { return { data: null, error: null }; },
       async insert() { return { data: null, error: null }; },
       delete() { return chain; },
@@ -92,10 +67,19 @@
     return chain;
   };
 
-  const auth = { getSession: async () => {
-    const me = await currentSession();
-    return { data: { session: me.authenticated ? { user: me.user } : null }, error: null };
-  }, signInWithOAuth, signOut, onAuthStateChange };
+  const auth = {
+    getSession: async () => {
+      const me = await currentSession();
+      return { data: { session: me.authenticated ? { user: me.user } : null }, error: null };
+    },
+    getUser: async () => {
+      const me = await currentSession();
+      return { data: { user: me.authenticated ? me.user : null }, error: null };
+    },
+    signInWithOAuth,
+    signOut,
+    onAuthStateChange,
+  };
 
   window.supabaseClient = { auth, rpc, from: table };
 })();
