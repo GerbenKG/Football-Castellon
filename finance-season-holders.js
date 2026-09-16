@@ -4,7 +4,7 @@
   const api = window.api;
   if (!api) return;
 
-  const esc = value => String(value ?? "").replace(/[&<>\"] /g, c => ({
+  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;"
   }[c]));
 
