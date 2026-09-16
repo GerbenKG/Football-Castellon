@@ -54,14 +54,17 @@ foreach ($seasonStmt->fetchAll() as $row) {
 }
 
 $gameStmt = $pdo->prepare(
-    'SELECT gp.id, gp.paid, g.game_date, fs.name AS season_name,
-            fs.pay_per_game_amount
+    'SELECT gp.id, gp.paid, g.game_date, fs.pay_per_game_amount
      FROM game_players gp
      INNER JOIN games g ON g.id = gp.game_id
      LEFT JOIN finance_seasons fs
        ON g.game_date BETWEEN fs.starts_on AND fs.ends_on
+     LEFT JOIN finance_season_tickets fst
+       ON fst.season_id = fs.id
+      AND fst.player_id = gp.player_id
      WHERE gp.player_id = :player_id
        AND gp.playing = TRUE
+       AND fst.id IS NULL
      ORDER BY g.game_date DESC'
 );
 $gameStmt->execute(['player_id' => $playerId]);
