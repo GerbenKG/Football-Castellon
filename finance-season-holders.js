@@ -18,7 +18,7 @@
 
   function financeSection() {
     return [...document.querySelectorAll("#app .card")].find(card =>
-      card.querySelector("h2")?.textContent.trim() === "Season ticket holders"
+      card.querySelector("h2, h3")?.textContent.trim() === "Season ticket holders"
     );
   }
 
@@ -31,7 +31,7 @@
     const section = financeSection();
     if (!section || section.querySelector("[data-season-holder-add]")) return;
 
-    const heading = section.querySelector("h2");
+    const heading = section.querySelector("h2, h3");
     const head = heading?.closest(".section-head") || heading?.parentElement;
     if (!head) return;
 
