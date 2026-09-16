@@ -7,12 +7,7 @@
   let busy = false;
   let timer = null;
 
-  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;"
-  }[c]));
+  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
   function isDashboard() {
     return document.querySelector('.nav-item.active[data-view="dashboard"]');
@@ -22,13 +17,16 @@
     return document.querySelector(".hero h1")?.textContent?.trim() || "";
   }
 
+  function formatDate(date) {
+    return new Date(date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  }
+
   async function currentGame() {
     const title = currentGameTitle();
     if (!title) return null;
     const { data, error } = await sb.from("games").select("id,game_date").order("game_date");
     if (error) throw error;
-    const format = date => new Date(date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
-    return (data || []).find(g => format(g.game_date) === title) || null;
+    return (data || []).find(g => formatDate(g.game_date) === title) || null;
   }
 
   function addButton() {
@@ -86,11 +84,8 @@
     const counts = new Map([...ids].map(id => [id, 0]));
     if (!ids.size) return counts;
 
-    const { data, error } = await sb
-      .from("team_captain_history")
-      .select("player_id");
+    const { data, error } = await sb.from("team_captain_history").select("player_id");
     if (error) throw error;
-
     (data || []).forEach(row => {
       const id = String(row.player_id);
       if (ids.has(id)) counts.set(id, (counts.get(id) || 0) + 1);
@@ -111,20 +106,16 @@
     const game = await currentGame();
     if (!game) throw new Error("Current game could not be identified.");
 
-    // The MariaDB compatibility adapter intentionally supports simple table
-    // queries, not Supabase nested relations. Load the squad and players
-    // separately and join them in the browser.
     const { data: squad, error: squadError } = await sb
       .from("game_players")
       .select("id,player_id,guest_name")
       .eq("game_id", game.id);
     if (squadError) throw squadError;
 
-    const { data: playerRows, error: playerError } = await sb
+    const { data: playerRows, error: playersError } = await sb
       .from("players")
-      .select("id,name,skill_level")
-      .order("name");
-    if (playerError) throw playerError;
+      .select("id,name,skill_level");
+    if (playersError) throw playersError;
 
     const playersById = new Map((playerRows || []).map(player => [String(player.id), player]));
     const players = (squad || [])
