@@ -16,10 +16,6 @@
 
   const money = value => `€${Number(value || 0).toFixed(2)}`;
 
-  function financeRoot() {
-    return document.getElementById("app");
-  }
-
   function findSeasonSelect(seasons) {
     const ids = new Set(seasons.map(s => s.id));
     return [...document.querySelectorAll("#app select")].find(select => ids.has(select.value)) || null;
@@ -32,11 +28,12 @@
     ) || null;
   }
 
-  function renderOutstanding(section, dues) {
+  function renderOutstanding(section, dues, key) {
     if (!section) return;
 
-    const total = dues.reduce((sum, row) => sum + row.amount, 0);
     let host = section.querySelector("[data-finance-outstanding]");
+    if (host?.dataset.financeKey === key) return;
+
     if (!host) {
       host = document.createElement("div");
       host.dataset.financeOutstanding = "true";
@@ -52,14 +49,15 @@
       }
     }
 
+    host.dataset.financeKey = key;
+    const total = dues.reduce((sum, row) => sum + row.amount, 0);
     host.innerHTML = dues.length
       ? `<div class="table-card"><table><thead><tr><th>Player</th><th>Type</th><th>Amount</th></tr></thead><tbody>${dues.map(row => `<tr><td><b>${esc(row.name)}</b></td><td>${esc(row.type)}</td><td><strong>${money(row.amount)}</strong></td></tr>`).join("")}</tbody><tfoot><tr><th colspan="2">Total outstanding</th><th>${money(total)}</th></tr></tfoot></table></div>`
       : `<div class="empty"><p>Nothing outstanding.</p></div>`;
   }
 
   async function refresh() {
-    const root = financeRoot();
-    if (!root || !findHeading("Who still needs to pay?")) return;
+    if (!document.getElementById("app") || !findHeading("Who still needs to pay?")) return;
 
     const [seasons, tickets, games, gamePlayers, players] = await Promise.all([
       getRows("finance_seasons"),
@@ -97,15 +95,13 @@
     });
 
     const outstanding = dues.reduce((sum, row) => sum + row.amount, 0);
-    const stat = [...root.querySelectorAll(".finance-stats .stat")].find(el => /expected income/i.test(el.textContent));
-    if (stat) {
-      const value = stat.querySelector("strong");
-      if (value) value.textContent = money(outstanding);
-    }
+    const stat = [...document.querySelectorAll("#app .finance-stats .stat")].find(el => /expected income/i.test(el.textContent));
+    if (stat?.querySelector("strong")) stat.querySelector("strong").textContent = money(outstanding);
 
+    const key = JSON.stringify({ season: season.id, dues: dues.map(row => [row.name, row.type, row.amount]) });
     const heading = findHeading("Who still needs to pay?");
     const section = heading?.closest("section") || heading?.closest(".card") || heading?.parentElement;
-    renderOutstanding(section, dues);
+    renderOutstanding(section, dues, key);
   }
 
   let queued = false;
