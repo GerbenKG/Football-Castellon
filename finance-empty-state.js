@@ -55,7 +55,7 @@
             <label>Pay per game amount<input name="pay_per_game_amount" type="number" min="0" step="0.01" value="0"></label>
             <div class="modal-actions">
               <button type="button" class="btn btn-secondary" data-empty-finance-close>Cancel</button>
-              <button class="btn btn-primary">Create season</button>
+              <button type="submit" class="btn btn-primary">Create season</button>
             </div>
             <p class="muted" id="empty-finance-error" style="margin-top:12px"></p>
           </form>
