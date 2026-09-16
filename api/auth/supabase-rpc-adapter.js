@@ -46,8 +46,19 @@
     return { data: { subscription: { unsubscribe() {} } }, error: null };
   };
 
-  const rpc = async (name) => {
+  const rpc = async (name, args = {}) => {
     try {
+      if (name === "member_payment_history") {
+        const data = await api.get("/api/auth/member-payment-history.php");
+        return { data, error: null };
+      }
+
+      if (name === "admin_preview_member_payment_history") {
+        const email = String(args?.p_email || "").trim();
+        const data = await api.get(`/api/auth/member-payment-history.php?preview_email=${encodeURIComponent(email)}`);
+        return { data, error: null };
+      }
+
       const data = await api.get("/api/auth/access.php");
       if (name === "claim_access_profile") return { data: true, error: null };
       if (name === "get_my_access") return { data: { allowed: !!data.allowed, profile: data.profile || null, permissions: data.permissions || {} }, error: null };
