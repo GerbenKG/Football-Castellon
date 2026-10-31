@@ -5,7 +5,7 @@ let financeData={seasons:[],tickets:[],expenses:[]}, financeLoaded=false, financ
 let playerFinanceData={seasons:[],tickets:[]};
 let access={profile:null,permissions:{},members:[],rolePermissions:[]};
 let actingAs=null;
-const isPreview=()=>!!actingAs;
+const isPreview=()=>!!actingAs||!!window.footballPreviewActive;
 window.isFootballPreview=isPreview;
 const effectivePermissions=()=>actingAs?(actingAs.role==="super_admin"?Object.fromEntries(PERMISSIONS.map(x=>[x[0],true])):Object.fromEntries((access.rolePermissions||[]).filter(x=>x.role===actingAs.role&&x.enabled).map(x=>[x.permission,true]))):access.permissions;
 const sb=window.footballClient;

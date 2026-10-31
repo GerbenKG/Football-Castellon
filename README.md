@@ -208,3 +208,29 @@ access to their own My Club details and personal payments.
 Role/profile integration tests create temporary fixtures only in the isolated
 local database, then restore the changed sample profiles and account assignment.
 Additional checks: `node tests/access-model.test.cjs` and `php tests/access.test.php`.
+
+## Owner-only member preview
+
+Club owners can select **Log in as** next to an active member, or from the member's
+player record. This opens that person's clubhouse, My Club details, bookings,
+season tickets, payment history and permitted board tools in a read-only preview.
+A fixed banner identifies the selected person and offers **Exit preview**.
+
+The owner keeps their original application session. Preview context is attached
+per tab/request using an opaque member key; no member login is performed, no
+session is created for the selected member, and no profile assignment is changed.
+Every API read resolves the target's current role and player identity after
+verifying that the actual signed-in account is still a Club owner. Disabled or
+missing members cannot be previewed. Invited members can be previewed before
+their first Google sign-in.
+
+Writes are rejected in the API's shared session bootstrap whenever preview
+context is present, including payment, signup, avatar, membership and logout
+requests. The browser also disables editing controls and blocks mutation calls.
+Preview context follows navigation between the clubhouse and board tools. Exit
+preview returns to the owner's member list without signing anyone out. A normal
+owner tab continues to work independently.
+
+Checks: `node tests/preview-client.test.cjs`, `php tests/preview.test.php`, and the
+expanded local integration suite. These use only mock data or the isolated sample
+database; never run write-oriented integration tests against the live database.

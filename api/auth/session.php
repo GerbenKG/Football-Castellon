@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/bootstrap.php';
+require_once __DIR__ . '/preview-lib.php';
+// Per-request preview context never replaces or creates an application session.
+rejectPreviewMutation();
 
 define('APP_SESSION_COOKIE', isLocalDevelopment() ? 'fc_dev_session' : '__Host-fc_session');
 const APP_SESSION_DAYS = 7;
@@ -84,7 +87,7 @@ function currentUser(): ?array
         'UPDATE sessions SET last_seen_at = UTC_TIMESTAMP() WHERE token_hash = :token_hash'
     )->execute(['token_hash' => $tokenHash]);
 
-    return $user;
+    return previewUser(db(), $user);
 }
 
 function requireUser(): array

@@ -21,7 +21,7 @@
   let financeAccess=null;
   window.api.get('/api/auth/access.php').then(access=>{
     const profile=access.profile;if(!profile)return;
-    if(!['dashboard.view','players.view','games.manage','attendance.view','payments.view','access.manage'].some(p=>access.permissions[p]===true)){location.replace(access.permissions['clubhouse.manage']?'/#office':'/#myclub');return;}
+    if(!['dashboard.view','players.view','games.manage','attendance.view','payments.view','access.manage'].some(p=>access.permissions[p]===true)){location.replace(window.footballPreviewUrl?window.footballPreviewUrl(access.permissions['clubhouse.manage']?'/#office':'/#myclub'):(access.permissions['clubhouse.manage']?'/#office':'/#myclub'));return;}
     financeAccess=access.permissions['payments.view']===true;
     document.body.dataset.financeAccess=String(financeAccess);
     const displayName=profile.display_name||'Club member',initials=displayName.split(/\s+/).slice(0,2).map(s=>s[0]).join('');

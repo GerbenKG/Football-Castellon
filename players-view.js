@@ -49,7 +49,7 @@
       can("players.manage") ? '<button class="btn btn-secondary" data-pv-action="archive" data-id="' + esc(p.id) + '">Archive</button>' : ""
     ].join("");
     const memberCell = superAdmin
-      ? (member ? '<span class="badge badge-green">' + esc(window.ClubAccessModel?.name(member.role) || 'Member') + '</span> <button class="btn btn-secondary" data-pv-action="member" data-id="' + esc(p.id) + '">Edit access</button>' : '<button class="btn btn-secondary" data-pv-action="member" data-id="' + esc(p.id) + '">Set up access</button>')
+      ? (member ? '<span class="badge badge-green">' + esc(window.ClubAccessModel?.name(member.role) || 'Member') + '</span> <button class="btn btn-secondary" data-pv-action="member" data-id="' + esc(p.id) + '">Edit access</button>' + (member.active && member.preview_key ? ' <a class="btn btn-secondary" href="/?view_as=' + esc(member.preview_key) + '">Log in as</a>' : '') : '<button class="btn btn-secondary" data-pv-action="member" data-id="' + esc(p.id) + '">Set up access</button>')
       : "";
     return '<tr data-player-id="' + esc(p.id) + '">' +
       '<td><div class="who"><span class="avatar">' + esc(p.name).slice(0,1).toUpperCase() + '</span><b>' + esc(p.name) + '</b></div></td>' +

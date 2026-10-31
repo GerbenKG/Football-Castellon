@@ -218,7 +218,7 @@ function clubSnapshot(PDO $pdo, array $user): array
         $s->execute([$user['player_id']]); $myTickets = normalizeRows($s->fetchAll());
     }
     $publicUser = array_intersect_key($user, array_flip(['id','email','display_name','role','player_id','avatar_path','phone','contact_email']));
-    return ['user' => $publicUser, 'permissions' => $permissions, 'players' => $players, 'games' => $games, 'signups' => $rows,
+    return ['user' => $publicUser, 'preview' => $user['_preview'] ?? null, 'permissions' => $permissions, 'players' => $players, 'games' => $games, 'signups' => $rows,
         'seasons' => $seasons, 'my_tickets' => $myTickets, 'announcements' => $permissions['clubhouse.view'] ? array_slice($announcements, 0, 30) : [], 'matches' => (object) $matches,
         'votes' => (object) $votes, 'my_votes' => (object) $myVotes, 'player_cards' => (object) $cards, 'waiting' => $waiting, 'payment_reports' => $reports,
         'finance' => $permissions['payments.view'] ? clubFinance($pdo) : null,

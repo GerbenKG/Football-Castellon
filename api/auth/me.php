@@ -14,6 +14,7 @@ if ($user === null) {
 
 jsonResponse([
     'authenticated' => true,
+    'preview' => $user['_preview'] ?? null,
     'user' => [
         'id' => $user['id'],
         'email' => $user['email'],

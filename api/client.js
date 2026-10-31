@@ -2,6 +2,11 @@
   "use strict";
 
   let csrfTokenPromise = null;
+  const previewParameters = new URLSearchParams(window.location?.search || '');
+  const previewKey = previewParameters.has('view_as') ? previewParameters.get('view_as') : null;
+  const memberPreview = previewKey !== null;
+  window.footballPreviewKey = previewKey;
+  window.footballPreviewActive = memberPreview;
 
   async function request(path, options = {}) {
     const method = String(options.method || "GET").toUpperCase();
@@ -9,9 +14,10 @@
       Accept: "application/json",
       ...(options.headers || {}),
     };
+    if (memberPreview) headers['X-FC-Preview'] = previewKey;
 
     if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
-      if (window.isFootballPreview?.() && path !== "/api/auth/logout.php") {
+      if (memberPreview || (window.isFootballPreview?.() && path !== "/api/auth/logout.php")) {
         throw new Error("Preview mode is read-only");
       }
       if (!csrfTokenPromise) {
@@ -43,6 +49,10 @@
       data = await response.json();
     } catch (_) {
       data = null;
+    }
+    if (data?.preview && memberPreview) {
+      window.footballPreviewInfo = data.preview;
+      window.dispatchEvent(new CustomEvent('football:member-preview', {detail:data.preview}));
     }
 
     if (!response.ok) {

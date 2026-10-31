@@ -128,7 +128,10 @@ if ($user['role'] === 'super_admin') {
          ORDER BY email'
     )->fetchAll();
 
-    foreach ($members as &$member) $member['active'] = (bool) $member['active'];
+    foreach ($members as &$member) {
+        $member['active'] = (bool) $member['active'];
+        $member['preview_key'] = previewMemberKey($member['email']);
+    }
     unset($member);
 
     $rolePermissions = $pdo->query(
@@ -145,6 +148,7 @@ if ($user['role'] === 'super_admin') {
 
 jsonResponse([
     'allowed' => true,
+    'preview' => $user['_preview'] ?? null,
     'profile' => $profile,
     'permissions' => $permissions,
     'members' => $members,
