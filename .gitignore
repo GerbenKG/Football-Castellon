@@ -4,3 +4,4 @@ google-config.php
 football-avatars/
 *.log
 .local/
+db-config.dev.php

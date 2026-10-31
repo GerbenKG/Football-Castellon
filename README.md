@@ -101,8 +101,9 @@ GET /api/health.php checks database connectivity without revealing configuration
 The app has no build step and makes no requests to an external database service.
 ## Live-data testing on the development site
 
-The existing Plesk site dev.castellon.futbol can run this branch with the same
-server-side database configuration as production. Changes there affect real data.
+The existing Plesk site dev.castellon.futbol uses db-config.dev.php one directory
+above its document root. Production continues to use db-config.php. Both files
+can connect to the same live database; changes in the dev site then affect real data.
 Do not run dev/setup.php against the live database or copy .local/ to the server.
 
 Before testing:
@@ -119,3 +120,5 @@ restricted to the known production and development hostnames, unless an explicit
 same-host HTTPS callback is added to redirect_uris in google-config.php.
 Both hosts use separate host-only session cookies. No sample login is enabled
 under Plesk: local test login requires the isolated built-in development server.
+
+Development database credentials stay only in the private server-side db-config.dev.php file. This file is excluded from Git. Production configuration and deployment are independent.

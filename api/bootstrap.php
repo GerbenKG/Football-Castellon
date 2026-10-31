@@ -23,6 +23,14 @@ function avatarStorageDirectory(): string
         : dirname(__DIR__, 2) . '/football-avatars';
 }
 
+function databaseConfigPath(?string $requestHost = null): string
+{
+    if (isLocalDevelopment()) return dirname(__DIR__) . '/.local/db-config.php';
+    $host = strtolower(preg_replace('/:\d+$/', '', $requestHost ?? ($_SERVER['HTTP_HOST'] ?? '')));
+    $name = $host === 'dev.castellon.futbol' ? 'db-config.dev.php' : 'db-config.php';
+    return dirname(__DIR__, 2) . '/' . $name;
+}
+
 function db(): PDO
 {
     static $pdo = null;
@@ -31,9 +39,7 @@ function db(): PDO
         return $pdo;
     }
 
-    $configPath = isLocalDevelopment()
-        ? dirname(__DIR__) . '/.local/db-config.php'
-        : dirname(__DIR__, 2) . '/db-config.php';
+    $configPath = databaseConfigPath();
     if (!is_file($configPath)) throw new RuntimeException('Database configuration is missing');
     $config = require $configPath;
     if (isLocalDevelopment() && ($config['host'] !== '127.0.0.1' || $config['database'] !== 'football_castellon_dev')) throw new RuntimeException('Invalid local database configuration');
