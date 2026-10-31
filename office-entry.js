@@ -9,7 +9,8 @@
     if (!item || item.style.display === 'none') return;
     opened = true;
     observer.disconnect();
-    window.openClubOffice?.(target, query.get('game'));
+    if (typeof window.openClubOffice === 'function') window.openClubOffice(target, query.get('game'));
+    else item.click();
   });
   observer.observe(document.getElementById('app'), {childList: true, subtree: true});
   const link = document.createElement('a');
