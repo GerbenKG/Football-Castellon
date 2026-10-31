@@ -20,7 +20,7 @@
         badge.className = "member-payments-badge";
         item.appendChild(badge);
       }
-      badge.textContent = String(count);
+      if (badge.textContent !== String(count)) badge.textContent = String(count);
       badge.setAttribute("aria-label", `${count} open payment${count === 1 ? "" : "s"}`);
     } else if (badge) {
       badge.remove();
@@ -31,14 +31,23 @@
     if (running) return;
     const item = navItem();
     if (!item) return;
+    if (item.hidden || item.style.display === "none") {
+      setCount(0);
+      return;
+    }
     running = true;
     try {
+      const session = await sb.auth.getSession();
+      if (!session.data?.session) {
+        setCount(0);
+        return;
+      }
       const result = await sb.rpc("member_payment_history");
       if (result.error) throw result.error;
       const open = Number(result.data?.summary?.open || 0);
       setCount(Number.isFinite(open) ? open : 0);
     } catch (error) {
-      console.error("Could not load open payment count", error);
+      if (error?.status !== 401) console.error("Could not load open payment count", error);
       setCount(0);
     } finally {
       running = false;
