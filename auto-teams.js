@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const sb = window.supabaseClient;
+  const sb = window.footballClient;
   if (!sb) return;
 
   let busy = false;

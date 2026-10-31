@@ -19,7 +19,7 @@ function app(initial,permissions) {
     };
     return query;
   }};
-  const ctx=vm.createContext({window:{supabaseClient:client},Intl,Date});
+  const ctx=vm.createContext({window:{footballClient:client},Intl,Date});
   const source=fs.readFileSync(path.join(root,"app.js"),"utf8");
   const prefix=source.slice(0,source.indexOf('document.addEventListener("click",e=>'));
   vm.runInContext(prefix+`
@@ -112,7 +112,7 @@ test("teams query excludes withdrawn squad members",async()=>{
     const q={select(){return q},order(){return q},in(){return q},eq(column,value){if(column==="playing")rows=rows.filter(r=>r.playing===value);return q},then(resolve){return Promise.resolve({data:rows,error:null}).then(resolve)}};
     return q;
   }};
-  const ctx=vm.createContext({window:{supabaseClient:sb},document:{querySelector:()=>({textContent:new Date("2026-10-30T12:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})})}});
+  const ctx=vm.createContext({window:{footballClient:sb},document:{querySelector:()=>({textContent:new Date("2026-10-30T12:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})})}});
   const source=fs.readFileSync(path.join(root,"auto-teams.js"),"utf8");
   vm.runInContext(source.slice(0,source.indexOf("  new MutationObserver"))+"window.generate=generateTeams;})();",ctx);
   const result=await ctx.window.generate(2);
@@ -126,7 +126,7 @@ test("payment badge skips signed-out requests and does not rewrite an unchanged 
   const item={style:{},querySelector:()=>badge};
   const sb={auth:{getSession:async()=>({data:{session:null}})},rpc:async()=>{requests++;return {data:{summary:{open:3}}}}};
   const ctx=vm.createContext({
-    window:{supabaseClient:sb,addEventListener(){}},document:{body:{},querySelector:()=>item},
+    window:{footballClient:sb,addEventListener(){}},document:{body:{},querySelector:()=>item},
     MutationObserver:class {observe(){}},setTimeout:callback=>{scheduled=callback},clearTimeout(){},console
   });
   vm.runInContext(fs.readFileSync(path.join(root,"member-payments-badge.js"),"utf8"),ctx);

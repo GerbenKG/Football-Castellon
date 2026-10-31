@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const sb = window.supabaseClient;
+  const sb = window.footballClient;
   if (!sb) return;
 
   let byName = new Map();
@@ -79,7 +79,7 @@
       const next = new Map();
       await Promise.all((result.data || []).map(async row => {
         if (!row.player_name || !row.avatar_path) return;
-        const signed = await sb.storage.from("player-avatars").createSignedUrl(row.avatar_path, 3600);
+        const signed = await sb.storage.from("player-avatars").getUrl(row.avatar_path, 3600);
         if (!signed.error && signed.data?.signedUrl) {
           next.set(normalise(row.player_name), signed.data.signedUrl);
         }

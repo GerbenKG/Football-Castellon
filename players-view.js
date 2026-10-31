@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const sb = window.supabaseClient;
+  const sb = window.footballClient;
   if (!sb) return;
 
   let rendered = false;
@@ -102,12 +102,12 @@
       if (!p || !confirm("Archive " + p.name + "? Historical game records will be kept.")) return;
       const result = await sb.from("players").update({ archived_at: new Date().toISOString() }).eq("id", id).is("archived_at", null);
       if (result.error) return alert(result.error.message);
-      await load(); render(); return;
+      await window.refreshFootballData?.(); await load(); render(); return;
     }
     if (action === "restore") {
       const result = await sb.from("players").update({ archived_at: null }).eq("id", id);
       if (result.error) return alert(result.error.message);
-      await load(); render(); return;
+      await window.refreshFootballData?.(); await load(); render(); return;
     }
     if (action === "member") {
       const p = data.players.find(x => x.id === id);
@@ -117,7 +117,7 @@
       if (!/^\S+@\S+\.\S+$/.test(email)) return alert("Please enter a valid email address.");
       const result = await sb.rpc("admin_upsert_access", {p_email: email,p_display_name:p.name,p_role:"player",p_active:true,p_player_id:p.id});
       if (result.error) return alert(result.error.message);
-      await load(); render();
+      await window.refreshFootballData?.(); await load(); render();
     }
   }
 
@@ -146,7 +146,7 @@
       : await sb.from("players").insert(payload);
     if (result.error) return alert(result.error.message);
     document.getElementById("modal-root").innerHTML = "";
-    await load(); render();
+    await window.refreshFootballData?.(); await load(); render();
   }, true);
 
   document.addEventListener("click", event => {
@@ -154,7 +154,7 @@
     if (!nav) return;
     setTimeout(async () => {
       if (!isPlayersPage()) return;
-      try { await load(); render(); } catch (error) { console.error("[Football] Players view failed", error); }
+      try { await window.refreshFootballData?.(); await load(); render(); } catch (error) { console.error("[Football] Players view failed", error); }
     }, 0);
   }, true);
 

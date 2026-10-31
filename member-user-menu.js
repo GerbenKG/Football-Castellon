@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const sb = window.supabaseClient;
+  const sb = window.footballClient;
   if (!sb) return;
 
   const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({
@@ -21,7 +21,7 @@
 
   async function loadAvatar(path) {
     if (!path) return null;
-    const result = await sb.storage.from("player-avatars").createSignedUrl(path, 3600);
+    const result = await sb.storage.from("player-avatars").getUrl(path, 3600);
     return result.error ? null : result.data?.signedUrl || null;
   }
 

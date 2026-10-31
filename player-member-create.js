@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const sb = window.supabaseClient;
+  const sb = window.footballClient;
   if (!sb) return;
 
   const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({

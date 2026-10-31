@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const sb = window.supabaseClient;
+  const sb = window.footballClient;
   if (!sb) return;
 
   let currentKey = "";
@@ -30,7 +30,7 @@
 
       const profile = await sb.rpc("admin_preview_member_profile", { p_email: member.email });
       if (profile.error || !profile.data?.avatar_path) return;
-      const signed = await sb.storage.from("player-avatars").createSignedUrl(profile.data.avatar_path, 3600);
+      const signed = await sb.storage.from("player-avatars").getUrl(profile.data.avatar_path, 3600);
       const url = signed.data?.signedUrl;
       if (!url) return;
 
