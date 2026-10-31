@@ -4,6 +4,40 @@ The app uses PHP 8.4 and MariaDB 11 on Cloud86/Plesk. phpMyAdmin is the database
 administration tool. The browser talks only to the PHP API on the same domain;
 database credentials are never sent to browser code.
 
+## Test locally on Windows
+
+PHP and XAMPP/MariaDB are installed on this computer. From the project folder:
+
+```powershell
+.\dev\start.ps1
+```
+
+Open http://localhost:3001/ and click Continue with Google. In local mode this
+opens a **sample-account chooser**, not real Google. Choose Super Admin first;
+switch to Player, Finance, Attendance, Admin or Viewer to test permissions.
+Use the LOCAL TEST banner to switch accounts.
+
+The launcher creates a separate loopback-only MariaDB instance on port 33079
+and a sample database named football_castellon_dev. It never connects to Cloud86.
+The local credentials, database files, process records and logs stay in the
+ignored .local/ folder. Restarting preserves your sample edits.
+
+To stop both local processes:
+
+```powershell
+.\dev\stop.ps1
+```
+
+Port 3000 can keep serving an older static preview; use **3001** for this app.
+Real Google OAuth must be tested separately on a configured PHP host. The local
+account chooser requires the PHP built-in server, an explicit launcher flag,
+a loopback connection and a localhost Host header. It cannot run under Plesk's
+PHP handler. Production keeps its secure session cookies and real Google login.
+
+On another Windows machine, pass -PhpPath and -DatabaseBin if the tools are in
+different folders. The application still targets PHP 8.4/MariaDB 11 in production;
+the installed local XAMPP server is MariaDB 10.4 and does not replace staging tests.
+
 ## Deploy
 
 Deploy the complete branch, including api/, to the PHP-enabled document root

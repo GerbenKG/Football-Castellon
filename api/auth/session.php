@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/bootstrap.php';
 
-const APP_SESSION_COOKIE = '__Host-fc_session';
+define('APP_SESSION_COOKIE', isLocalDevelopment() ? 'fc_dev_session' : '__Host-fc_session');
 const APP_SESSION_DAYS = 7;
 
 function uuidV4(): string
@@ -38,7 +38,7 @@ function setApplicationSession(string $userId): void
     setcookie(APP_SESSION_COOKIE, $token, [
         'expires' => time() + (APP_SESSION_DAYS * 86400),
         'path' => '/',
-        'secure' => true,
+        'secure' => !isLocalDevelopment(),
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
@@ -110,7 +110,7 @@ function destroyApplicationSession(): void
     setcookie(APP_SESSION_COOKIE, '', [
         'expires' => time() - 3600,
         'path' => '/',
-        'secure' => true,
+        'secure' => !isLocalDevelopment(),
         'httponly' => true,
         'samesite' => 'Lax',
     ]);

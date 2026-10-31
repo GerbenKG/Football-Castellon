@@ -6,7 +6,7 @@ $user = requireUser();
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = $method === 'POST' ? ($_POST['path'] ?? '') : ($_GET['path'] ?? '');
 if (!is_string($path) || !preg_match('~^[a-f0-9-]{36}/avatar\.(jpg|jpeg|png|webp)$~i', $path)) jsonResponse(['error' => 'Invalid avatar path'], 400);
-$directory = dirname(__DIR__, 2) . '/football-avatars';
+$directory = avatarStorageDirectory();
 $target = $directory . '/' . $path;
 if ($method === 'GET') {
     $stmt = db()->prepare('SELECT email FROM access_profiles WHERE avatar_path = :path AND active = TRUE LIMIT 1');

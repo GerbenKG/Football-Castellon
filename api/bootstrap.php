@@ -7,6 +7,22 @@ set_exception_handler(static function (Throwable $error): void {
     jsonResponse(['error' => 'The application service is unavailable'], 500);
 });
 
+function isLocalDevelopment(): bool
+{
+    $host = strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]);
+    return PHP_SAPI === 'cli-server'
+        && getenv('FOOTBALL_LOCAL_DEV') === '1'
+        && in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true)
+        && in_array($host, ['localhost', '127.0.0.1'], true);
+}
+
+function avatarStorageDirectory(): string
+{
+    return isLocalDevelopment()
+        ? dirname(__DIR__) . '/.local/avatars'
+        : dirname(__DIR__, 2) . '/football-avatars';
+}
+
 function db(): PDO
 {
     static $pdo = null;
@@ -15,9 +31,12 @@ function db(): PDO
         return $pdo;
     }
 
-    $configPath = dirname(__DIR__, 2) . '/db-config.php';
+    $configPath = isLocalDevelopment()
+        ? dirname(__DIR__) . '/.local/db-config.php'
+        : dirname(__DIR__, 2) . '/db-config.php';
     if (!is_file($configPath)) throw new RuntimeException('Database configuration is missing');
     $config = require $configPath;
+    if (isLocalDevelopment() && ($config['host'] !== '127.0.0.1' || $config['database'] !== 'football_castellon_dev')) throw new RuntimeException('Invalid local database configuration');
 
     $dsn = sprintf(
         'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
