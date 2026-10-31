@@ -20,6 +20,14 @@ class RecordingPDO extends PDO {
     public function __construct() {}
     public function prepare(string $query, array $options = []): PDOStatement|false { return new RecordingStatement($query); }
     public function inTransaction(): bool { return false; }
+    public function beginTransaction(): bool { return true; }
+    public function commit(): bool { return true; }
+}
+function ensureClubSchema(PDO $pdo): void {}
+function clubAudit(PDO $pdo, array $user, string $action, array $data): void {
+    global $writes;
+    if (count($writes) !== 1) throw new RuntimeException('Audit must follow the successful financial write');
+    if ($data['table'] !== 'game_players' || $data['changes']['paid'] !== true) throw new RuntimeException('Audit must describe the financial change');
 }
 function db(): PDO { return new RecordingPDO(); }
 function requireUser(): array { return ['id' => 'user', 'role' => 'fixture']; }
@@ -47,6 +55,6 @@ if ($scenario === 'finance-squad-edit') $body['data'] = ['playing' => false];
 if ($scenario === 'empty-delete') $body = ['action' => 'delete', 'filters' => []];
 $handler = file_get_contents(__DIR__ . '/../api/data-handler.php');
 $handler = preg_replace('/^<\?php\s*declare\(strict_types=1\);/', '', $handler);
-$handler = preg_replace('/^require_once .*;$/m', '', $handler);
+$handler = preg_replace('/^require_once .*;\r?$/m', '', $handler);
 $handler = str_replace("file_get_contents('php://input')", 'json_encode($GLOBALS["body"])', $handler);
 eval($handler);

@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/auth/session.php';
 require_once __DIR__ . '/auth/csrf-lib.php';
 require_once __DIR__ . '/query-lib.php';
+require_once __DIR__ . '/club-lib.php';
 $user = requireUser();
 $table = $_GET['table'] ?? '';
 if (!is_string($table) || !isset(DATA_TABLES[$table])) jsonResponse(['error' => 'Unsupported data table'], 400);
@@ -68,11 +69,14 @@ try {
         }
         return $row;
     };
+    $financial = in_array($table, ['payments','finance_seasons','finance_season_tickets','finance_expenses'], true)
+        || ($table === 'game_players' && ($action === 'delete' || array_key_exists('paid', $body['data'] ?? [])));
     if ($action === 'insert' || $action === 'upsert') {
         $data = $body['data'] ?? null;
         if (!is_array($data)) throw new InvalidArgumentException('Invalid data');
         $rows = array_is_list($data) ? $data : [$data];
         $rows = array_map($validate, $rows);
+        if ($financial) ensureClubSchema($pdo);
         $pdo->beginTransaction();
         foreach ($rows as &$row) {
             if ($action === 'upsert' && !isset($row['id'])) throw new InvalidArgumentException('Upsert requires id');
@@ -100,6 +104,7 @@ try {
             $pdo->prepare($sql)->execute(sqlValues($row));
         }
         unset($row);
+        if ($financial) clubAudit($pdo, $user, 'Finance records ' . $action, ['table' => $table, 'records' => $rows]);
         $pdo->commit();
         jsonResponse(['data' => normalizeRows($rows)]);
     }
@@ -120,7 +125,12 @@ try {
         }
         $sql = 'UPDATE `' . $table . '` SET ' . implode(',', $sets) . $where;
     }
+    if ($financial) { ensureClubSchema($pdo); $pdo->beginTransaction(); }
     $pdo->prepare($sql)->execute(sqlValues($params));
+    if ($financial) {
+        clubAudit($pdo, $user, 'Finance records ' . $action, ['table' => $table, 'filters' => $filters, 'changes' => $data ?? []]);
+        $pdo->commit();
+    }
     jsonResponse(['data' => true]);
 } catch (Throwable $error) {
     if ($pdo->inTransaction()) $pdo->rollBack();

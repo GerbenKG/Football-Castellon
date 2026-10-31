@@ -122,3 +122,56 @@ Both hosts use separate host-only session cookies. No sample login is enabled
 under Plesk: local test login requires the isolated built-in development server.
 
 Development database credentials stay only in the private server-side db-config.dev.php file. This file is excluded from Git. Production configuration and deployment are independent.
+
+## Clubhouse redesign (development branch)
+
+`index.html` is the player-facing clubhouse. `office.html` retains the existing
+management tools for authorised board members, with links back to the clubhouse.
+The redesign lives on `feature/clubhouse-dev`; deploy this branch only to
+`dev.castellon.futbol`. Production and main are not changed.
+
+The authenticated club API adds two tables, `club_records` and `club_audit`, with
+CREATE TABLE IF NOT EXISTS. It never resets existing tables. These hold club
+announcements, published teams/results/goals, player preferences, one vote per
+member per match, waiting lists and transfer reports. Existing records remain
+the source of truth for fixtures, playing lists, tickets, payments and expenses.
+Database credentials still live outside the document root.
+
+Shared squad pages exclude emails, phone numbers, payment flags and skill levels.
+Individual payment reports are visible only to their owner and finance roles.
+Every mutation requires a session-bound CSRF token and server-side permission
+checks. Financial changes through both the clubhouse and older management tools
+are recorded in the audit history; this starts at deployment, not retroactively.
+
+Capacity is optional. Once full, a match queues additional signups. A withdrawal
+or capacity increase automatically admits the first waiting player; there is no
+email/push delivery or acceptance deadline. Board squad overrides remain possible.
+Players should check their status before kick-off. Published line-ups are a
+reviewable random draft with manual adjustments, not a skill-based ranking.
+
+A transfer report does not clear a balance: a treasurer must confirm receipt.
+The displayed club balance is recorded income minus paid expenses, not a bank
+reconciliation. The app never initiates bank transfers. Withdrawals retain paid
+flags but are not an automated refund/credit system; the treasurer handles these.
+
+Statistics use the playing lists of completed matches with at least one recorded
+participant. They exclude future fixtures. Goals and W/D/L require recorded
+results; W/D/L additionally requires published teams. Historical signups are
+labelled recorded appearances rather than verified attendance. No results,
+photos or milestones are invented. Times and calendar files use Europe/Madrid.
+
+Data refreshes after saves and every 60 seconds while the page is visible and
+no form is being edited. This is polling, not a WebSocket subscription.
+
+Additional checks (isolated sample database only):
+
+```
+node tests/club-model.test.cjs
+node tests/club-local.test.cjs
+```
+
+The integration server for the second command must be the local PHP server on
+port 3002 with FOOTBALL_LOCAL_DEV=1 and the isolated sample database. Its local
+login page is checked before any fixture is created. Never point these tests at
+the live database. Receipts, match-photo uploads, notifications and birthdays are
+not part of this release; existing member profile-picture support is retained.

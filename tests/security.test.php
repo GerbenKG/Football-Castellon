@@ -6,7 +6,7 @@ class ApiReply extends RuntimeException {}
 function jsonResponse(array $data, int $status = 200): never { throw new ApiReply($data['error'] ?? '', $status); }
 $source = file_get_contents(__DIR__ . '/../api/auth/csrf-lib.php');
 $source = preg_replace('/^<\?php\s*declare\(strict_types=1\);/', '', $source);
-$source = preg_replace('/^require_once .*;$/m', '', $source);
+$source = preg_replace('/^require_once .*;\r?$/m', '', $source);
 eval($source);
 $_COOKIE[APP_SESSION_COOKIE] = 'test-browser-session-secret';
 $_SERVER['HTTP_X_CSRF_TOKEN'] = csrfToken();
