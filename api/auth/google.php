@@ -14,7 +14,7 @@ session_name('fc_oauth');
 session_start();
 
 $config = googleConfig();
-$redirectUri = 'https://castellon.futbol/api/auth/google-callback.php';
+$redirectUri = oauthRedirectUri($config);
 $state = bin2hex(random_bytes(32));
 
 $_SESSION['oauth_state'] = $state;

@@ -99,3 +99,23 @@ withdrawal, team selection, bibs, finance, member previews and avatar uploads.
 
 GET /api/health.php checks database connectivity without revealing configuration.
 The app has no build step and makes no requests to an external database service.
+## Live-data testing on the development site
+
+The existing Plesk site dev.castellon.futbol can run this branch with the same
+server-side database configuration as production. Changes there affect real data.
+Do not run dev/setup.php against the live database or copy .local/ to the server.
+
+Before testing:
+
+1. Add a DNS A record for dev.castellon.futbol pointing to 45.82.191.137.
+2. Make sure Plesk has a valid HTTPS certificate for dev.castellon.futbol.
+3. Register https://dev.castellon.futbol/api/auth/google-callback.php as an additional
+   authorized redirect URI in the existing Google OAuth client.
+4. Pull and deploy fix/php-mysql-from-main to the DEVELOPMENT site's document root.
+5. Verify /api/health.php and sign in with an invited account.
+
+The production domain retains its own Google callback. Callback selection is
+restricted to the known production and development hostnames, unless an explicit
+same-host HTTPS callback is added to redirect_uris in google-config.php.
+Both hosts use separate host-only session cookies. No sample login is enabled
+under Plesk: local test login requires the isolated built-in development server.

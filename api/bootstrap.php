@@ -68,6 +68,23 @@ function googleConfig(): array
     return $config;
 }
 
+function oauthRedirectUri(array $config, ?string $requestHost = null): string
+{
+    $host = strtolower(preg_replace('/:\d+$/', '', $requestHost ?? ($_SERVER['HTTP_HOST'] ?? '')));
+    if (!preg_match('/^[a-z0-9.-]+$/', $host)) throw new RuntimeException('Invalid sign-in hostname');
+    $defaults = [
+        'castellon.futbol' => 'https://castellon.futbol/api/auth/google-callback.php',
+        'dev.castellon.futbol' => 'https://dev.castellon.futbol/api/auth/google-callback.php',
+    ];
+    $configured = $config['redirect_uris'] ?? [];
+    if (!is_array($configured)) throw new RuntimeException('Invalid sign-in configuration');
+    $uri = $configured[$host] ?? $defaults[$host] ?? null;
+    if (!is_string($uri) || $uri !== 'https://' . $host . '/api/auth/google-callback.php') {
+        throw new RuntimeException('No secure Google callback configured for this hostname');
+    }
+    return $uri;
+}
+
 function jsonResponse(array $data, int $status = 200): never
 {
     http_response_code($status);

@@ -41,7 +41,7 @@ if (!is_string($code) || $code === '') {
 }
 
 $config = googleConfig();
-$redirectUri = 'https://castellon.futbol/api/auth/google-callback.php';
+$redirectUri = oauthRedirectUri($config);
 
 $ch = curl_init('https://oauth2.googleapis.com/token');
 curl_setopt_array($ch, [
