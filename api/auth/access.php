@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/session.php';
 require_once __DIR__ . '/csrf-lib.php';
+require_once dirname(__DIR__) . '/club-lib.php';
 
 $user = requireUser();
 $pdo = db();
+ensureClubSchema($pdo);
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($method !== 'GET' && $method !== 'POST') jsonResponse(['error' => 'Method not allowed'], 405);
@@ -17,17 +19,26 @@ if ($method === 'POST') {
     if (!is_array($body)) jsonResponse(['error' => 'Invalid request body'], 400);
     $action = $body['action'] ?? '';
     $roles = ['super_admin', 'admin', 'attendance', 'finance', 'viewer', 'player'];
-    $permissionsAllowed = ['dashboard.view', 'players.view', 'players.manage', 'games.view', 'games.manage', 'attendance.view', 'attendance.manage', 'payments.view', 'payments.manage', 'access.manage'];
-    if (!in_array($action, ['admin_upsert_access', 'admin_delete_access', 'admin_update_permission'], true)) jsonResponse(['error' => 'Unsupported access action'], 400);
+    $permissionsAllowed = clubPermissionNames();
+    if (!in_array($action, ['admin_upsert_access', 'admin_delete_access', 'admin_update_permission','admin_set_role_permissions'], true)) jsonResponse(['error' => 'Unsupported access action'], 400);
     try {
         $pdo->beginTransaction();
-        if ($action === 'admin_update_permission') {
+        if ($action === 'admin_set_role_permissions') {
+            $role = $body['role'] ?? '';
+            if (!in_array($role, $roles, true) || $role === 'super_admin') throw new InvalidArgumentException('The Club owner profile is fixed');
+            $permissions = validateClubPermissions($body['permissions'] ?? null);
+            if (count($permissions) !== count($permissionsAllowed)) throw new InvalidArgumentException('Send the complete profile before saving');
+            $stmt = $pdo->prepare('INSERT INTO role_permissions (role,permission,enabled) VALUES (?,?,?) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled)');
+            foreach ($permissions as $permission=>$enabled) $stmt->execute([$role,$permission,(int)$enabled]);
+            clubAudit($pdo,$user,'Profile permissions updated',['role'=>$role,'permissions'=>$permissions]);
+        } elseif ($action === 'admin_update_permission') {
             $role = $body['p_role'] ?? '';
             $permission = $body['p_permission'] ?? '';
             $enabled = $body['p_enabled'] ?? null;
             if (!in_array($role, $roles, true) || $role === 'super_admin' || !in_array($permission, $permissionsAllowed, true) || !is_bool($enabled)) throw new InvalidArgumentException('Invalid permission');
             $stmt = $pdo->prepare('INSERT INTO role_permissions (role, permission, enabled) VALUES (:role, :permission, :enabled) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled)');
             $stmt->execute(['role' => $role, 'permission' => $permission, 'enabled' => (int) $enabled]);
+            clubAudit($pdo,$user,'Profile permission updated',['role'=>$role,'permission'=>$permission,'enabled'=>$enabled]);
         } else {
             $email = $body['p_email'] ?? null;
             if (!is_string($email) || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254) throw new InvalidArgumentException('Invalid email');
@@ -62,6 +73,7 @@ if ($method === 'POST') {
             if ($existing && $existing['user_id'] && $existing['user_id'] !== $user['id']) {
                 $pdo->prepare('DELETE FROM sessions WHERE user_id = :id')->execute(['id' => $existing['user_id']]);
             }
+            clubAudit($pdo,$user,$action==='admin_delete_access'?'Member access removed':'Member access saved',['email'=>$email,'role'=>$role??null,'active'=>$active??null,'player_id'=>$playerId??null]);
         }
         $pdo->commit();
         jsonResponse(['ok' => true]);
@@ -89,8 +101,9 @@ foreach ($permissionsStmt->fetchAll() as $row) {
 }
 
 if ($user['role'] === 'super_admin') {
-    foreach (['dashboard.view','players.view','players.manage','games.view','games.manage','attendance.view','attendance.manage','payments.view','payments.manage','access.manage'] as $permission) $permissions[$permission] = true;
+    foreach (clubPermissionNames() as $permission) $permissions[$permission] = true;
 }
+$permissions['access.manage'] = $user['role'] === 'super_admin';
 
 $profile = [
     'email' => $user['email'],

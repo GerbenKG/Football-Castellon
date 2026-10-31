@@ -6,6 +6,22 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
 (async()=>{
  const anonymous=session();await anonymous.request('/api/club.php',undefined,401);
  const admin=await session().login('super_admin'),organiser=await session().login('attendance'),finance=await session().login('finance'),member=await session().login('player'),viewer=await session().login('viewer');
+ const accessModel=require('../access-model.js'),accessBefore=await admin.request('/api/auth/access.php');
+ const viewerPermissions=accessModel.forRole(accessBefore.rolePermissions,'viewer');
+ await member.request('/api/auth/access.php',{action:'admin_set_role_permissions',role:'viewer',permissions:viewerPermissions},403);
+ await admin.request('/api/auth/access.php',{action:'admin_set_role_permissions',role:'super_admin',permissions:viewerPermissions},400);
+ await admin.request('/api/auth/access.php',{action:'admin_set_role_permissions',role:'viewer',permissions:{...viewerPermissions,'payments.manage':true,'payments.view':false}},400);
+ try {
+  const readOnly=accessModel.setLevel(viewerPermissions,'finance','read');readOnly['clubhouse.view']=false;readOnly['squad.view']=false;
+  await admin.request('/api/auth/access.php',{action:'admin_set_role_permissions',role:'viewer',permissions:readOnly});
+  const snapshot=await viewer.request('/api/club.php');assert.ok(snapshot.finance);assert.equal(snapshot.permissions['payments.manage'],false);assert.equal(snapshot.permissions['clubhouse.view'],false);assert.equal(snapshot.permissions['squad.view'],false);
+ } finally {await admin.request('/api/auth/access.php',{action:'admin_set_role_permissions',role:'viewer',permissions:viewerPermissions});}
+ const own=accessBefore.members.find(m=>m.email===accessBefore.profile.email);
+ await admin.request('/api/auth/access.php',{action:'admin_upsert_access',p_email:own.email,p_role:'player',p_active:false,p_player_id:own.player_id},400);
+ await admin.request('/api/auth/access.php',{action:'admin_upsert_access',p_email:'collision@example.test',p_role:'player',p_active:true,p_player_id:own.player_id},400);
+ const attendanceRows=await organiser.request('/api/data.php?table=game_players');assert.ok(attendanceRows.data.every(r=>!('paid' in r)));
+ await organiser.request('/api/data.php?table=game_players&filters='+encodeURIComponent(JSON.stringify([{column:'paid',operator:'eq',value:false}])),undefined,403);
+ console.log('PASS saved page permissions, read-only finance, owner protection, player-link collisions and financial-read privacy');
  const create=await admin.request('/api/club.php',{action:'fixture',date:'2099-01-01',start:'19:30',end:'21:30',location:'Disposable club integration fixture'});
  const gid=create.id;let past;
  const post=(s,b,status=200)=>s.request('/api/club.php',b,status);
@@ -49,4 +65,10 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
   assert.ok((await finance.request('/api/club.php')).audit.some(a=>a.action==='Payment confirmed'));
  } finally {for(const id of [gid,past].filter(Boolean))await admin.request('/api/data.php?table=games',{action:'delete',filters:[{column:'id',operator:'eq',value:id}]});}
  console.log('PASS disposable match fixtures cleaned up');
+ const originalMember=accessBefore.members.find(m=>m.role==='viewer');
+ try {
+  await admin.request('/api/auth/access.php',{action:'admin_upsert_access',p_email:originalMember.email,p_role:'player',p_active:true,p_player_id:originalMember.player_id});
+  const assigned=await session().login('viewer');const identity=await assigned.request('/api/auth/access.php');assert.equal(identity.profile.role,'player');assert.equal(identity.profile.player_id,originalMember.player_id);
+ } finally {await admin.request('/api/auth/access.php',{action:'admin_upsert_access',p_email:originalMember.email,p_role:originalMember.role,p_active:originalMember.active,p_player_id:originalMember.player_id});}
+ console.log('PASS profile assignment to an existing player and restoration');
 })().catch(e=>{console.error(e);process.exitCode=1;});

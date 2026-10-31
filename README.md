@@ -175,3 +175,36 @@ port 3002 with FOOTBALL_LOCAL_DEV=1 and the isolated sample database. Its local
 login page is checked before any fixture is created. Never point these tests at
 the live database. Receipts, match-photo uploads, notifications and birthdays are
 not part of this release; existing member profile-picture support is retained.
+
+## Unified management design and page permissions
+
+The board tools now load the same `club.css` design system as the clubhouse,
+with a shared sidebar, crest, page spacing, typography, form controls, and mobile
+navigation. `office-theme.css` styles the existing financial tables, calendars,
+roster controls and dialogs. No fixture or payment data is rewritten for styling.
+
+Club owners manage access at `office.html?view=admin`:
+
+- Link an invited Google account to an existing player and assign its profile.
+- Edit access directly from a player record, or search/filter the member list.
+- Set each profile's pages to No access, Read only, or Can edit, then explicitly save.
+- Disable an account without deleting historical player or payment records.
+
+The existing role identifiers are retained: super_admin (Club owner), admin
+(Club board), attendance (Match organiser), finance (Treasurer), viewer (Read-only
+member), and player (Player). Profile names are descriptions; the saved page
+settings determine the actual permissions. Club owners have fixed full access;
+only Club owners can change membership or permissions. Self-demotion or disabling
+one's own owner account is rejected on the server.
+
+New clubhouse.view, clubhouse.manage and squad.view permission rows are seeded
+with INSERT IGNORE to retain the redesign's current audience and editors. Existing
+saved role permissions and player/profile assignments are not reset. Thereafter,
+profile changes are transactional, validated on the server and audited. Private
+player records and other members' finances have separate access settings. Match
+squad reads omit payment flags without finance read access. All members retain
+access to their own My Club details and personal payments.
+
+Role/profile integration tests create temporary fixtures only in the isolated
+local database, then restore the changed sample profiles and account assignment.
+Additional checks: `node tests/access-model.test.cjs` and `php tests/access.test.php`.

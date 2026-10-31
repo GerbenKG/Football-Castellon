@@ -1,9 +1,11 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/access-lib.php';
 
 // Additive feature storage: existing club tables and records are never reset.
 function ensureClubSchema(PDO $pdo): void
 {
+    ensureClubPagePermissions($pdo);
     $pdo->exec("CREATE TABLE IF NOT EXISTS club_records (
         record_key VARCHAR(150) PRIMARY KEY, kind VARCHAR(32) NOT NULL,
         payload LONGTEXT NOT NULL, actor_id CHAR(36) NOT NULL,
@@ -188,8 +190,8 @@ function clubPaymentRow(PDO $pdo, string $type, string $id): array
 function clubSnapshot(PDO $pdo, array $user): array
 {
     $permissions = [];
-    foreach (['games.view','games.manage','players.manage','attendance.manage','payments.view','payments.manage','access.manage'] as $p) $permissions[$p] = hasPermission($user['role'], $p);
-    clubRequire($user, 'games.view');
+    foreach (clubPermissionNames() as $p) $permissions[$p] = hasPermission($user['role'], $p);
+    $permissions['access.manage'] = $user['role'] === 'super_admin';
     // Deliberately exclude contacts, skills, payment flags and access records from the shared squad.
     $players = $pdo->query('SELECT p.id,p.name,p.archived_at,ap.avatar_path FROM players p LEFT JOIN access_profiles ap ON ap.player_id=p.id AND ap.active=1 ORDER BY p.name')->fetchAll();
     $games = $pdo->query('SELECT id,game_date,start_time,end_time,location FROM games ORDER BY game_date,start_time')->fetchAll();
@@ -217,7 +219,7 @@ function clubSnapshot(PDO $pdo, array $user): array
     }
     $publicUser = array_intersect_key($user, array_flip(['id','email','display_name','role','player_id','avatar_path','phone','contact_email']));
     return ['user' => $publicUser, 'permissions' => $permissions, 'players' => $players, 'games' => $games, 'signups' => $rows,
-        'seasons' => $seasons, 'my_tickets' => $myTickets, 'announcements' => array_slice($announcements, 0, 30), 'matches' => (object) $matches,
+        'seasons' => $seasons, 'my_tickets' => $myTickets, 'announcements' => $permissions['clubhouse.view'] ? array_slice($announcements, 0, 30) : [], 'matches' => (object) $matches,
         'votes' => (object) $votes, 'my_votes' => (object) $myVotes, 'player_cards' => (object) $cards, 'waiting' => $waiting, 'payment_reports' => $reports,
         'finance' => $permissions['payments.view'] ? clubFinance($pdo) : null,
         'audit' => $permissions['payments.view'] ? $pdo->query('SELECT actor_name,action,details,created_at FROM club_audit ORDER BY created_at DESC,id DESC LIMIT 30')->fetchAll() : [],

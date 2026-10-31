@@ -7,7 +7,6 @@ require_once __DIR__ . '/club-lib.php';
 $user = requireUser();
 $pdo = db();
 try {
-    clubRequire($user, 'games.view');
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     if (!in_array($method, ['GET','POST'], true)) jsonResponse(['error' => 'Method not allowed'], 405);
     if ($method === 'POST') requireCsrfToken();
@@ -24,13 +23,13 @@ try {
             $result = clubSignup($pdo, $user, clubId($body['game_id'] ?? null), $body['join']);
             break;
         case 'announcement':
-            clubRequire($user, 'games.manage');
+            clubRequire($user, 'clubhouse.manage');
             $id = 'announcement:' . uuidV4();
             clubPut($pdo, $id, 'announcement', ['title' => clubText($body['title'] ?? null, 100), 'body' => clubText($body['body'] ?? null, 2000), 'author' => $user['display_name'] ?: 'Club board'], $user);
             clubAudit($pdo, $user, 'Announcement published', ['title' => $body['title']]);
             break;
         case 'remove_announcement':
-            clubRequire($user, 'games.manage');
+            clubRequire($user, 'clubhouse.manage');
             $id = 'announcement:' . clubId($body['id'] ?? null);
             clubDelete($pdo, $id);
             clubAudit($pdo, $user, 'Announcement removed', ['id' => $id]);
@@ -94,6 +93,7 @@ try {
             $result['id'] = $id;
             break;
         case 'vote':
+            clubRequire($user, 'games.view');
             $id = clubId($body['game_id'] ?? null);
             $pid = clubId($body['player_id'] ?? null);
             $game = clubLockGame($pdo, $id);

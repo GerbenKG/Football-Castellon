@@ -16,6 +16,10 @@ try {
         $filters = json_decode((string) ($_GET['filters'] ?? '[]'), true);
         $orders = json_decode((string) ($_GET['orders'] ?? '[]'), true);
         if (!is_array($filters) || !is_array($orders)) throw new InvalidArgumentException('Invalid query');
+        $canReadPayments = hasPermission($user['role'], 'payments.view');
+        if ($table === 'game_players' && !$canReadPayments) {
+            foreach ($filters as $filter) if (($filter['column'] ?? null) === 'paid') jsonResponse(['error' => 'Finance access required'], 403);
+        }
         $params = [];
         $sql = 'SELECT * FROM `' . $table . '`' . queryFilters($filters, $config['columns'], $params);
         $sort = [];
@@ -32,6 +36,10 @@ try {
         $stmt = $pdo->prepare($sql);
         $stmt->execute(sqlValues($params));
         $rows = normalizeRows($stmt->fetchAll());
+        if ($table === 'game_players' && !$canReadPayments) {
+            foreach ($rows as &$row) unset($row['paid']);
+            unset($row);
+        }
         if ($table === 'game_players' && ($_GET['include_players'] ?? '') === '1') {
             $ids = array_values(array_unique(array_filter(array_column($rows, 'player_id'))));
             $players = [];

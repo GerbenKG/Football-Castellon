@@ -49,7 +49,7 @@
       can("players.manage") ? '<button class="btn btn-secondary" data-pv-action="archive" data-id="' + esc(p.id) + '">Archive</button>' : ""
     ].join("");
     const memberCell = superAdmin
-      ? (member ? '<span class="badge badge-green">Member</span>' : '<button class="btn btn-secondary" data-pv-action="member" data-id="' + esc(p.id) + '">Create Member</button>')
+      ? (member ? '<span class="badge badge-green">' + esc(window.ClubAccessModel?.name(member.role) || 'Member') + '</span> <button class="btn btn-secondary" data-pv-action="member" data-id="' + esc(p.id) + '">Edit access</button>' : '<button class="btn btn-secondary" data-pv-action="member" data-id="' + esc(p.id) + '">Set up access</button>')
       : "";
     return '<tr data-player-id="' + esc(p.id) + '">' +
       '<td><div class="who"><span class="avatar">' + esc(p.name).slice(0,1).toUpperCase() + '</span><b>' + esc(p.name) + '</b></div></td>' +
@@ -112,6 +112,7 @@
     if (action === "member") {
       const p = data.players.find(x => x.id === id);
       if (!p || !superAdmin) return;
+      if (window.ClubAccess) return window.ClubAccess.editPlayer(p);
       const email = String(p.email || prompt("Enter the email address for " + p.name + ":", "") || "").trim().toLowerCase();
       if (!email) return;
       if (!/^\S+@\S+\.\S+$/.test(email)) return alert("Please enter a valid email address.");
