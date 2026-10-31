@@ -34,7 +34,11 @@
     const isSelf=member?.email.toLowerCase()===access.profile.email.toLowerCase(),linkedElsewhere=new Set(access.members.filter(m=>m.email!==member?.email).map(m=>m.player_id));
     const options=players.map(p=>`<option value="${p.id}" ${p.id===(member?.player_id||selectedPlayer?.id)?'selected':''} ${linkedElsewhere.has(p.id)?'disabled':''}>${esc(p.name)}${linkedElsewhere.has(p.id)?' (already linked)':''}</option>`).join('');
     document.getElementById('modal-root').innerHTML=`<div class="modal-bg"><div class="modal"><div class="modal-head"><div><h2>${member?'Edit member access':'Welcome someone to the club'}</h2><p>Link their Google account to an existing player.</p></div><button type="button" class="remove" data-close aria-label="Close dialog">×</button></div><form id="access-member-form" data-existing="${esc(member?.email||'')}"><label>Google account email<input name="email" type="email" value="${esc(member?.email||selectedPlayer?.email||'')}" maxlength="254" required ${member?'readonly':''}><small class="muted">They must sign in with this Google account.</small></label><label>Player<select name="player_id" required><option value="">Choose a player…</option>${options}</select></label><label>Access profile<select name="role" id="access-member-role" ${isSelf?'disabled':''}>${[...model.roles].reverse().map(r=>`<option value="${r.id}" ${(member?.role||'player')===r.id?'selected':''}>${r.name}</option>`).join('')}</select></label><div class="notice" id="access-member-description">${esc(model.roles.find(r=>r.id===(member?.role||'player')).description)}</div><p class="access-profile-preview" id="access-member-preview">${preview(member?.role||'player')}</p><label class="checkline"><input name="active" type="checkbox" ${!member||member.active?'checked':''} ${isSelf?'disabled':''}> Active — allow this member to sign in</label>${isSelf?'<p class="muted small">Your own Club owner access cannot be disabled or downgraded.</p>':''}<p id="access-member-error" class="form-error" role="alert"></p><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary" type="submit">Save member access</button></div></form></div></div>`;
+    const native=document.getElementById('member-access-dialog');
+    if(native){native.innerHTML=document.querySelector('#modal-root .modal').innerHTML;document.getElementById('modal-root').innerHTML='';native.showModal();}
   }
+  function closeMemberDialog(){document.getElementById('member-access-dialog')?.close();document.getElementById('modal-root').innerHTML='';}
+  document.addEventListener('click',e=>{if(e.target.closest('[data-close]')&&document.getElementById('member-access-dialog')?.open)closeMemberDialog();});
   function preview(role){const values=model.forRole(access.rolePermissions,role);return model.pages.map(p=>`${esc(p.name)}: <b>${{none:'No access',read:'Read only',edit:'Can edit'}[model.level(values,p)]}</b>`).join('<br>')+`<br>Members & permissions: <b>${role==='super_admin'?'Can edit':'Club owner only'}</b>`;}
   document.addEventListener('click',async event=>{
     const button=event.target.closest('[data-access-action]');if(!button||!root())return;
@@ -62,11 +66,11 @@
       }else{
         const f=new FormData(form),existing=access.members.find(m=>m.email===form.dataset.existing),self=existing?.email.toLowerCase()===access.profile.email.toLowerCase(),pid=f.get('player_id');
         await api.post('/api/auth/access.php',{action:'admin_upsert_access',p_email:String(f.get('email')).trim().toLowerCase(),p_player_id:pid,p_display_name:players.find(p=>p.id===pid)?.name||'',p_role:self?'super_admin':f.get('role'),p_active:self||f.has('active')});
-        document.getElementById('modal-root').innerHTML='';await load();if(!root()){location.reload();return;}message='Member access saved. Existing football and payment records are unchanged.';
+        closeMemberDialog();await load();window.dispatchEvent(new Event('football:member-access-saved'));if(!root()){if(!document.getElementById('club-app'))location.reload();return;}message='Member access saved. Existing football and payment records are unchanged.';
       }
       draw();
     }catch(e){if(form.id==='access-member-form'&&document.getElementById('access-member-error'))document.getElementById('access-member-error').textContent=e.message;else{error=e.message;draw();}}finally{saving=false;if(form.id==='access-role-form')draw();if(button.isConnected)button.disabled=false;}
   },true);
   window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});
-  window.ClubAccess={view,async editPlayer(player){if(!access)await load();if(!owner())throw new Error('Only a Club owner can assign profiles');dialog(access.members.find(m=>m.player_id===player.id)||null,player);}};
+  window.ClubAccess={view,hasUnsaved:()=>dirty,async editPlayer(player){if(!access)await load();if(!owner())throw new Error('Only a Club owner can assign profiles');dialog(access.members.find(m=>m.player_id===player.id)||null,player);}};
 })();

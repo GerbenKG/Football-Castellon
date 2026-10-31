@@ -45,6 +45,24 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
   let d=await member.request('/api/club.php');assert.equal(d.signups.filter(r=>r.game_id===gid).length,2);assert.equal(d.finance,null);assert.equal(d.audit.length,0);assert.ok(d.players.every(p=>!('phone'in p)&&!('email'in p)&&!('skill_level'in p)));assert.ok(d.signups.every(r=>!('paid'in r)));
   await post(admin,{action:'signup',game_id:gid,join:false});d=await member.request('/api/club.php');assert.ok(d.signups.some(r=>r.game_id===gid&&r.player_id===d.user.player_id));assert.equal(d.waiting.filter(r=>r.game_id===gid).length,0);
   console.log('PASS capacity, waiting list, automatic promotion and member privacy');
+  assert.deepEqual(d.player_records,[]);assert.deepEqual(d.member_accounts,[]);
+  const ownerSnapshot=await admin.request('/api/club.php');assert.ok(ownerSnapshot.player_records.length);assert.ok(ownerSnapshot.member_accounts.length);
+  const seasonId=ownerSnapshot.seasons[0].id;
+  const selected=await admin.request('/api/club.php?finance_season='+seasonId);assert.equal(selected.finance.season.id,seasonId);assert.ok(Array.isArray(selected.finance.tickets));assert.ok(Array.isArray(selected.finance.game_payments));
+  await admin.request('/api/club.php?finance_season=00000000-0000-4000-8000-000000000000',undefined,422);
+  const target=d.signups.find(r=>r.game_id===gid&&r.player_id===d.user.player_id);
+  await admin.request('/api/data.php?table=game_players',{action:'update',data:{paid:true},filters:[{column:'id',operator:'eq',value:target.id}]});
+  await post(member,{action:'squad_remove',game_id:gid,id:target.id},403);
+  await post(organiser,{action:'squad_remove',game_id:gid,id:target.id});
+  let kept=(await admin.request('/api/data.php?table=game_players&filters='+encodeURIComponent(JSON.stringify([{column:'id',operator:'eq',value:target.id}])))).data[0];assert.equal(kept.playing,false);assert.equal(kept.paid,true);
+  await post(organiser,{action:'squad_guest',game_id:gid,name:'Disposable test guest'});
+  await post(organiser,{action:'squad_guest',game_id:gid,name:'No extra place'},422);
+  const added=await post(organiser,{action:'squad_add',game_id:gid,player_id:d.user.player_id});assert.equal(added.waiting,true);
+  const guest=(await admin.request('/api/club.php')).signups.find(r=>r.game_id===gid&&r.guest_name==='Disposable test guest');
+  await post(organiser,{action:'squad_remove',game_id:gid,id:guest.id});
+  kept=(await admin.request('/api/data.php?table=game_players&filters='+encodeURIComponent(JSON.stringify([{column:'id',operator:'eq',value:target.id}])))).data[0];assert.equal(kept.playing,true);assert.equal(kept.paid,true);
+  console.log('PASS native office finance selection, private records, squad editing, capacity and retained payment history');
+
   await post(member,{action:'announcement',title:'Denied',body:'Denied'},403);
   await post(viewer,{action:'fixture',date:'2099-01-01',start:'10:00',end:'11:00',location:'Denied'},403);
   await post(organiser,{action:'expense',season_id:d.seasons[0].id,amount:1,date:'2099-01-01',description:'Denied'},403);

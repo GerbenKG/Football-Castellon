@@ -11,13 +11,42 @@ try {
     if (!in_array($method, ['GET','POST'], true)) jsonResponse(['error' => 'Method not allowed'], 405);
     if ($method === 'POST') requireCsrfToken();
     ensureClubSchema($pdo);
-    if ($method === 'GET') jsonResponse(clubSnapshot($pdo, $user));
+    if ($method === 'GET') jsonResponse(clubSnapshot($pdo, $user, isset($_GET['finance_season']) ? clubId($_GET['finance_season']) : null));
     $body = json_decode(file_get_contents('php://input') ?: '', true);
     if (!is_array($body)) throw new InvalidArgumentException('Invalid request');
     $action = $body['action'] ?? '';
     $pdo->beginTransaction();
     $result = ['ok' => true];
     switch ($action) {
+        case 'squad_add':
+        case 'squad_remove':
+        case 'squad_guest':
+            clubRequire($user,'attendance.manage');
+            $id=clubId($body['game_id']??null);$game=clubLockGame($pdo,$id);
+            if ($action==='squad_remove') {
+                $rowId=clubId($body['id']??null);
+                $s=$pdo->prepare('SELECT * FROM game_players WHERE id=? AND game_id=? FOR UPDATE');$s->execute([$rowId,$id]);$row=$s->fetch();
+                if (!$row) throw new InvalidArgumentException('Squad member no longer exists');
+                $pdo->prepare('UPDATE game_players SET playing=0 WHERE id=?')->execute([$rowId]);
+                if ($row['player_id']) clubDelete($pdo,'waiting:'.$id.':'.$row['player_id']);
+                clubPromote($pdo,$game,$user);
+            } elseif ($action==='squad_add') {
+                $pid=clubId($body['player_id']??null);
+                if (clubDateTime($game)>new DateTimeImmutable('now')) $result=clubSignup($pdo,array_replace($user,['player_id'=>$pid]),$id,true);
+                else {
+                    $s=$pdo->prepare('SELECT id FROM players WHERE id=? AND archived_at IS NULL');$s->execute([$pid]);if(!$s->fetchColumn())throw new InvalidArgumentException('Select an active player');
+                    $s=$pdo->prepare('SELECT id FROM game_players WHERE game_id=? AND player_id=? FOR UPDATE');$s->execute([$id,$pid]);$existing=$s->fetchColumn();
+                    if($existing)$pdo->prepare('UPDATE game_players SET playing=1 WHERE id=?')->execute([$existing]);
+                    else $pdo->prepare('INSERT INTO game_players (id,game_id,player_id,playing) VALUES (?,?,?,1)')->execute([uuidV4(),$id,$pid]);
+                }
+            } else {
+                $settings=clubRecord($pdo,'match:'.$id)??[];
+                $s=$pdo->prepare('SELECT COUNT(*) FROM game_players WHERE game_id=? AND playing=1');$s->execute([$id]);
+                if(clubDateTime($game)>new DateTimeImmutable('now')&&isset($settings['capacity'])&&(int)$s->fetchColumn()>=$settings['capacity'])throw new InvalidArgumentException('The match is full. Increase capacity before adding a guest.');
+                $pdo->prepare('INSERT INTO game_players (id,game_id,guest_name,playing) VALUES (?,?,?,1)')->execute([uuidV4(),$id,clubText($body['name']??null,160)]);
+            }
+            clubAudit($pdo,$user,'Match squad updated',['game_id'=>$id,'change'=>$action]);
+            break;
         case 'signup':
             if (!is_bool($body['join'] ?? null)) throw new InvalidArgumentException('Choose join or leave');
             $result = clubSignup($pdo, $user, clubId($body['game_id'] ?? null), $body['join']);

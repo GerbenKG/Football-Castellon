@@ -3,7 +3,7 @@
   if(!window.footballPreviewActive)return;
   document.body.classList.add('member-preview');
   window.isFootballPreview=()=>true;
-  const exit='/office.html?view=admin';
+  const exit='/#office/members';
   const names={super_admin:'Club owner',admin:'Club board',attendance:'Match organiser',finance:'Treasurer',viewer:'Read-only member',player:'Player'};
   window.footballPreviewUrl=value=>{
     const url=new URL(value,location.href);
@@ -27,7 +27,7 @@
     document.querySelectorAll('a[href]').forEach(a=>{if(a.hasAttribute('data-leave-member-preview'))return;const href=a.getAttribute('href');if(!href||href.startsWith('#'))return;const url=new URL(href,location.href);if(url.origin===location.origin&&['/','/index.html','/office.html'].includes(url.pathname)){const next=window.footballPreviewUrl(href);if(a.href!==next)a.href=next;}});
     document.querySelectorAll('button').forEach(b=>{
       const action=b.dataset.action,a=b.dataset.a,access=b.dataset.accessAction;
-      const mutation=(action&&!safeActions.has(action))||(a&&!['history','exit-preview'].includes(a))||(access&&!['select-role','reload'].includes(access))||b.matches('[data-pv-action],[data-fin-ticket],[data-fin-due-ticket],[data-fin-due-game],[data-fin-expense],[data-auto-teams],[data-select-teams],[data-select-bibs],button[type="submit"]')||(b.closest('form')&&!b.matches('[data-close],[data-pv-close],[data-team-close]'))||b.id==='newGame';
+      const mutation=(action&&!safeActions.has(action))||(a&&!['history','exit-preview'].includes(a))||(access&&!['select-role','reload'].includes(access))||b.matches('[data-office-action],[data-pv-action],[data-fin-ticket],[data-fin-due-ticket],[data-fin-due-game],[data-fin-expense],[data-auto-teams],[data-select-teams],[data-select-bibs],button[type="submit"]')||(b.closest('form')&&!b.matches('[data-close],[data-pv-close],[data-team-close]'))||b.id==='newGame';
       if(mutation){b.disabled=true;b.title='Read-only preview. Exit preview to make changes.';}
     });
     document.querySelectorAll('input,textarea,select').forEach(input=>{

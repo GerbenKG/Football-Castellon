@@ -148,13 +148,16 @@ function clubSignup(PDO $pdo, array $user, string $id, ?bool $join = null): arra
     return ['game_id' => $id, 'playing' => true, 'waiting' => false];
 }
 
-function clubFinance(PDO $pdo): array
+function clubFinance(PDO $pdo, ?string $seasonId = null): array
 {
-    $season = $pdo->query('SELECT * FROM finance_seasons ORDER BY (CURDATE() BETWEEN starts_on AND ends_on) DESC, starts_on DESC LIMIT 1')->fetch();
-    if (!$season) return ['season' => null, 'income' => 0, 'expenses_paid' => 0, 'balance' => 0, 'due' => [], 'expenses' => []];
+    if ($seasonId) {
+        $s=$pdo->prepare('SELECT * FROM finance_seasons WHERE id=?');$s->execute([$seasonId]);$season=$s->fetch();
+        if (!$season) throw new InvalidArgumentException('Season no longer exists');
+    } else $season = $pdo->query('SELECT * FROM finance_seasons ORDER BY (CURDATE() BETWEEN starts_on AND ends_on) DESC, starts_on DESC LIMIT 1')->fetch();
+    if (!$season) return ['season' => null, 'income' => 0, 'expenses_paid' => 0, 'balance' => 0, 'due' => [], 'expenses' => [], 'tickets'=>[], 'game_payments'=>[]];
     $s = $pdo->prepare('SELECT t.*, p.name FROM finance_season_tickets t JOIN players p ON p.id=t.player_id WHERE season_id=?');
     $s->execute([$season['id']]);
-    $tickets = $s->fetchAll();
+    $tickets = normalizeRows($s->fetchAll());
     $ticketPlayers = array_column($tickets, null, 'player_id');
     $due = []; $income = 0.0;
     foreach ($tickets as $t) {
@@ -163,9 +166,11 @@ function clubFinance(PDO $pdo): array
     }
     $s = $pdo->prepare('SELECT gp.id,gp.player_id,gp.paid,g.game_date,COALESCE(p.name,gp.guest_name) AS name FROM game_players gp JOIN games g ON g.id=gp.game_id LEFT JOIN players p ON p.id=gp.player_id WHERE gp.playing=1 AND g.game_date BETWEEN ? AND ?');
     $s->execute([$season['starts_on'], $season['ends_on']]);
+    $gamePayments=[];
     foreach ($s->fetchAll() as $r) {
         if (isset($ticketPlayers[$r['player_id'] ?? ''])) continue;
         $amount = (float) $season['pay_per_game_amount'];
+        $gamePayments[]=['id'=>$r['id'],'type'=>'game','name'=>$r['name'],'player_id'=>$r['player_id'],'amount'=>$amount,'date'=>$r['game_date'],'label'=>'Match fee','paid'=>(bool)$r['paid']];
         if ($r['paid']) $income += $amount;
         elseif ($r['game_date'] <= (new DateTimeImmutable('now', new DateTimeZone('Europe/Madrid')))->format('Y-m-d')) $due[] = ['id' => $r['id'], 'type' => 'game', 'name' => $r['name'], 'amount' => $amount, 'date' => $r['game_date'], 'label' => 'Match fee'];
     }
@@ -173,7 +178,7 @@ function clubFinance(PDO $pdo): array
     $s->execute([$season['id']]);
     $expenses = normalizeRows($s->fetchAll());
     $paidExpenses = array_sum(array_map(static fn($e) => $e['paid'] ? (float) $e['amount'] : 0, $expenses));
-    return ['season' => $season, 'income' => round($income, 2), 'expenses_paid' => round($paidExpenses, 2), 'balance' => round($income - $paidExpenses, 2), 'due' => $due, 'expenses' => $expenses];
+    return ['season' => $season, 'income' => round($income, 2), 'expenses_paid' => round($paidExpenses, 2), 'balance' => round($income - $paidExpenses, 2), 'due' => $due, 'expenses' => $expenses,'tickets'=>$tickets,'game_payments'=>$gamePayments];
 }
 
 function clubPaymentRow(PDO $pdo, string $type, string $id): array
@@ -187,7 +192,7 @@ function clubPaymentRow(PDO $pdo, string $type, string $id): array
     return $row;
 }
 
-function clubSnapshot(PDO $pdo, array $user): array
+function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): array
 {
     $permissions = [];
     foreach (clubPermissionNames() as $p) $permissions[$p] = hasPermission($user['role'], $p);
@@ -195,7 +200,7 @@ function clubSnapshot(PDO $pdo, array $user): array
     // Deliberately exclude contacts, skills, payment flags and access records from the shared squad.
     $players = $pdo->query('SELECT p.id,p.name,p.archived_at,ap.avatar_path FROM players p LEFT JOIN access_profiles ap ON ap.player_id=p.id AND ap.active=1 ORDER BY p.name')->fetchAll();
     $games = $pdo->query('SELECT id,game_date,start_time,end_time,location FROM games ORDER BY game_date,start_time')->fetchAll();
-    $rows = $pdo->query('SELECT id,game_id,player_id,guest_name FROM game_players WHERE playing=1')->fetchAll();
+    $rows = normalizeRows($pdo->query('SELECT id,game_id,player_id,guest_name,took_bibs FROM game_players WHERE playing=1')->fetchAll());
     $records = $pdo->query('SELECT record_key,kind,payload,created_at,updated_at FROM club_records ORDER BY created_at DESC')->fetchAll();
     $announcements = []; $matches = []; $votes = []; $waiting = []; $reports = []; $myVotes = []; $cards = [];
     foreach ($records as $record) {
@@ -218,10 +223,14 @@ function clubSnapshot(PDO $pdo, array $user): array
         $s->execute([$user['player_id']]); $myTickets = normalizeRows($s->fetchAll());
     }
     $publicUser = array_intersect_key($user, array_flip(['id','email','display_name','role','player_id','avatar_path','phone','contact_email']));
+    $memberAccounts=[];
+    if($user['role']==='super_admin')foreach($pdo->query('SELECT email,display_name,role,active,player_id FROM access_profiles ORDER BY display_name')->fetchAll() as $member){$member['active']=(bool)$member['active'];$member['preview_key']=previewMemberKey($member['email']);$memberAccounts[]=$member;}
     return ['user' => $publicUser, 'preview' => $user['_preview'] ?? null, 'permissions' => $permissions, 'players' => $players, 'games' => $games, 'signups' => $rows,
         'seasons' => $seasons, 'my_tickets' => $myTickets, 'announcements' => $permissions['clubhouse.view'] ? array_slice($announcements, 0, 30) : [], 'matches' => (object) $matches,
         'votes' => (object) $votes, 'my_votes' => (object) $myVotes, 'player_cards' => (object) $cards, 'waiting' => $waiting, 'payment_reports' => $reports,
-        'finance' => $permissions['payments.view'] ? clubFinance($pdo) : null,
+        'finance' => $permissions['payments.view'] ? clubFinance($pdo,$financeSeason) : null,
+        'player_records' => $permissions['players.view'] ? $pdo->query('SELECT id,name,phone,email,archived_at,skill_level FROM players ORDER BY name')->fetchAll() : [],
+        'member_accounts' => $memberAccounts,
         'audit' => $permissions['payments.view'] ? $pdo->query('SELECT actor_name,action,details,created_at FROM club_audit ORDER BY created_at DESC,id DESC LIMIT 30')->fetchAll() : [],
         'server_date' => (new DateTimeImmutable('now', new DateTimeZone('Europe/Madrid')))->format('Y-m-d'), 'updated_at' => gmdate('c')];
 }
