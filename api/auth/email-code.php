@@ -17,8 +17,12 @@ try {
         $email=is_string($body['email']??null)?strtolower(trim($body['email'])):'';
         if(strlen($email)>254||!filter_var($email,FILTER_VALIDATE_EMAIL)||preg_match('/[\r\n]/',$email))jsonResponse(['error'=>'Enter a valid email address.'],422);
         $started=microtime(true);$challenge=emailLoginIssue($pdo,$email,$_SERVER['REMOTE_ADDR']??'');
+        if(!$challenge['eligible']){
+            setcookie($cookie,'',['expires'=>1,'path'=>'/','secure'=>!isLocalDevelopment(),'httponly'=>true,'samesite'=>'Strict']);
+            jsonResponse(['membership'=>$challenge['membership'],'message'=>$challenge['membership']==='unknown'?'This email address is not registered as a club member. Ask a board member to arrange access.':'Your membership is currently disabled. Ask a board member to check your access.']);
+        }
         setcookie($cookie,$challenge['token'],['expires'=>time()+EMAIL_CODE_SECONDS,'path'=>'/','secure'=>!isLocalDevelopment(),'httponly'=>true,'samesite'=>'Strict']);
-        // FastCGI sends the same response before contacting mail, hiding membership and delivery timing.
+        // Return the accepted request before contacting the mail service.
         $response=['message'=>'If this email belongs to an active club member, a code will arrive shortly.','expires_in'=>EMAIL_CODE_SECONDS,'resend_after'=>60];
         if(function_exists('fastcgi_finish_request')){
             header('Content-Type: application/json; charset=utf-8');header('X-Content-Type-Options: nosniff');echo json_encode($response);fastcgi_finish_request();emailLoginDeliver($pdo,$email,$challenge);exit;

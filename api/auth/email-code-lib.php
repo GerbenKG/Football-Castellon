@@ -57,11 +57,12 @@ function emailLoginIssue(PDO $pdo,string $email,string $ip): array {
         emailLoginRate($pdo,'request-email:'.hash('sha256',$email),5,60);
         $pdo->prepare('DELETE FROM email_login_challenges WHERE (host=? AND email=?) OR expires_at<UTC_TIMESTAMP()')->execute([emailLoginHost(),$email]);
         $pdo->exec('DELETE FROM email_login_limits WHERE expires_at<UTC_TIMESTAMP()');
-        $pdo->prepare('INSERT INTO email_login_challenges (token_hash,host,email,code_hash,expires_at) VALUES (?,?,?,?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 10 MINUTE))')->execute([$hash,emailLoginHost(),$email,hash_hmac('sha256',$code,$token)]);
-        $s=$pdo->prepare('SELECT active FROM access_profiles WHERE email=?');$s->execute([$email]);$active=(bool)$s->fetchColumn();
+        $s=$pdo->prepare('SELECT active FROM access_profiles WHERE email=?');$s->execute([$email]);$profile=$s->fetch();
+        $membership=!$profile?'unknown':($profile['active']?'active':'disabled');$active=$membership==='active';
+        if($active)$pdo->prepare('INSERT INTO email_login_challenges (token_hash,host,email,code_hash,expires_at) VALUES (?,?,?,?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 10 MINUTE))')->execute([$hash,emailLoginHost(),$email,hash_hmac('sha256',$code,$token)]);
         $pdo->commit();
     }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
-    return ['token'=>$token,'hash'=>$hash,'code'=>$code,'eligible'=>$active];
+    return ['token'=>$token,'hash'=>$hash,'code'=>$code,'eligible'=>$active,'membership'=>$membership];
 }
 function emailLoginDeliver(PDO $pdo,string $email,array $challenge): void {
     if(!$challenge['eligible'])return;

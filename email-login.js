@@ -1,6 +1,11 @@
 (() => {
  'use strict';
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ function membershipHelp(root,reason,email){
+  const box=root.closest('.login-box')||root;document.body.classList.add('auth-help-page');box.classList.add('auth-help-box');
+  box.innerHTML=`<div class="eyebrow">A place in the club</div><div class="auth-help-symbol" aria-hidden="true">⚽</div><h1>${reason==='disabled'?'Your club access is paused.':'Your email is not on the team sheet.'}</h1><p class="auth-help-intro">${reason==='disabled'?'Your membership is currently disabled. A board member can help you check your access.':'This email address is not registered as a club member yet.'}</p><div class="auth-account"><span>Membership email</span><strong>${esc(email)}</strong></div><section class="auth-board-help" aria-labelledby="board-access-title"><h2 id="board-access-title">Ask the board for access</h2><p>Access is arranged by the team managers — your club’s board members. Contact one of them and ask to have your email address added to the club.</p><p>Already a player? Ask them to link this email to your existing player profile, so your games, payments and statistics stay together.</p></section><div class="auth-help-actions"><a class="btn btn-primary" href="/">Use another email address</a><a class="btn btn-outline" href="/api/auth/google.php">Continue with Google</a></div>`;
+  box.querySelector('h1').setAttribute('tabindex','-1');box.querySelector('h1').focus();
+ }
  function mount(root){
   if(!root)return;let address='',step='email',busy=false,resendAt=0,timer;
   function draw(message=''){
@@ -14,6 +19,7 @@
      const response=await fetch('/api/auth/email-code.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(action==='request'?{action,email:email.value.trim()}:{action,code:code.value.trim()})});
      const result=await response.json();if(!response.ok)throw new Error(result.error||'Sign-in could not be completed. Please try again.');
      if(action==='verify'){window.location.assign('/');return;}
+     if(['unknown','disabled'].includes(result.membership)){clearInterval(timer);membershipHelp(root,result.membership,email.value.trim());return;}
      address=email.value.trim();step='code';resendAt=Date.now()+result.resend_after*1000;draw('Your code is valid for 10 minutes. Only the newest code will work.');root.querySelector('#club-login-code').focus();
     }catch(e){status.textContent=e.message;}finally{busy=false;for(const b of form.querySelectorAll('button'))b.disabled=false;availability();}
    }

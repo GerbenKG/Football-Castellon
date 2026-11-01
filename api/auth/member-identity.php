@@ -1,11 +1,20 @@
 <?php
 declare(strict_types=1);
 
+class ClubMembershipException extends DomainException
+{
+    public function __construct(public readonly string $reason)
+    {
+        parent::__construct($reason === 'unknown' ? 'This email address is not registered as a club member.' : 'This membership is currently disabled.');
+    }
+}
+
 // Caller owns the transaction, locking the membership row before linking identities.
 function verifiedMemberAccount(PDO $pdo,string $email,?string $googleSubject=null,string $name=''): string
 {
     $s=$pdo->prepare('SELECT * FROM access_profiles WHERE email=? FOR UPDATE');$s->execute([$email]);$profile=$s->fetch();
-    if(!$profile||!$profile['active'])throw new DomainException('This account is not authorised for the club.');
+    if(!$profile)throw new ClubMembershipException('unknown');
+    if(!$profile['active'])throw new ClubMembershipException('disabled');
     $s=$pdo->prepare('SELECT id,email,google_subject FROM users WHERE email=? FOR UPDATE');$s->execute([$email]);$user=$s->fetch();
     if($profile['user_id']!==null&&(!$user||$profile['user_id']!==$user['id']))throw new DomainException('The membership account does not match.');
     if($googleSubject!==null){

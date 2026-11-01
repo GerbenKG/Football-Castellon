@@ -285,3 +285,18 @@ For the isolated local sample server, email goes only to the ignored
 blocks access to that folder. Test with `node tests/email-code-local.test.cjs`
 (set `PHP_BIN` to the PHP executable if needed) and `node tests/club-local.test.cjs`.
 The helper refuses any database except the named local sample database.
+
+## Sign-in access guidance
+
+Unknown and disabled Google accounts receive a branded recovery page with the
+verified address, board-member access instructions and an account-switch link.
+Email-code requests show the same guidance immediately for unknown or disabled
+memberships, as requested by the club owner. These requests remain rate limited;
+no code, user account or membership is created for an unknown address. The
+request response intentionally reveals membership status to provide this guidance.
+Only active invited members receive codes. Adding or re-enabling membership is
+still handled through the existing owner access controls.
+
+Local visual preview: `/dev/auth-error-preview` (optional `?case=disabled` or
+`?case=error`). This route is confined to the guarded local development router.
+Checks: `php tests/auth-error.test.php` and the local email-code integration suite.

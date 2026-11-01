@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/session.php';
 require_once __DIR__ . '/member-identity.php';
+require_once __DIR__ . '/error-page.php';
 
 ini_set('session.use_strict_mode', '1');
 ini_set('session.use_only_cookies', '1');
@@ -14,13 +15,14 @@ ini_set('session.cookie_samesite', 'Lax');
 session_name('fc_oauth');
 session_start();
 
-function authError(string $message, int $status = 400): never
+function authError(string $message, int $status = 400, string $reason = 'error', string $email = ''): never
 {
     http_response_code($status);
     header('Content-Type: text/html; charset=utf-8');
-    echo '<!doctype html><html><head><meta charset="utf-8"><title>Login</title></head><body>';
-    echo '<h1>Login could not be completed</h1><p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>';
-    echo '<p><a href="/">Back to Football Castellón</a></p></body></html>';
+    header('Cache-Control: no-store');
+    header('Referrer-Policy: no-referrer');
+    header('X-Content-Type-Options: nosniff');
+    echo authErrorPage($message, $reason, $email);
     exit;
 }
 
@@ -129,5 +131,6 @@ try {
         $pdo->rollBack();
     }
 
+    if ($e instanceof ClubMembershipException) authError($e->getMessage(), 403, $e->reason, $email);
     authError($e instanceof DomainException ? $e->getMessage() : 'Login could not be completed. Please try again.', $e instanceof DomainException ? 403 : 500);
 }

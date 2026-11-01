@@ -19,8 +19,8 @@ function client(){const jar=new Map();return {async post(body,status=200,origin=
  console.log('PASS email delivery fixture, browser binding, one-time use, resend invalidation, rate limit and shared Google identity');
  fixture('reset');const c=client();await c.post({action:'request',email});const limitedCode=code();for(let i=0;i<5;i++)await c.post({action:'verify',code:limitedCode==='999999'?'000000':'999999'},422);await c.post({action:'verify',code:limitedCode},422);
  fixture('reset');const d=client();await d.post({action:'request',email});const expired=code();fixture('expire');await d.post({action:'verify',code:expired},422);
- fixture('reset');const e=client();await e.post({action:'request',email});const disabled=code();fixture('disable');await e.post({action:'verify',code:disabled},422);
- fixture('reset');const u=client();assert.deepEqual(await u.post({action:'request',email:'email-code-unknown@example.test'}),requested);assert.ok(!fs.existsSync(path.join(__dirname,'../.local/email-outbox',crypto.createHash('sha256').update('email-code-unknown@example.test').digest('hex')+'.json')));await u.post({action:'verify',code:'123456'},422);
- console.log('PASS five-guess lockout, expiry, disabled membership, neutral unknown-member response and no unauthorised account creation');
+ fixture('reset');const e=client();await e.post({action:'request',email});const disabled=code();fixture('disable');await e.post({action:'verify',code:disabled},422);fixture('cooldown');const paused=await e.post({action:'request',email});assert.equal(paused.membership,'disabled');assert.match(paused.message,/board member/);
+ fixture('reset');const u=client();const unknown=await u.post({action:'request',email:'email-code-unknown@example.test'});assert.equal(unknown.membership,'unknown');assert.match(unknown.message,/board member/);assert.ok(!fs.existsSync(path.join(__dirname,'../.local/email-outbox',crypto.createHash('sha256').update('email-code-unknown@example.test').digest('hex')+'.json')));await u.post({action:'verify',code:'123456'},422);
+ console.log('PASS five-guess lockout, expiry, disabled membership, clear unknown-member guidance and no unauthorised account creation');
  }finally{fixture('cleanup');}
 })().catch(e=>{console.error(e);process.exitCode=1;});
