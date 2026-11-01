@@ -4,6 +4,7 @@ require_once __DIR__ . '/auth/session.php';
 require_once __DIR__ . '/auth/csrf-lib.php';
 require_once __DIR__ . '/query-lib.php';
 require_once __DIR__ . '/club-lib.php';
+require_once __DIR__ . '/lineup-lib.php';
 $user = requireUser();
 $pdo = db();
 try {
@@ -18,6 +19,12 @@ try {
     $pdo->beginTransaction();
     $result = ['ok' => true];
     switch ($action) {
+        case 'lineup_draft':
+            clubRequire($user,'games.manage');
+            $id=clubId($body['game_id']??null);clubLockGame($pdo,$id);
+            if(!is_int($body['team_count']??null))throw new InvalidArgumentException('Choose two or three teams');
+            $result=clubLineupDraft($pdo,$id,$body['team_count']);
+            break;
         case 'squad_add':
         case 'squad_remove':
         case 'squad_guest':
@@ -76,6 +83,7 @@ try {
                 $data['capacity'] = $capacity;
                 $data['notes'] = clubText($body['notes'] ?? '', 1500, false);
             } elseif ($action === 'result') {
+                  if(count($data['teams']??[])===3)throw new InvalidArgumentException('A single final score is only available for two-team matches');
                 if (clubDateTime($game, true) > new DateTimeImmutable('now')) throw new InvalidArgumentException('Record the result after full time');
                 foreach (['score_a','score_b'] as $key) {
                     if (!is_int($body[$key] ?? null) || $body[$key] < 0 || $body[$key] > 99) throw new InvalidArgumentException('Enter a score from 0 to 99');
@@ -91,16 +99,28 @@ try {
                 $data['goals'] = $goals;
             } else {
                 $teams = $body['teams'] ?? null;
-                if (!is_array($teams) || count($teams) !== 2 || !array_is_list($teams)) throw new InvalidArgumentException('Publish two teams');
+                if (!is_array($teams) || !in_array(count($teams),[2,3],true) || !array_is_list($teams)) throw new InvalidArgumentException('Publish two or three teams');
                 $s = $pdo->prepare('SELECT id FROM game_players WHERE game_id=? AND playing=1'); $s->execute([$id]);
                 $eligible = $s->fetchAll(PDO::FETCH_COLUMN);
                 $all = [];
                 foreach ($teams as $team) {
-                    if (!is_array($team) || !array_is_list($team)) throw new InvalidArgumentException('Invalid team');
+                    if (!is_array($team) || !array_is_list($team) || !$team) throw new InvalidArgumentException('Every team needs at least one player');
                     foreach ($team as $pid) { clubId($pid); $all[] = $pid; }
                 }
                 if (count($all) !== count(array_unique($all)) || array_diff($all, $eligible) || array_diff($eligible, $all) || !$teams[0] || !$teams[1]) throw new InvalidArgumentException('Assign every current participant to exactly one team');
                 $data['teams'] = $teams;
+                $names=array_slice(['Green','Gold','Blue'],0,count($teams));
+                $captains=$body['captains']??array_fill(0,count($teams),null);
+                if(!is_array($captains)||!array_is_list($captains)||count($captains)!==count($teams))throw new InvalidArgumentException('Choose a captain for each team');
+                $s=$pdo->prepare('SELECT id,player_id FROM game_players WHERE game_id=? AND playing=1');$s->execute([$id]);$playersById=array_column($s->fetchAll(),null,'id');
+                foreach($captains as $i=>$captain)if($captain!==null&&(!is_string($captain)||!in_array($captain,$teams[$i],true)||empty($playersById[$captain]['player_id'])))throw new InvalidArgumentException('Captains must be club players in their own team');
+                $pdo->prepare('UPDATE game_players SET team_name=NULL WHERE game_id=?')->execute([$id]);
+                $update=$pdo->prepare('UPDATE game_players SET team_name=? WHERE id=? AND game_id=?');
+                foreach($teams as $i=>$team)foreach($team as $rowId)$update->execute([$names[$i],$rowId,$id]);
+                $pdo->prepare('DELETE FROM team_captain_history WHERE game_id=?')->execute([$id]);
+                $saveCaptain=$pdo->prepare('INSERT INTO team_captain_history (id,game_id,team_name,player_id) VALUES (?,?,?,?)');
+                foreach($captains as $i=>$captain)if($captain!==null)$saveCaptain->execute([uuidV4(),$id,'Team '.$names[$i],$playersById[$captain]['player_id']]);
+                $data['team_names']=$names;$data['captains']=$captains;
             }
             clubPut($pdo, 'match:' . $id, 'match', $data, $user);
             if ($action === 'match_settings') clubPromote($pdo, $game, $user);

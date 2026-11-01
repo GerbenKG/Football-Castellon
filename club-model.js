@@ -12,7 +12,7 @@
   function stats(data,pid,all=false){
     const games=recordedGames(data,all),appearances=games.filter(g=>squad(data,g.id).some(r=>r.player_id===pid));
     let wins=0,draws=0,losses=0,goals=0,results=0,streak=0;
-    for(const g of appearances){const m=data.matches[g.id]||{};goals+=Number(m.goals?.[pid]||0);const row=squad(data,g.id).find(r=>r.player_id===pid);if(!m.teams||m.score_a===undefined)continue;const side=m.teams.findIndex(t=>t.includes(row.id));if(side<0)continue;results++;const own=side===0?m.score_a:m.score_b,other=side===0?m.score_b:m.score_a;if(own>other)wins++;else if(own===other)draws++;else losses++;}
+    for(const g of appearances){const m=data.matches[g.id]||{};goals+=Number(m.goals?.[pid]||0);const row=squad(data,g.id).find(r=>r.player_id===pid);if(!m.teams||m.teams.length!==2||m.score_a===undefined)continue;const side=m.teams.findIndex(t=>t.includes(row.id));if(side<0)continue;results++;const own=side===0?m.score_a:m.score_b,other=side===0?m.score_b:m.score_a;if(own>other)wins++;else if(own===other)draws++;else losses++;}
     for(const g of [...games].reverse()){if(squad(data,g.id).some(r=>r.player_id===pid))streak++;else break;}
     return {appearances:appearances.length,possible:games.length,rate:games.length?Math.round(appearances.length/games.length*100):0,wins,draws,losses,goals,results,streak};
   }

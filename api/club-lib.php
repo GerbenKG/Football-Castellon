@@ -6,6 +6,7 @@ require_once __DIR__ . '/access-lib.php';
 function ensureClubSchema(PDO $pdo): void
 {
     ensureClubPagePermissions($pdo);
+    if (!$pdo->query("SHOW COLUMNS FROM game_players LIKE 'team_name'")->fetch()) $pdo->exec('ALTER TABLE game_players ADD COLUMN IF NOT EXISTS team_name VARCHAR(80) NULL');
     $pdo->exec("CREATE TABLE IF NOT EXISTS club_records (
         record_key VARCHAR(150) PRIMARY KEY, kind VARCHAR(32) NOT NULL,
         payload LONGTEXT NOT NULL, actor_id CHAR(36) NOT NULL,
@@ -216,6 +217,18 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
         if ($record['kind'] === 'waiting') $waiting[] = ['game_id' => $v['game_id'], 'player_id' => $v['player_id'], 'joined_at' => $record['created_at']];
         if ($record['kind'] === 'payment_report' && ($permissions['payments.view'] || ($v['player_id'] ?? null) === $user['player_id'])) $reports[] = $v + ['key' => $record['record_key']];
     }
+    // Recover saved membership from the original match-player records, never infer old teams.
+    $knownLineupRows=[];foreach($matches as $match)foreach($match['teams']??[] as $team)foreach($team as $rowId)$knownLineupRows[$rowId]=true;
+    $lineupPlayers=array_values(array_filter($pdo->query('SELECT id,game_id,player_id,guest_name,team_name FROM game_players')->fetchAll(),static fn($r)=>$r['team_name']!==null||isset($knownLineupRows[$r['id']])));
+    $savedTeams=[];
+    foreach($lineupPlayers as $r)if($r['team_name']!==null)$savedTeams[$r['game_id']][$r['team_name']][]=$r['id'];
+    foreach($savedTeams as $gid=>$groups){
+        $order=$matches[$gid]['team_names']??array_keys($groups);$order=array_values(array_unique(array_merge($order,array_keys($groups))));
+        $order=array_values(array_filter($order,static fn($name)=>isset($groups[$name])));
+        $matches[$gid]=array_replace($matches[$gid]??['game_id'=>$gid],['team_names'=>$order,'teams'=>array_map(static fn($name)=>$groups[$name],$order)]);
+    }
+    $captainHistory=$pdo->query('SELECT game_id,team_name,player_id FROM team_captain_history ORDER BY team_name')->fetchAll();
+    foreach($captainHistory as $captain)$matches[$captain['game_id']]['recorded_captains'][]=$captain;
     $seasons = $pdo->query('SELECT id,name,starts_on,ends_on FROM finance_seasons ORDER BY starts_on DESC')->fetchAll();
     $myTickets = [];
     if ($user['player_id']) {
@@ -227,7 +240,7 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
     if($user['role']==='super_admin')foreach($pdo->query('SELECT email,display_name,role,active,player_id FROM access_profiles ORDER BY display_name')->fetchAll() as $member){$member['active']=(bool)$member['active'];$member['preview_key']=previewMemberKey($member['email']);$memberAccounts[]=$member;}
     return ['user' => $publicUser, 'preview' => $user['_preview'] ?? null, 'permissions' => $permissions, 'players' => $players, 'games' => $games, 'signups' => $rows,
         'seasons' => $seasons, 'my_tickets' => $myTickets, 'announcements' => $permissions['clubhouse.view'] ? array_slice($announcements, 0, 30) : [], 'matches' => (object) $matches,
-        'votes' => (object) $votes, 'my_votes' => (object) $myVotes, 'player_cards' => (object) $cards, 'waiting' => $waiting, 'payment_reports' => $reports,
+        'votes' => (object) $votes, 'my_votes' => (object) $myVotes, 'player_cards' => (object) $cards, 'waiting' => $waiting, 'payment_reports' => $reports, 'lineup_players'=>$lineupPlayers,
         'finance' => $permissions['payments.view'] ? clubFinance($pdo,$financeSeason) : null,
         'player_records' => $permissions['players.view'] ? $pdo->query('SELECT id,name,phone,email,archived_at,skill_level FROM players ORDER BY name')->fetchAll() : [],
         'member_accounts' => $memberAccounts,

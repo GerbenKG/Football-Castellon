@@ -78,6 +78,25 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
   const memberId=d.user.player_id,organiserId=(await organiser.request('/api/club.php')).user.player_id;
   const add=async pid=>(await admin.request('/api/data.php?table=game_players',{action:'insert',data:{game_id:past,player_id:pid,playing:true,paid:false}})).data[0];
   const r1=await add(memberId),r2=await add(organiserId);
+  await post(member,{action:'lineup_draft',game_id:past,team_count:3},403);
+  await post(admin,{action:'lineup_draft',game_id:past,team_count:3},422);
+  await post(admin,{action:'squad_guest',game_id:past,name:'Disposable lineup guest'});
+  const draft3=await post(admin,{action:'lineup_draft',game_id:past,team_count:3});
+  assert.equal(draft3.teams.length,3);assert.deepEqual(draft3.teams.map(t=>t.length),[1,1,1]);
+  const guestRow=(await admin.request('/api/club.php')).signups.find(r=>r.game_id===past&&!r.player_id);
+  assert.equal(draft3.captains[draft3.teams.findIndex(t=>t.includes(guestRow.id))],null);
+  await post(admin,{action:'lineup',game_id:past,teams:draft3.teams,captains:draft3.captains});
+  let sheet=(await member.request('/api/club.php')).matches[past];assert.equal(sheet.teams.length,3);assert.deepEqual(sheet.teams,draft3.teams);assert.deepEqual(sheet.captains,draft3.captains);
+  const persisted=(await admin.request('/api/data.php?table=game_players&filters='+encodeURIComponent(JSON.stringify([{column:'game_id',operator:'eq',value:past}])))).data;assert.ok(persisted.every(r=>['Green','Gold','Blue'].includes(r.team_name)));
+  await post(admin,{action:'lineup',game_id:past,teams:[draft3.teams[0],draft3.teams[1],[]]},422);
+  const wrongCaptains=[...draft3.captains];wrongCaptains[draft3.teams.findIndex(t=>t.includes(guestRow.id))]=guestRow.id;
+  await post(admin,{action:'lineup',game_id:past,teams:draft3.teams,captains:wrongCaptains},422);
+  assert.deepEqual((await member.request('/api/club.php')).matches[past].teams,draft3.teams);
+  await post(admin,{action:'result',game_id:past,score_a:1,score_b:0},422);
+  await post(admin,{action:'squad_remove',game_id:past,id:guestRow.id});
+  sheet=await member.request('/api/club.php');assert.ok(sheet.lineup_players.some(r=>r.id===guestRow.id));assert.ok(sheet.matches[past].teams.flat().includes(guestRow.id));
+  console.log('PASS two/three-team drafts, persistent historical membership, guest handling, captains and atomic validation');
+
   await post(admin,{action:'lineup',game_id:past,teams:[[r1.id],[r2.id]]});
   await post(admin,{action:'result',game_id:past,score_a:2,score_b:1,goals:{[memberId]:2,[organiserId]:1},report:'Disposable test result'});
   await post(member,{action:'vote',game_id:past,player_id:memberId},422);
