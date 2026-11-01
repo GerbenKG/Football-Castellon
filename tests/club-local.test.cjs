@@ -58,6 +58,7 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
  console.log('PASS saved page permissions, read-only finance, owner protection, player-link collisions and financial-read privacy');
  const create=await admin.request('/api/club.php',{action:'fixture',date:'2099-01-01',start:'19:30',end:'21:30',location:'Disposable club integration fixture'});
  const gid=create.id;let past;
+ const bibCountsBefore=(await admin.request('/api/data.php?table=players')).data.map(p=>({id:p.id,count:p.bibs_taken_count}));
  const post=(s,b,status=200)=>s.request('/api/club.php',b,status);
  try {
   await post(admin,{action:'match_settings',game_id:gid,capacity:2,notes:'Capacity integration check'});
@@ -83,6 +84,24 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
   await post(organiser,{action:'squad_remove',game_id:gid,id:guest.id});
   kept=(await admin.request('/api/data.php?table=game_players&filters='+encodeURIComponent(JSON.stringify([{column:'id',operator:'eq',value:target.id}])))).data[0];assert.equal(kept.playing,true);assert.equal(kept.paid,true);
   console.log('PASS native office finance selection, private records, squad editing, capacity and retained payment history');
+  const bibMember=(await member.request('/api/club.php')).user.player_id,bibOrganiser=(await organiser.request('/api/club.php')).user.player_id;
+  const changeCount=(pid,n)=>admin.request('/api/data.php?table=players',{action:'update',data:{bibs_taken_count:n},filters:[{column:'id',operator:'eq',value:pid}]});
+  await changeCount(bibMember,2);await changeCount(bibOrganiser,7);
+  await post(member,{action:'bibs_auto',game_id:gid},403);
+  const bibPick=await post(organiser,{action:'bibs_auto',game_id:gid});assert.equal(bibPick.player_id,bibMember);
+  let bibSnapshot=await member.request('/api/club.php');assert.equal(bibSnapshot.players.find(p=>p.id===bibMember).bibs_taken_count,3);assert.equal(bibSnapshot.bibs_assignments.filter(r=>r.game_id===gid).length,1);
+  const sameBibs=await post(organiser,{action:'bibs_auto',game_id:gid});assert.equal(sameBibs.unchanged,true);assert.equal((await member.request('/api/club.php')).players.find(p=>p.id===bibMember).bibs_taken_count,3);
+  const organiserRow=bibSnapshot.signups.find(r=>r.game_id===gid&&r.player_id===bibOrganiser);
+  await organiser.request('/api/rpc.php',{name:'set_game_bib_taker',p_game_player_id:organiserRow.id});
+  bibSnapshot=await member.request('/api/club.php');assert.equal(bibSnapshot.players.find(p=>p.id===bibMember).bibs_taken_count,2);assert.equal(bibSnapshot.players.find(p=>p.id===bibOrganiser).bibs_taken_count,8);
+  await organiser.request('/api/rpc.php',{name:'set_game_bib_taker',p_game_player_id:organiserRow.id});assert.equal((await member.request('/api/club.php')).players.find(p=>p.id===bibOrganiser).bibs_taken_count,8);
+  await post(organiser,{action:'signup',game_id:gid,join:false});
+  bibSnapshot=await member.request('/api/club.php');assert.equal(bibSnapshot.players.find(p=>p.id===bibOrganiser).bibs_taken_count,7);assert.equal(bibSnapshot.bibs_assignments.filter(r=>r.game_id===gid).length,0);
+  await post(organiser,{action:'signup',game_id:gid,join:true});
+  await changeCount(bibMember,2);await changeCount(bibOrganiser,2);
+  const tie=await post(organiser,{action:'bibs_auto',game_id:gid});assert.ok([bibMember,bibOrganiser].includes(tie.player_id));
+  console.log('PASS bibs selection uses stored counts, ties, permissions, single assignment, repeat clicks, corrections and withdrawal');
+
 
   await post(member,{action:'announcement',title:'Denied',body:'Denied'},403);
   await post(viewer,{action:'fixture',date:'2099-01-01',start:'10:00',end:'11:00',location:'Denied'},403);
@@ -134,7 +153,7 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
   if(exp){await post(finance,{action:'pay_expense',id:exp.id});await admin.request('/api/data.php?table=finance_expenses',{action:'delete',filters:[{column:'id',operator:'eq',value:exp.id}]});}
   console.log('PASS transfer reporting requires treasurer confirmation; expense persistence and audit');
   assert.ok((await finance.request('/api/club.php')).audit.some(a=>a.action==='Payment confirmed'));
- } finally {for(const id of [gid,past].filter(Boolean))await admin.request('/api/data.php?table=games',{action:'delete',filters:[{column:'id',operator:'eq',value:id}]});}
+ } finally {for(const p of bibCountsBefore)await admin.request('/api/data.php?table=players',{action:'update',data:{bibs_taken_count:p.count},filters:[{column:'id',operator:'eq',value:p.id}]});for(const id of [gid,past].filter(Boolean))await admin.request('/api/data.php?table=games',{action:'delete',filters:[{column:'id',operator:'eq',value:id}]});}
  console.log('PASS disposable match fixtures cleaned up');
  const originalMember=accessBefore.members.find(m=>m.role==='viewer');
  try {

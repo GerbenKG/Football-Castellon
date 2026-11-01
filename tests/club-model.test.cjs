@@ -6,3 +6,5 @@ test('match times consistently use Madrid and handle summer and winter offsets',
 test('waiting-list signup is distinct from confirmed playing',()=>{const d=fixture();d.waiting=[{game_id:'empty',player_id:'p'}];assert.equal(M.signupState(d,'empty'),'waiting');assert.equal(M.signupState(d,'g1'),'playing');assert.equal(M.signupState(d,'g2'),'out');});
 
 test('three-team sessions do not inherit a two-team win/loss result',()=>{const d=fixture();d.matches.g1.teams.push(['other']);assert.equal(M.stats(d,'p').results,0);assert.equal(M.stats(d,'p').wins,0);});
+
+test('upcoming bibs reminder uses the latest completed recorded duty, separately from the next washer',()=>{const d=fixture();d.bibs_assignments=[{game_id:'g1',player_id:'first'},{game_id:'g2',player_id:'holder'},{game_id:'future',player_id:'next'}];const b=M.bibs(d,'future','2000-12-31T12:00:00');assert.equal(b.holder[0].player_id,'holder');assert.equal(b.assigned[0].player_id,'next');assert.equal(b.previous.id,'g2');assert.equal(M.bibs(d,'old','2000-12-31T12:00:00').holder.length,0);});

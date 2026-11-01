@@ -19,6 +19,12 @@ try {
     $pdo->beginTransaction();
     $result = ['ok' => true];
     switch ($action) {
+        case 'bibs_auto':
+            clubRequire($user,'attendance.manage');
+            $id=clubId($body['game_id']??null);clubLockGame($pdo,$id);
+            $result=clubAssignBibs($pdo,$id,null,true);
+            if(!$result['unchanged'])clubAudit($pdo,$user,'Bibs duty assigned',['game_id'=>$id,'player_id'=>$result['player_id'],'automatic'=>true]);
+            break;
         case 'lineup_draft':
             clubRequire($user,'games.manage');
             $id=clubId($body['game_id']??null);clubLockGame($pdo,$id);
@@ -34,6 +40,7 @@ try {
                 $rowId=clubId($body['id']??null);
                 $s=$pdo->prepare('SELECT * FROM game_players WHERE id=? AND game_id=? FOR UPDATE');$s->execute([$rowId,$id]);$row=$s->fetch();
                 if (!$row) throw new InvalidArgumentException('Squad member no longer exists');
+                  if($row['took_bibs']&&clubDateTime($game)>new DateTimeImmutable('now'))clubAssignBibs($pdo,$id);
                 $pdo->prepare('UPDATE game_players SET playing=0 WHERE id=?')->execute([$rowId]);
                 if ($row['player_id']) clubDelete($pdo,'waiting:'.$id.':'.$row['player_id']);
                 clubPromote($pdo,$game,$user);

@@ -17,6 +17,12 @@
     return {appearances:appearances.length,possible:games.length,rate:games.length?Math.round(appearances.length/games.length*100):0,wins,draws,losses,goals,results,streak};
   }
   function signupState(data,gid,pid=data.user.player_id){if(squad(data,gid).some(r=>r.player_id===pid))return 'playing';if(data.waiting.some(r=>r.game_id===gid&&r.player_id===pid))return 'waiting';return 'out';}
+  function bibs(data,gid,now=madridNow()){
+    const current=(data.bibs_assignments||[]).filter(r=>r.game_id===gid);
+    const game=data.games.find(g=>g.id===gid);
+    const previous=game?data.games.filter(g=>g.id!==gid&&ended(g,now)&&`${g.game_date}T${g.start_time}`<`${game.game_date}T${game.start_time}`&&(data.bibs_assignments||[]).some(r=>r.game_id===g.id)).sort((a,b)=>(b.game_date+b.start_time).localeCompare(a.game_date+a.start_time))[0]:null;
+    return {assigned:current,holder:previous?(data.bibs_assignments||[]).filter(r=>r.game_id===previous.id):[],previous};
+  }
   const openPayments=history=>(history?.items||[]).filter(p=>!p.paid);
-  return {madridNow,started,ended,squad,season,recordedGames,stats,signupState,openPayments};
+  return {madridNow,started,ended,squad,season,recordedGames,stats,signupState,openPayments,bibs};
 });

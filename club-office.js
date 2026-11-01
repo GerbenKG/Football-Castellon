@@ -101,9 +101,10 @@
    const row=d.signups.find(r=>r.id===id),p=d.players.find(p=>p.id===row.player_id);
    h.showDialog('Remove '+(p?.name||row.guest_name||'this player')+' from the squad?','Their previous payment records are kept. An available place may go to the next waiting player.','',()=>window.api.post('/api/club.php',{action:'squad_remove',game_id:row.game_id,id}),'Remove from squad');return;
   }
+  if(a==='bibs-auto'){const assigned=await window.api.post('/api/club.php',{action:'bibs_auto',game_id:id});await h.refresh();h.toast(assigned.unchanged?'Bibs already assigned to '+assigned.name+'.':assigned.name+' will wash the bibs after this match.');return;}
   if(a==='bibs'){
    const eligible=rows(id).filter(r=>r.player_id);
-   h.showDialog('Who has the bibs?',h.fullDate(game.game_date),`<label class="field">Player<select name="row_id" required>${eligible.map(r=>`<option value="${r.id}" ${r.took_bibs?'selected':''}>${esc(d.players.find(p=>p.id===r.player_id)?.name||'Player')}</option>`).join('')}</select></label>`,fd=>window.api.post('/api/rpc.php',{name:'set_game_bib_taker',p_game_player_id:fd.get('row_id')}),'Assign bib duty');return;
+   h.showDialog('Who washes the bibs after this match?',h.fullDate(game.game_date),`<label class="field">Player<select name="row_id" required>${eligible.map(r=>`<option value="${r.id}" ${r.took_bibs?'selected':''}>${esc(d.players.find(p=>p.id===r.player_id)?.name||'Player')} · ${Number(d.players.find(p=>p.id===r.player_id)?.bibs_taken_count||0)} bib washes</option>`).join('')}</select></label>`,fd=>window.api.post('/api/rpc.php',{name:'set_game_bib_taker',p_game_player_id:fd.get('row_id')}),'Assign bib duty');return;
   }
  }
  document.addEventListener('click',async e=>{

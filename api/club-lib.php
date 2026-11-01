@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/access-lib.php';
+require_once __DIR__ . '/bibs-lib.php';
 
 // Additive feature storage: existing club tables and records are never reset.
 function ensureClubSchema(PDO $pdo): void
@@ -118,7 +119,7 @@ function clubSignup(PDO $pdo, array $user, string $id, ?bool $join = null): arra
     $active = $pdo->prepare('SELECT id FROM players WHERE id=? AND archived_at IS NULL');
     $active->execute([$user['player_id']]);
     if (!$active->fetchColumn()) throw new DomainException('This player is archived');
-    $s = $pdo->prepare('SELECT id,playing FROM game_players WHERE game_id=? AND player_id=? FOR UPDATE');
+    $s = $pdo->prepare('SELECT id,playing,took_bibs FROM game_players WHERE game_id=? AND player_id=? FOR UPDATE');
     $s->execute([$id, $user['player_id']]);
     $rows = $s->fetchAll();
     if (count($rows) > 1) throw new InvalidArgumentException('Duplicate signup: ask the board to check this match');
@@ -127,6 +128,7 @@ function clubSignup(PDO $pdo, array $user, string $id, ?bool $join = null): arra
     $waiting = clubRecord($pdo, $key);
     $join ??= !($row['playing'] ?? false) && !$waiting;
     if (!$join) {
+        if($row&&$row['took_bibs'])clubAssignBibs($pdo,$id);
         if ($row) $pdo->prepare('UPDATE game_players SET playing=0 WHERE id=?')->execute([$row['id']]);
         clubDelete($pdo, $key);
         clubPromote($pdo, $game, $user);
@@ -199,7 +201,8 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
     foreach (clubPermissionNames() as $p) $permissions[$p] = hasPermission($user['role'], $p);
     $permissions['access.manage'] = $user['role'] === 'super_admin';
     // Deliberately exclude contacts, skills, payment flags and access records from the shared squad.
-    $players = $pdo->query('SELECT p.id,p.name,p.archived_at,COALESCE(ap.avatar_path,u.avatar_path) AS avatar_path FROM players p LEFT JOIN access_profiles ap ON ap.player_id=p.id AND ap.active=1 LEFT JOIN users u ON u.id=ap.user_id ORDER BY p.name')->fetchAll();
+    $players = $pdo->query('SELECT p.id,p.name,p.archived_at,p.bibs_taken_count,COALESCE(ap.avatar_path,u.avatar_path) AS avatar_path FROM players p LEFT JOIN access_profiles ap ON ap.player_id=p.id AND ap.active=1 LEFT JOIN users u ON u.id=ap.user_id ORDER BY p.name')->fetchAll();
+    foreach($players as &$p)$p['bibs_taken_count']=(int)$p['bibs_taken_count'];unset($p);
     $games = $pdo->query('SELECT id,game_date,start_time,end_time,location FROM games ORDER BY game_date,start_time')->fetchAll();
     $rows = normalizeRows($pdo->query('SELECT id,game_id,player_id,guest_name,took_bibs FROM game_players WHERE playing=1')->fetchAll());
     $records = $pdo->query('SELECT record_key,kind,payload,created_at,updated_at FROM club_records ORDER BY created_at DESC')->fetchAll();
@@ -241,6 +244,7 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
     return ['user' => $publicUser, 'preview' => $user['_preview'] ?? null, 'permissions' => $permissions, 'players' => $players, 'games' => $games, 'signups' => $rows,
         'seasons' => $seasons, 'my_tickets' => $myTickets, 'announcements' => $permissions['clubhouse.view'] ? array_slice($announcements, 0, 30) : [], 'matches' => (object) $matches,
         'votes' => (object) $votes, 'my_votes' => (object) $myVotes, 'player_cards' => (object) $cards, 'waiting' => $waiting, 'payment_reports' => $reports, 'lineup_players'=>$lineupPlayers,
+        'bibs_assignments'=>$pdo->query('SELECT id,game_id,player_id FROM game_players WHERE took_bibs=1 AND player_id IS NOT NULL')->fetchAll(),
         'finance' => $permissions['payments.view'] ? clubFinance($pdo,$financeSeason) : null,
         'player_records' => $permissions['players.view'] ? $pdo->query('SELECT id,name,phone,email,archived_at,skill_level FROM players ORDER BY name')->fetchAll() : [],
         'member_accounts' => $memberAccounts,
