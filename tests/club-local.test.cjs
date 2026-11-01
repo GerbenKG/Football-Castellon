@@ -56,6 +56,16 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
  const attendanceRows=await organiser.request('/api/data.php?table=game_players');assert.ok(attendanceRows.data.every(r=>!('paid' in r)));
  await organiser.request('/api/data.php?table=game_players&filters='+encodeURIComponent(JSON.stringify([{column:'paid',operator:'eq',value:false}])),undefined,403);
  console.log('PASS saved page permissions, read-only finance, owner protection, player-link collisions and financial-read privacy');
+ const skillPlayer=(await admin.request('/api/club.php')).player_records.find(p=>p.id===realMember.user.player_id);
+ const skillChange=(actor,value)=>actor.request('/api/data.php?table=players',{action:'update',data:{skill_level:value},filters:[{column:'id',operator:'eq',value:skillPlayer.id}]});
+ try {
+  for(const invalid of [0,6,2.5,'3',true])await admin.request('/api/data.php?table=players',{action:'update',data:{skill_level:invalid},filters:[{column:'id',operator:'eq',value:skillPlayer.id}]},400);
+  await member.request('/api/data.php?table=players',{action:'update',data:{skill_level:4},filters:[{column:'id',operator:'eq',value:skillPlayer.id}]},403);
+  const boardAccount=await session().login('admin');await boardAccount.request('/api/data.php?table=players',{action:'update',data:{skill_level:4},filters:[{column:'id',operator:'eq',value:skillPlayer.id}]},403);
+  await skillChange(admin,5);assert.equal(Number((await admin.request('/api/club.php')).player_records.find(p=>p.id===skillPlayer.id).skill_level),5);
+  await skillChange(admin,null);assert.equal((await admin.request('/api/club.php')).player_records.find(p=>p.id===skillPlayer.id).skill_level,null);
+ } finally {await skillChange(admin,skillPlayer.skill_level===null?null:Number(skillPlayer.skill_level));}
+ console.log('PASS owner skill editing persists, accepts levels 1–5 and unset, and rejects invalid or unauthorised changes');
  const create=await admin.request('/api/club.php',{action:'fixture',date:'2099-01-01',start:'19:30',end:'21:30',location:'Disposable club integration fixture'});
  const gid=create.id;let past;
  const bibCountsBefore=(await admin.request('/api/data.php?table=players')).data.map(p=>({id:p.id,count:p.bibs_taken_count}));

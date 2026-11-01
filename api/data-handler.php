@@ -68,6 +68,7 @@ try {
         if (!$row || array_diff(array_keys($row), $config['columns'])) throw new InvalidArgumentException('Invalid data columns');
         foreach ($row as $value) if ($value !== null && !is_scalar($value)) throw new InvalidArgumentException('Invalid data value');
         if ($table === 'players' && array_key_exists('skill_level', $row) && $user['role'] !== 'super_admin') jsonResponse(['error' => 'Permission denied'], 403);
+        if ($table === 'players' && array_key_exists('skill_level', $row) && $row['skill_level'] !== null && (!is_int($row['skill_level']) || $row['skill_level'] < 1 || $row['skill_level'] > 5)) throw new InvalidArgumentException('Skill level must be a whole number from 1 to 5, or unset');
         if ($table === 'game_players') {
             if (!$canWrite && array_diff(array_keys($row), ['paid'])) jsonResponse(['error' => 'Permission denied'], 403);
             if (!$canPay && array_key_exists('paid', $row)) {
