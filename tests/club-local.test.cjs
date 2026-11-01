@@ -40,6 +40,29 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
   require('node:fs').rmSync(require('node:path').join(__dirname,'../.local/avatars',photoPath),{force:true});
  }
  console.log('PASS own photo upload, invalid files, cross-account protection, shared profile photos and fallback reset');
+ await anonymous.request('/api/clubs.php?countries=1',undefined,401);
+ const countries=(await member.request('/api/clubs.php?countries=1')).countries;assert.ok(countries.includes('Spain')&&countries.includes('Netherlands'));assert.ok(!countries.includes('United States'));
+ const oldFavorite=(await member.request('/api/club.php')).user.favorite_club;
+ const ownerFavorite=(await admin.request('/api/club.php')).user.favorite_club;let customClub;
+ const clubForm=(country='Spain',bytes=png)=>{const f=new FormData();f.set('name','Disposable local football club');f.set('country',country);f.set('badge',new Blob([bytes],{type:'image/png'}),'badge.png');return f;};
+ try {
+  await member.request('/api/clubs.php',clubForm('United States'),422);
+  await member.request('/api/clubs.php',clubForm('Spain',Buffer.from('<svg onload="bad()"></svg>')),422);
+  customClub=(await member.request('/api/clubs.php',clubForm())).club;
+  await viewer.request('/api/club.php',{action:'favorite_club',club_id:customClub.id},403);
+  await member.request('/api/club.php',{action:'favorite_club',club_id:'../../secret'},422);
+  await member.request('/api/club.php',{action:'favorite_club',club_id:customClub.id,player_id:normalOwner.user.player_id});
+  const favSnapshot=await member.request('/api/club.php');assert.equal(favSnapshot.user.favorite_club.id,customClub.id);assert.equal(favSnapshot.players.find(p=>p.id===photoUser.player_id).favorite_club.id,customClub.id);
+  assert.deepEqual((await admin.request('/api/club.php')).user.favorite_club,ownerFavorite);
+  assert.equal((await admin.request('/api/club.php')).players.find(p=>p.id===photoUser.player_id).favorite_club.id,customClub.id);
+  await viewer.request('/api/clubs.php?badge='+customClub.badge_id);
+  await member.request('/api/club.php',{action:'favorite_club',club_id:null});assert.equal((await member.request('/api/club.php')).user.favorite_club,null);
+ } finally {
+  await member.request('/api/club.php',{action:'favorite_club',club_id:oldFavorite?.id??null});
+  if(customClub)for(const file of [customClub.id+'.json',customClub.badge_id+'.image'])require('node:fs').rmSync(require('node:path').join(__dirname,'../.local/club-badges',file),{force:true});
+ }
+ console.log('PASS own favourite club, European countries, custom badges, shared display, clearing and account isolation');
+
 
  const viewerPermissions=accessModel.forRole(accessBefore.rolePermissions,'viewer');
  await member.request('/api/auth/access.php',{action:'admin_set_role_permissions',role:'viewer',permissions:viewerPermissions},403);
@@ -56,6 +79,16 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
  const attendanceRows=await organiser.request('/api/data.php?table=game_players');assert.ok(attendanceRows.data.every(r=>!('paid' in r)));
  await organiser.request('/api/data.php?table=game_players&filters='+encodeURIComponent(JSON.stringify([{column:'paid',operator:'eq',value:false}])),undefined,403);
  console.log('PASS saved page permissions, read-only finance, owner protection, player-link collisions and financial-read privacy');
+ const skillPlayer=(await admin.request('/api/club.php')).player_records.find(p=>p.id===realMember.user.player_id);
+ const skillChange=(actor,value)=>actor.request('/api/data.php?table=players',{action:'update',data:{skill_level:value},filters:[{column:'id',operator:'eq',value:skillPlayer.id}]});
+ try {
+  for(const invalid of [0,6,2.5,'3',true])await admin.request('/api/data.php?table=players',{action:'update',data:{skill_level:invalid},filters:[{column:'id',operator:'eq',value:skillPlayer.id}]},400);
+  await member.request('/api/data.php?table=players',{action:'update',data:{skill_level:4},filters:[{column:'id',operator:'eq',value:skillPlayer.id}]},403);
+  const boardAccount=await session().login('admin');await boardAccount.request('/api/data.php?table=players',{action:'update',data:{skill_level:4},filters:[{column:'id',operator:'eq',value:skillPlayer.id}]},403);
+  await skillChange(admin,5);assert.equal(Number((await admin.request('/api/club.php')).player_records.find(p=>p.id===skillPlayer.id).skill_level),5);
+  await skillChange(admin,null);assert.equal((await admin.request('/api/club.php')).player_records.find(p=>p.id===skillPlayer.id).skill_level,null);
+ } finally {await skillChange(admin,skillPlayer.skill_level===null?null:Number(skillPlayer.skill_level));}
+ console.log('PASS owner skill editing persists, accepts levels 1–5 and unset, and rejects invalid or unauthorised changes');
  const create=await admin.request('/api/club.php',{action:'fixture',date:'2099-01-01',start:'19:30',end:'21:30',location:'Disposable club integration fixture'});
  const gid=create.id;let past;
  const bibCountsBefore=(await admin.request('/api/data.php?table=players')).data.map(p=>({id:p.id,count:p.bibs_taken_count}));

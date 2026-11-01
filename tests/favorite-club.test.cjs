@@ -1,0 +1,4 @@
+const test=require('node:test'),assert=require('node:assert/strict'),F=require('../favorite-club.js');
+const club={id:'sportsdb-1',name:'Ajax',country:'Netherlands',badge_id:'a'.repeat(32)};
+test('the same club badge follows player identity across names and member accounts',()=>{F.setContext({players:[{id:'p',name:'Alex',favorite_club:club},{id:'q',name:'Alex'}],member_accounts:[]});assert.ok(F.label('Alex','p').includes('Supports Ajax'));assert.ok(!F.label('Alex','q').includes('<img'));assert.ok(F.label('Alex','p',{email:'a@example.test'}).includes(club.badge_id));});
+test('club names are escaped and badge identifiers cannot become arbitrary image URLs',()=>{assert.ok(F.label('<script>bad()</script>').startsWith('&lt;script&gt;'));assert.equal(F.badge({badge_id:'https://example.com/track'}),'');assert.equal(F.badge(null),'');assert.ok(!F.badge({...club,name:'<img src=x onerror=bad()>'}).includes('alt="Supports <img'));});

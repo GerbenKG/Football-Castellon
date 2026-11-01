@@ -28,6 +28,10 @@ if ($LASTEXITCODE -ne 0) { throw 'This PHP installation needs the pdo_mysql exte
 if ($LASTEXITCODE -ne 0) { $phpOptions += @('-d', 'extension=fileinfo') }
 & $PhpPath @phpOptions -r "exit(extension_loaded('fileinfo') ? 0 : 1);"
 if ($LASTEXITCODE -ne 0) { throw 'This PHP installation needs the fileinfo extension for profile pictures.' }
+& $PhpPath -r "exit(extension_loaded('curl') ? 0 : 1);"
+if ($LASTEXITCODE -ne 0) { $phpOptions += @('-d', 'extension=curl') }
+& $PhpPath @phpOptions -r "exit(extension_loaded('curl') ? 0 : 1);"
+if ($LASTEXITCODE -ne 0) { throw 'This PHP installation needs the curl extension for football club search.' }
 New-Item -ItemType Directory -Force -Path $runtime | Out-Null
 $passwordFile = Join-Path $runtime 'database-password.txt'
 if (!(Test-Path -LiteralPath $passwordFile)) {

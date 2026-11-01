@@ -5,6 +5,7 @@ require_once __DIR__ . '/auth/csrf-lib.php';
 require_once __DIR__ . '/query-lib.php';
 require_once __DIR__ . '/club-lib.php';
 require_once __DIR__ . '/lineup-lib.php';
+require_once __DIR__ . '/clubs-lib.php';
 $user = requireUser();
 $pdo = db();
 try {
@@ -19,6 +20,11 @@ try {
     $pdo->beginTransaction();
     $result = ['ok' => true];
     switch ($action) {
+        case 'favorite_club':
+            $choice=clubChosenFavorite($body['club_id']??null,$user);
+            $key='favorite:'.hash('sha256',strtolower($user['email']));
+            if($choice===null)clubDelete($pdo,$key);else clubPut($pdo,$key,'favorite_club',['club'=>$choice],$user);
+            break;
         case 'bibs_auto':
             clubRequire($user,'attendance.manage');
             $id=clubId($body['game_id']??null);clubLockGame($pdo,$id);

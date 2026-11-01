@@ -234,3 +234,19 @@ owner tab continues to work independently.
 Checks: `node tests/preview-client.test.cjs`, `php tests/preview.test.php`, and the
 expanded local integration suite. These use only mock data or the isolated sample
 database; never run write-oriented integration tests against the live database.
+
+## Favourite football clubs
+
+Members choose their favourite European club in **My Club → Choose your club**.
+Search uses TheSportsDB; a club name, country and JPG/PNG/WebP badge can also be
+added for clubs missing from its catalogue. Each member manages their own choice.
+Badges follow linked player identities across squad lists, line-ups, standings,
+member management and payment lists. Changing the favourite does not change teams.
+
+The PHP cURL extension must be enabled with a valid system CA bundle. Search
+results are cached for 24 hours; badge images and metadata are stored privately in
+`football-club-badges` beside the hosting document roots (`.local/club-badges`
+locally). Keep that directory writable by PHP and include it in hosting backups.
+No database credentials or provider secrets are exposed to the browser.
+Checks: `node tests/favorite-club.test.cjs`, `php tests/clubs.test.php` and the
+isolated local integration suite.

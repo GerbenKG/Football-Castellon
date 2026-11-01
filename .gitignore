@@ -5,3 +5,5 @@ football-avatars/
 *.log
 .local/
 db-config.dev.php
+
+football-club-badges/
