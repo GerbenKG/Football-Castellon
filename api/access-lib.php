@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function clubPermissionNames(): array
 {
-    return ['clubhouse.view','clubhouse.manage','squad.view','dashboard.view','players.view','players.manage','games.view','games.manage','attendance.view','attendance.manage','payments.view','payments.manage','access.manage'];
+    return ['arcade.view','arcade.manage','clubhouse.view','clubhouse.manage','squad.view','dashboard.view','players.view','players.manage','games.view','games.manage','attendance.view','attendance.manage','payments.view','payments.manage','access.manage'];
 }
 
 function ensureClubPagePermissions(PDO $pdo): void
@@ -15,7 +15,7 @@ function ensureClubPagePermissions(PDO $pdo): void
     foreach ($existing as $row) $roles[$row['role']][$row['permission']] = (bool)$row['enabled'];
     $s = $pdo->prepare('INSERT IGNORE INTO role_permissions (role,permission,enabled) VALUES (?,?,?)');
     foreach ($roles as $role=>$permissions) {
-        foreach (['clubhouse.view'=>true,'squad.view'=>true,'clubhouse.manage'=>($role==='super_admin'||($permissions['games.manage']??false))] as $permission=>$enabled) $s->execute([$role,$permission,(int)$enabled]);
+        foreach (['arcade.view'=>true,'arcade.manage'=>in_array($role,['super_admin','admin'],true),'clubhouse.view'=>true,'squad.view'=>true,'clubhouse.manage'=>($role==='super_admin'||($permissions['games.manage']??false))] as $permission=>$enabled) $s->execute([$role,$permission,(int)$enabled]);
     }
 }
 
@@ -24,7 +24,7 @@ function validateClubPermissions(mixed $permissions): array
     if (!is_array($permissions) || array_is_list($permissions) || array_diff(array_keys($permissions), clubPermissionNames())) throw new InvalidArgumentException('Invalid profile permissions');
     // Every editable capability requires its corresponding read access.
     foreach ($permissions as $value) if (!is_bool($value)) throw new InvalidArgumentException('Permission values must be true or false');
-    foreach (['clubhouse.manage'=>'clubhouse.view','games.manage'=>'games.view','players.manage'=>'players.view','attendance.manage'=>'attendance.view','payments.manage'=>'payments.view'] as $edit=>$read) {
+    foreach (['arcade.manage'=>'arcade.view','clubhouse.manage'=>'clubhouse.view','games.manage'=>'games.view','players.manage'=>'players.view','attendance.manage'=>'attendance.view','payments.manage'=>'payments.view'] as $edit=>$read) {
         if (($permissions[$edit]??false) && !($permissions[$read]??false)) throw new InvalidArgumentException('Edit permission requires read access');
     }
     if (($permissions['attendance.manage']??false) && !($permissions['games.view']??false)) throw new InvalidArgumentException('Match signup management requires match access');

@@ -1,6 +1,6 @@
 (function(root,factory){const model=factory();if(typeof module==='object'&&module.exports)module.exports=model;else root.ClubAccessModel=model;})(typeof window==='undefined'?globalThis:window,()=>{
   'use strict';
-  const permissions=['clubhouse.view','clubhouse.manage','squad.view','dashboard.view','players.view','players.manage','games.view','games.manage','attendance.view','attendance.manage','payments.view','payments.manage','access.manage'];
+  const permissions=['arcade.view','arcade.manage','clubhouse.view','clubhouse.manage','squad.view','dashboard.view','players.view','players.manage','games.view','games.manage','attendance.view','attendance.manage','payments.view','payments.manage','access.manage'];
   const roles=[
     {id:'super_admin',name:'Club owner',description:'Full access, including members and permissions. This profile is protected.'},
     {id:'admin',name:'Club board',description:'The board’s main working profile. Configure its access below.'},
@@ -10,6 +10,7 @@
     {id:'player',name:'Player',description:'For squad members managing their own football and payments.'}
   ];
   const pages=[
+    {id:'arcade',name:'Games',description:'Prediction League and teammate quizzes. Read access includes joining and playing for yourself.',read:['arcade.view'],edit:['arcade.manage'],editNote:'Publish prediction rounds and record or correct professional match results.'},
     {id:'clubhouse',name:'Clubhouse',description:'Club updates, the next match and season statistics.',read:['clubhouse.view'],edit:['clubhouse.manage'],editNote:'Publish and remove club announcements.'},
     {id:'matches',name:'Matches',description:'Fixtures, match centres, results and published teams.',read:['games.view'],edit:['games.manage'],editNote:'Create or change fixtures, teams and results.'},
     {id:'match-management',name:'Match squad management',description:'Board tools for playing lists, guests and bib duties.',read:['dashboard.view','attendance.view','games.view'],edit:['attendance.manage'],editNote:'Add or remove players and manage attendance.'},

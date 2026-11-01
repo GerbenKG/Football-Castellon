@@ -337,3 +337,41 @@ Checks: `node tests/activity-model.test.cjs`, `php -d extension=pdo_mysql
 tests/presence-local.test.php` and `node tests/club-local.test.cjs`. Local tests use
 the isolated sample database only and verify tab departure, expiry, host isolation,
 private last-sign-in history and preview protections.
+
+
+## Club Games
+
+Games has separate opt-ins for Prediction League and Challenge a teammate.
+All active member profiles initially have `arcade.view` (view and play for
+oneself). Club owner and Club board initially have `arcade.manage` (publish
+rounds and manage results). Owners can change Games access in the existing
+profile editor; saved profile choices are never overwritten by defaults.
+
+Board members publish rounds of 1–10 real upcoming fixtures, entering kickoff
+in their device's local time. Times display in Castellon time. Results are
+entered manually by the board, after normal time including added time, excluding
+extra time and penalties. No external sports-data feed is configured. Predictions
+can be updated until kickoff, using the server clock; other predictions remain
+private until kickoff. Exact scores earn 3 points, correct win/draw outcomes 1.
+Final-score corrections immediately recalculate the all-rounds leaderboard.
+Voided/cancelled/postponed fixtures earn no points. Existing predictions remain
+recorded when members leave and rejoin. Unsaved scores in other fixtures survive
+saving one prediction and automatic club refreshes pause while drafts exist.
+
+Quiz challenges require both members to opt in. Each uses five randomly chosen
+questions from the server-only bank, lasts seven days and allows one submission
+per player. Scores and correct answers are withheld until both submit; only the
+two participants can see their challenge. An invitee can decline. Duplicate open
+pairings and more than ten outgoing challenges per day are blocked. Leaving
+prevents new invitations but allows existing challenges to be completed.
+
+The four `club_arcade_members`, `club_prediction_rounds`, `club_predictions` and
+`club_quiz_challenges` tables are created additively on first use. Games uses the
+same configured database as the rest of the club; dev should not be seeded with
+invented live fixtures or challenges. Every mutation requires authentication,
+Games access and CSRF protection; member preview is read-only.
+
+Checks: `php tests/arcade.test.php`, `node tests/arcade-client.test.cjs`,
+`node tests/arcade-local.test.cjs`, and `node tests/club-local.test.cjs`.
+The integration suite and its CLI fixture helper refuse any database except the
+isolated local sample database and restore opt-ins and disposable records.
