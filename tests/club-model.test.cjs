@@ -8,3 +8,14 @@ test('waiting-list signup is distinct from confirmed playing',()=>{const d=fixtu
 test('three-team sessions do not inherit a two-team win/loss result',()=>{const d=fixture();d.matches.g1.teams.push(['other']);assert.equal(M.stats(d,'p').results,0);assert.equal(M.stats(d,'p').wins,0);});
 
 test('upcoming bibs reminder uses the latest completed recorded duty, separately from the next washer',()=>{const d=fixture();d.bibs_assignments=[{game_id:'g1',player_id:'first'},{game_id:'g2',player_id:'holder'},{game_id:'future',player_id:'next'}];const b=M.bibs(d,'future','2000-12-31T12:00:00');assert.equal(b.holder[0].player_id,'holder');assert.equal(b.assigned[0].player_id,'next');assert.equal(b.previous.id,'g2');assert.equal(M.bibs(d,'old','2000-12-31T12:00:00').holder.length,0);});
+
+
+test('season forecast adds open fees and subtracts only unpaid selected-season expenses',()=>{
+ const f={balance:500,due:[{amount:30},{amount:'20.50'}],expenses:[{amount:60,paid:false},{amount:'10.25',paid:false},{amount:100,paid:true}]};
+ assert.deepEqual(M.financeForecast(f),{openFees:50.5,unpaidExpenses:70.25,seasonEnd:480.25});
+ assert.equal(M.financeForecast({...f,expenses:f.expenses.map(e=>({...e,paid:true}))}).seasonEnd,550.5);
+});
+test('forecast handles decimal amounts, losses and an empty season',()=>{
+ assert.deepEqual(M.financeForecast(null),{openFees:0,unpaidExpenses:0,seasonEnd:0});
+ assert.deepEqual(M.financeForecast({balance:-10,due:[{amount:0.1},{amount:0.2}],expenses:[{amount:0.15,paid:false}]}),{openFees:0.3,unpaidExpenses:0.15,seasonEnd:-9.85});
+});
