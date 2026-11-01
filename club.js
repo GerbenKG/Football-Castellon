@@ -136,7 +136,7 @@
   async function handleAction(action,id,button){
     const g=data?.games.find(g=>g.id===id),m=data?.matches[id]||{};
     if(action==='refresh'){await refresh();toast('Club data refreshed.');return;}
-    if(action==='logout'){await api.post('/api/auth/logout.php',{});location.href='/';return;}
+    if(action==='logout'){await window.ClubActivity.depart();await api.post('/api/auth/logout.php',{});window.ClubActivity.stop();location.href='/';return;}
     if(action==='signup'){
       const status=M.signupState(data,id);
       const update=async()=>{const r=await post({action:'signup',game_id:id,join:status==='out'});await refresh();toast(r.waiting?'You’re on the waiting list.':r.playing?'You’re in. See you on the pitch!':'Your place has been released.');};
@@ -182,13 +182,13 @@
     try{
       const [snapshot,history]=await Promise.allSettled([api.get('/api/club.php'+window.ClubOffice.query()),api.get('/api/auth/member-payment-history.php')]);
       if(snapshot.status==='rejected')throw snapshot.reason;
-      data=snapshot.value;window.ClubAvatar.setPlayers(data.players,data.user);window.ClubFavorites.setContext(data);
+      data=snapshot.value;window.ClubActivity.sync(data);window.ClubAvatar.setPlayers(data.players,data.user);window.ClubFavorites.setContext(data);
       if(history.status==='fulfilled'){payments=history.value;paymentError='';}else{payments=null;paymentError=history.reason.message;}
       if(!background)render();else{const fresh=document.getElementById('freshness');if(fresh)fresh.textContent='Updated '+new Date(data.updated_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
     }finally{refreshing=false;}
   }
   function login(error=''){
-    data=null;
+    data=null;window.ClubActivity.stop();
     root.innerHTML=`<div class="login-page"><section class="login-story">${pitch()}<a class="identity" href="/"><img src="club-crest.svg" alt="FC Castellón crest"><div><strong>FC Castellón</strong><small>THE CLUBHOUSE</small></div></a><div><h1>For the football.<br><em>For the people.</em></h1><p>Your next match. Your teammates. Your club.<br>Everything that brings us together, in one place.</p></div><footer>GOOD FOOTBALL. BETTER COMPANY.</footer></section><main class="login-form" id="content"><div class="login-box">${environment()?`<span class="environment">${environment()}</span>`:''}<div class="eyebrow" style="margin-top:28px">Welcome to the clubhouse</div><h2>Your place at the club.</h2><p>Sign in to join the next game, catch up with the squad and keep your season on track.</p><a class="btn btn-primary" href="/api/auth/google.php"><span style="font-weight:700;background:white;color:#345642;border-radius:50%;width:23px;height:23px;display:inline-grid;place-items:center;margin-right:6px">G</span> Continue with Google ${icon('arrow',16)}</a>${error?`<p class="form-error" style="margin-top:15px">${esc(error)}</p>`:''}<div id="email-sign-in"></div><p class="login-note">For invited club members. Use the email address registered with the club.</p><div class="login-features"><div class="login-feature">${icon('calendar')} Put your name down for the next match.</div><div class="login-feature">${icon('squad')} Follow the squad and your season stats.</div><div class="login-feature">${icon('wallet')} Stay on top of your payments.</div></div></div></main></div>`;
     window.ClubEmailLogin.mount(document.getElementById('email-sign-in'));
   }

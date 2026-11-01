@@ -122,10 +122,11 @@ $rolePermissions = [];
 
 if ($user['role'] === 'super_admin') {
     $members = $pdo->query(
-        'SELECT email, user_id, display_name, role, active, player_id,
-                phone, contact_email, avatar_path
-         FROM access_profiles
-         ORDER BY email'
+        'SELECT ap.email, ap.user_id, ap.display_name, ap.role, ap.active, ap.player_id,
+                ap.phone, ap.contact_email, ap.avatar_path,
+                DATE_FORMAT(u.last_login_at, \'%Y-%m-%dT%H:%i:%sZ\') AS last_signed_in_at
+         FROM access_profiles ap LEFT JOIN users u ON u.id=ap.user_id
+         ORDER BY ap.email'
     )->fetchAll();
 
     foreach ($members as &$member) {

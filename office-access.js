@@ -2,23 +2,24 @@
   'use strict';
   const model=window.ClubAccessModel,api=window.api;
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let access=null,players=[],loading=null,error='',role='player',draft=null,dirty=false,query='',roleFilter='all',saving=false,message='';
+  let loadedAt=0,access=null,players=[],loading=null,error='',role='player',draft=null,dirty=false,query='',roleFilter='all',saving=false,message='';
   const owner=()=>access?.profile.role==='super_admin';
   const root=()=>document.getElementById('club-access-root');
   async function load(){
     const a=await api.get('/api/auth/access.php');access=a;
     if(owner())players=await api.get('/api/auth/access.php?action=admin_list_players_for_linking');
     if(!dirty)draft=model.forRole(a.rolePermissions,role);
+    loadedAt=Date.now();
   }
   function draw(){const target=root();if(target)target.innerHTML=content();}
   function view(){
-    if(!access&&!loading){loading=load().catch(e=>{error=e.message;}).finally(()=>{loading=null;draw();});}
+    if((!access||Date.now()-loadedAt>60000)&&!loading&&!dirty){loading=load().catch(e=>{error=e.message;}).finally(()=>{loading=null;draw();});}
     queueMicrotask(draw);
     return '<div id="club-access-root" aria-busy="false"></div>';
   }
   function members(){
     const list=access.members.filter(m=>(roleFilter==='all'||m.role===roleFilter)&&[m.display_name,m.email,players.find(p=>p.id===m.player_id)?.name].some(s=>String(s||'').toLowerCase().includes(query.toLowerCase())));
-    return list.map(m=>`<article class="access-member">${window.ClubAvatar.render(m)}<div class="access-member-name"><h3>${window.ClubFavorites.label(players.find(p=>p.id===m.player_id)?.name||m.display_name||'Unlinked member',m.player_id,m)}</h3><p>${esc(m.email)}</p><small>${m.player_id?'Linked to a player':'Player link needed'} · ${m.user_id?'Has signed in':'Awaiting first sign-in'}</small></div><div class="access-member-status"><span class="pill ${m.role==='super_admin'?'':'neutral'}">${esc(model.name(m.role))}</span><span class="pill ${m.active?'':'red'}">${m.active?'Active':'Disabled'}</span></div><div class="access-member-actions">${m.active&&m.preview_key?`<a class="btn btn-outline btn-small" href="/?view_as=${esc(m.preview_key)}" title="View ${esc(m.display_name||m.email)} in a read-only preview">Log in as</a>`:''}<button class="btn btn-outline btn-small" data-access-action="edit-member" data-email="${esc(m.email)}">Edit access</button></div></article>`).join('')||'<div class="empty"><strong>No matching members</strong>Try another name, email or profile.</div>';
+    return list.map(m=>`<article class="access-member">${window.ClubAvatar.render(m)}<div class="access-member-name"><h3>${window.ClubFavorites.label(players.find(p=>p.id===m.player_id)?.name||m.display_name||'Unlinked member',m.player_id,m)}</h3><p>${esc(m.email)}</p><small>${m.player_id?'Linked to a player':'Player link needed'} · ${m.user_id?'Has signed in':'Awaiting first sign-in'}</small><small class="member-last-sign-in">Last sign-in: ${m.last_signed_in_at?esc(window.ClubActivityModel.lastSignIn(m.last_signed_in_at))+' · Castellón time':m.user_id?'Not recorded yet':'Not signed in yet'}</small></div><div class="access-member-status"><span class="pill ${m.role==='super_admin'?'':'neutral'}">${esc(model.name(m.role))}</span><span class="pill ${m.active?'':'red'}">${m.active?'Active':'Disabled'}</span></div><div class="access-member-actions">${m.active&&m.preview_key?`<a class="btn btn-outline btn-small" href="/?view_as=${esc(m.preview_key)}" title="View ${esc(m.display_name||m.email)} in a read-only preview">Log in as</a>`:''}<button class="btn btn-outline btn-small" data-access-action="edit-member" data-email="${esc(m.email)}">Edit access</button></div></article>`).join('')||'<div class="empty"><strong>No matching members</strong>Try another name, email or profile.</div>';
   }
   function matrix(){
     const fixed=role==='super_admin',values=draft||model.forRole(access.rolePermissions,role);

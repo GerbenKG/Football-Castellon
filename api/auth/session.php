@@ -38,6 +38,8 @@ function setApplicationSession(string $userId): void
         'token_hash' => $tokenHash,
     ]);
 
+    $pdo->prepare('UPDATE users SET last_login_at=UTC_TIMESTAMP() WHERE id=?')->execute([$userId]);
+
     setcookie(APP_SESSION_COOKIE, $token, [
         'expires' => time() + (APP_SESSION_DAYS * 86400),
         'path' => '/',

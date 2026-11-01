@@ -309,3 +309,31 @@ Finances shows the selected season's unpaid expenses and a season-end forecast:
 recorded balance + open fees − unpaid expenses. The forecast uses recorded items
 only and recalculates with the refreshed finance data; paid expenses are already
 in the recorded balance and are not deducted again.
+
+## Member activity
+
+Club owners see each member's last successful sign-in in Members & permissions,
+in Castellon time. This uses the existing UTC `users.last_login_at`; heartbeats
+and page refreshes never change it. Unlinked invitations show no invented dates.
+
+Signed-in members have a collapsible **Online now** panel in the bottom-right
+corner, showing names, profile pictures and favourite-club badges. Visible tabs
+check in every 10 seconds; a tab departure removes its own presence, while another
+active tab keeps the member online. A 45-second timeout covers abrupt disconnects.
+Development and production maintain separate online lists by hostname. Only the
+public member display identity is returned; no emails, roles, contacts or login
+history are included in presence responses.
+
+New arrivals produce a small five-second notice above the panel. Initial loading,
+returning from a hidden page and reconnecting establish a quiet baseline. Notices
+are deduplicated across tabs, ignore the current member, never take focus or
+intercept clicks, and respect reduced-motion settings. Read-only member preview
+neither publishes presence nor impersonates the viewed member. Presence writes
+require the normal session-bound CSRF token and cannot target another account.
+The additive `club_presence` and `club_presence_tabs` tables are created on first
+use. No existing membership or permission records are changed.
+
+Checks: `node tests/activity-model.test.cjs`, `php -d extension=pdo_mysql
+tests/presence-local.test.php` and `node tests/club-local.test.cjs`. Local tests use
+the isolated sample database only and verify tab departure, expiry, host isolation,
+private last-sign-in history and preview protections.
