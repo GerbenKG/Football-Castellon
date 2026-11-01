@@ -109,7 +109,7 @@ try {
                 }
                 if (count($all) !== count(array_unique($all)) || array_diff($all, $eligible) || array_diff($eligible, $all) || !$teams[0] || !$teams[1]) throw new InvalidArgumentException('Assign every current participant to exactly one team');
                 $data['teams'] = $teams;
-                $names=array_slice(['Green','Gold','Blue'],0,count($teams));
+                $names=array_slice(['A','B','C'],0,count($teams));
                 $captains=$body['captains']??array_fill(0,count($teams),null);
                 if(!is_array($captains)||!array_is_list($captains)||count($captains)!==count($teams))throw new InvalidArgumentException('Choose a captain for each team');
                 $s=$pdo->prepare('SELECT id,player_id FROM game_players WHERE game_id=? AND playing=1');$s->execute([$id]);$playersById=array_column($s->fetchAll(),null,'id');

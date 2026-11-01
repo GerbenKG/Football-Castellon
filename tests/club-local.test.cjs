@@ -87,7 +87,7 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
   assert.equal(draft3.captains[draft3.teams.findIndex(t=>t.includes(guestRow.id))],null);
   await post(admin,{action:'lineup',game_id:past,teams:draft3.teams,captains:draft3.captains});
   let sheet=(await member.request('/api/club.php')).matches[past];assert.equal(sheet.teams.length,3);assert.deepEqual(sheet.teams,draft3.teams);assert.deepEqual(sheet.captains,draft3.captains);
-  const persisted=(await admin.request('/api/data.php?table=game_players&filters='+encodeURIComponent(JSON.stringify([{column:'game_id',operator:'eq',value:past}])))).data;assert.ok(persisted.every(r=>['Green','Gold','Blue'].includes(r.team_name)));
+  const persisted=(await admin.request('/api/data.php?table=game_players&filters='+encodeURIComponent(JSON.stringify([{column:'game_id',operator:'eq',value:past}])))).data;assert.ok(persisted.every(r=>['A','B','C'].includes(r.team_name)));
   await post(admin,{action:'lineup',game_id:past,teams:[draft3.teams[0],draft3.teams[1],[]]},422);
   const wrongCaptains=[...draft3.captains];wrongCaptains[draft3.teams.findIndex(t=>t.includes(guestRow.id))]=guestRow.id;
   await post(admin,{action:'lineup',game_id:past,teams:draft3.teams,captains:wrongCaptains},422);

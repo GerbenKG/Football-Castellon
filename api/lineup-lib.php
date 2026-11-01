@@ -19,7 +19,7 @@ function clubBalanceTeams(array $players, int $count, array $captainCounts = [])
         shuffle($eligible);usort($eligible,static fn($a,$b)=>($captainCounts[$byId[$a]['player_id']]??0)<=>($captainCounts[$byId[$b]['player_id']]??0));
         $captains[]=$eligible[0]??null;
     }
-    return ['teams'=>$teams,'captains'=>$captains,'team_names'=>array_slice(['Green','Gold','Blue'],0,$count)];
+    return ['teams'=>$teams,'captains'=>$captains,'team_names'=>array_slice(['A','B','C'],0,$count)];
 }
 
 function clubLineupDraft(PDO $pdo,string $gameId,int $count): array
