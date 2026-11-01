@@ -8,6 +8,14 @@ if (!isLocalDevelopment()) {
 $path = rawurldecode(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/');
 $path = str_replace('\\', '/', $path);
 if (str_contains($path, '%') || str_contains($path, "\0")) { http_response_code(404); exit; }
+if ($path === '/dev/auth-error-preview') {
+    require dirname(__DIR__) . '/api/auth/error-page.php';
+    $reason = in_array($_GET['case'] ?? '', ['unknown', 'disabled', 'error'], true) ? $_GET['case'] : 'unknown';
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo authErrorPage('Your sign-in session expired. Please try again.', $reason, 'sample-member@example.test');
+    exit;
+}
 if (preg_match('~(^|/)\.|^/(dev|tests)(/|$)|^/(README|BRANCH-STATUS)~i', $path)) {
     http_response_code(404);
     exit;
