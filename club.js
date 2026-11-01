@@ -11,7 +11,7 @@
   const name=r=>r.player_id?(player(r.player_id)?.name||'Former player'):(r.guest_name||'Guest');
   const me=()=>player(data.user.player_id)?.name||data.user.display_name||'Club member';
   const can=p=>data?.permissions?.[p]===true;
-  const board=()=>['clubhouse.manage','dashboard.view','games.manage','players.view','players.manage','attendance.manage','payments.view','access.manage'].some(can);
+  const board=()=>window.ClubAccessModel.isBoard(data?.user?.role);
   const role=()=>({super_admin:'Club board · Full access',admin:'Club board',attendance:'Match organiser',finance:'Club treasurer',viewer:'Club member',player:'Player'}[data.user.role]||'Club member');
   const initials=(s,large=false,id='')=>window.ClubAvatar.render(window.ClubAvatar.resolve(s,id),large);
   const pill=(s,c='')=>`<span class="pill ${c}">${esc(s)}</span>`;
@@ -89,7 +89,7 @@
     players=players.map(p=>({...p,stats:M.stats(data,p.id)})).sort((a,b)=>sort==='name'?a.name.localeCompare(b.name):b.stats.appearances-a.stats.appearances||a.name.localeCompare(b.name));
     return players.map(p=>{const c=data.player_cards[p.id]||{};return `<button class="player-card" data-action="player" data-id="${p.id}">${initials(p.name,true,p.id)}${c.number?`<span class="shirt-number">${c.number}</span>`:''}<h3>${esc(p.name)}</h3><p>${esc(c.position||'Club player')}${p.id===data.user.player_id?' · You':''}</p><div class="player-card-bottom"><div><b>${p.stats.appearances}</b><small>Appearances</small></div><div><b>${p.stats.goals}</b><small>Recorded goals</small></div></div></button>`;}).join('')||empty('No players found','Try another name.','squad');
   }
-  function squad(){return heading(M.season(data)?.name||'Meet the club','One club. All of us.','The people who make the football happen.',can('players.manage')?link('Manage players','#office/people','outline'):'')+`<div class="squad-tools"><input class="search" id="squad-search" type="search" placeholder="Find a teammate…" aria-label="Find a teammate" value="${esc(search)}"><label style="font-size:11px;color:var(--muted)">Sort <select id="squad-sort" style="padding:8px;border:1px solid var(--line);border-radius:7px;background:white"><option value="appearances" ${sort==='appearances'?'selected':''}>Appearances</option><option value="name" ${sort==='name'?'selected':''}>Name A–Z</option></select></label></div><div class="player-grid" id="player-grid">${playerCards()}</div><p class="muted" style="font-size:11px;margin-top:20px">Appearances use the playing lists of completed matches. Goals and results appear only when recorded by the board.</p>`;}
+  function squad(){return heading(M.season(data)?.name||'Meet the club','One club. All of us.','The people who make the football happen.',board()&&can('players.manage')?link('Manage players','#office/people','outline'):'')+`<div class="squad-tools"><input class="search" id="squad-search" type="search" placeholder="Find a teammate…" aria-label="Find a teammate" value="${esc(search)}"><label style="font-size:11px;color:var(--muted)">Sort <select id="squad-sort" style="padding:8px;border:1px solid var(--line);border-radius:7px;background:white"><option value="appearances" ${sort==='appearances'?'selected':''}>Appearances</option><option value="name" ${sort==='name'?'selected':''}>Name A–Z</option></select></label></div><div class="player-grid" id="player-grid">${playerCards()}</div><p class="muted" style="font-size:11px;margin-top:20px">Appearances use the playing lists of completed matches. Goals and results appear only when recorded by the board.</p>`;}
 
   function personalPaymentRows(){
     if(paymentError)return `<div class="notice amber">We couldn’t load your payments. ${btn('Try again','refresh','','outline')}</div>`;
@@ -106,6 +106,7 @@
 
   function render(){
     if(!data)return;
+    if(route().page==='office'&&!board())history.replaceState(null,'','#myclub');
     window.ClubOffice.setContext(data,{esc,icon,money,date,fullDate,initials,heading,section,metric,pill,btn,showDialog,toast,refresh,render,matchDetail});
     const r=route(),permission={clubhouse:'clubhouse.view',matches:'games.view',match:'games.view',squad:'squad.view'}[r.page];
     const denied=permission&&!can(permission);

@@ -28,5 +28,6 @@
     next['access.manage']=false;return next;
   }
   const name=role=>roles.find(r=>r.id===role)?.name||role;
-  return {permissions,roles,pages,forRole,level,setLevel,name};
+  const isBoard=role=>['super_admin','admin'].includes(role);
+  return {permissions,roles,pages,forRole,level,setLevel,name,isBoard};
 });
