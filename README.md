@@ -300,3 +300,12 @@ still handled through the existing owner access controls.
 Local visual preview: `/dev/auth-error-preview` (optional `?case=disabled` or
 `?case=error`). This route is confined to the guarded local development router.
 Checks: `php tests/auth-error.test.php` and the local email-code integration suite.
+
+## Treasurer workspace and season forecast
+
+The Treasurer profile can enter Club Office alongside Club owner and Club board.
+Its existing page and edit permissions continue to control available tools.
+Finances shows the selected season's unpaid expenses and a season-end forecast:
+recorded balance + open fees − unpaid expenses. The forecast uses recorded items
+only and recalculates with the refreshed finance data; paid expenses are already
+in the recorded balance and are not deducted again.

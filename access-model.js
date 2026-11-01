@@ -28,6 +28,6 @@
     next['access.manage']=false;return next;
   }
   const name=role=>roles.find(r=>r.id===role)?.name||role;
-  const isBoard=role=>['super_admin','admin'].includes(role);
+  const isBoard=role=>['super_admin','admin','finance'].includes(role);
   return {permissions,roles,pages,forRole,level,setLevel,name,isBoard};
 });

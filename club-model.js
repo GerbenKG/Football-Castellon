@@ -23,6 +23,13 @@
     const previous=game?data.games.filter(g=>g.id!==gid&&ended(g,now)&&`${g.game_date}T${g.start_time}`<`${game.game_date}T${game.start_time}`&&(data.bibs_assignments||[]).some(r=>r.game_id===g.id)).sort((a,b)=>(b.game_date+b.start_time).localeCompare(a.game_date+a.start_time))[0]:null;
     return {assigned:current,holder:previous?(data.bibs_assignments||[]).filter(r=>r.game_id===previous.id):[],previous};
   }
+  function financeForecast(finance){
+    const cents=value=>Math.round(Number(value||0)*100);
+    const open=(finance?.due||[]).reduce((sum,p)=>sum+cents(p.amount),0);
+    const unpaid=(finance?.expenses||[]).filter(e=>!e.paid).reduce((sum,e)=>sum+cents(e.amount),0);
+    const balance=cents(finance?.balance);
+    return {openFees:open/100,unpaidExpenses:unpaid/100,seasonEnd:(balance+open-unpaid)/100};
+  }
   const openPayments=history=>(history?.items||[]).filter(p=>!p.paid);
-  return {madridNow,started,ended,squad,season,recordedGames,stats,signupState,openPayments,bibs};
+  return {madridNow,started,ended,squad,season,recordedGames,stats,signupState,openPayments,bibs,financeForecast};
 });
