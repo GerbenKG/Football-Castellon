@@ -40,6 +40,29 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
   require('node:fs').rmSync(require('node:path').join(__dirname,'../.local/avatars',photoPath),{force:true});
  }
  console.log('PASS own photo upload, invalid files, cross-account protection, shared profile photos and fallback reset');
+ await anonymous.request('/api/clubs.php?countries=1',undefined,401);
+ const countries=(await member.request('/api/clubs.php?countries=1')).countries;assert.ok(countries.includes('Spain')&&countries.includes('Netherlands'));assert.ok(!countries.includes('United States'));
+ const oldFavorite=(await member.request('/api/club.php')).user.favorite_club;
+ const ownerFavorite=(await admin.request('/api/club.php')).user.favorite_club;let customClub;
+ const clubForm=(country='Spain',bytes=png)=>{const f=new FormData();f.set('name','Disposable local football club');f.set('country',country);f.set('badge',new Blob([bytes],{type:'image/png'}),'badge.png');return f;};
+ try {
+  await member.request('/api/clubs.php',clubForm('United States'),422);
+  await member.request('/api/clubs.php',clubForm('Spain',Buffer.from('<svg onload="bad()"></svg>')),422);
+  customClub=(await member.request('/api/clubs.php',clubForm())).club;
+  await viewer.request('/api/club.php',{action:'favorite_club',club_id:customClub.id},403);
+  await member.request('/api/club.php',{action:'favorite_club',club_id:'../../secret'},422);
+  await member.request('/api/club.php',{action:'favorite_club',club_id:customClub.id,player_id:normalOwner.user.player_id});
+  const favSnapshot=await member.request('/api/club.php');assert.equal(favSnapshot.user.favorite_club.id,customClub.id);assert.equal(favSnapshot.players.find(p=>p.id===photoUser.player_id).favorite_club.id,customClub.id);
+  assert.deepEqual((await admin.request('/api/club.php')).user.favorite_club,ownerFavorite);
+  assert.equal((await admin.request('/api/club.php')).players.find(p=>p.id===photoUser.player_id).favorite_club.id,customClub.id);
+  await viewer.request('/api/clubs.php?badge='+customClub.badge_id);
+  await member.request('/api/club.php',{action:'favorite_club',club_id:null});assert.equal((await member.request('/api/club.php')).user.favorite_club,null);
+ } finally {
+  await member.request('/api/club.php',{action:'favorite_club',club_id:oldFavorite?.id??null});
+  if(customClub)for(const file of [customClub.id+'.json',customClub.badge_id+'.image'])require('node:fs').rmSync(require('node:path').join(__dirname,'../.local/club-badges',file),{force:true});
+ }
+ console.log('PASS own favourite club, European countries, custom badges, shared display, clearing and account isolation');
+
 
  const viewerPermissions=accessModel.forRole(accessBefore.rolePermissions,'viewer');
  await member.request('/api/auth/access.php',{action:'admin_set_role_permissions',role:'viewer',permissions:viewerPermissions},403);

@@ -165,7 +165,7 @@ function clubFinance(PDO $pdo, ?string $seasonId = null): array
     $due = []; $income = 0.0;
     foreach ($tickets as $t) {
         if ($t['paid']) $income += (float) $t['amount'];
-        else $due[] = ['id' => $t['id'], 'type' => 'season', 'name' => $t['name'], 'amount' => (float) $t['amount'], 'date' => $season['starts_on'], 'label' => $season['name'] . ' season ticket'];
+        else $due[] = ['id' => $t['id'], 'type' => 'season', 'player_id'=>$t['player_id'], 'name' => $t['name'], 'amount' => (float) $t['amount'], 'date' => $season['starts_on'], 'label' => $season['name'] . ' season ticket'];
     }
     $s = $pdo->prepare('SELECT gp.id,gp.player_id,gp.paid,g.game_date,COALESCE(p.name,gp.guest_name) AS name FROM game_players gp JOIN games g ON g.id=gp.game_id LEFT JOIN players p ON p.id=gp.player_id WHERE gp.playing=1 AND g.game_date BETWEEN ? AND ?');
     $s->execute([$season['starts_on'], $season['ends_on']]);
@@ -175,7 +175,7 @@ function clubFinance(PDO $pdo, ?string $seasonId = null): array
         $amount = (float) $season['pay_per_game_amount'];
         $gamePayments[]=['id'=>$r['id'],'type'=>'game','name'=>$r['name'],'player_id'=>$r['player_id'],'amount'=>$amount,'date'=>$r['game_date'],'label'=>'Match fee','paid'=>(bool)$r['paid']];
         if ($r['paid']) $income += $amount;
-        elseif ($r['game_date'] <= (new DateTimeImmutable('now', new DateTimeZone('Europe/Madrid')))->format('Y-m-d')) $due[] = ['id' => $r['id'], 'type' => 'game', 'name' => $r['name'], 'amount' => $amount, 'date' => $r['game_date'], 'label' => 'Match fee'];
+        elseif ($r['game_date'] <= (new DateTimeImmutable('now', new DateTimeZone('Europe/Madrid')))->format('Y-m-d')) $due[] = ['id' => $r['id'], 'type' => 'game', 'player_id'=>$r['player_id'], 'name' => $r['name'], 'amount' => $amount, 'date' => $r['game_date'], 'label' => 'Match fee'];
     }
     $s = $pdo->prepare('SELECT * FROM finance_expenses WHERE season_id=? ORDER BY due_date');
     $s->execute([$season['id']]);
@@ -206,12 +206,13 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
     $games = $pdo->query('SELECT id,game_date,start_time,end_time,location FROM games ORDER BY game_date,start_time')->fetchAll();
     $rows = normalizeRows($pdo->query('SELECT id,game_id,player_id,guest_name,took_bibs FROM game_players WHERE playing=1')->fetchAll());
     $records = $pdo->query('SELECT record_key,kind,payload,created_at,updated_at FROM club_records ORDER BY created_at DESC')->fetchAll();
-    $announcements = []; $matches = []; $votes = []; $waiting = []; $reports = []; $myVotes = []; $cards = [];
+    $announcements = []; $matches = []; $votes = []; $waiting = []; $reports = []; $myVotes = []; $cards = []; $favorites=[];
     foreach ($records as $record) {
         $v = json_decode($record['payload'], true, 64, JSON_THROW_ON_ERROR);
         if ($record['kind'] === 'announcement') $announcements[] = $v + ['id' => $record['record_key'], 'created_at' => $record['created_at']];
         if ($record['kind'] === 'match') $matches[$v['game_id']] = $v;
         if ($record['kind'] === 'player_card') $cards[$v['player_id']] = $v;
+        if ($record['kind'] === 'favorite_club') $favorites[substr($record['record_key'],9)]=$v['club'];
         if ($record['kind'] === 'vote') {
             $gid = $v['game_id']; $pid = $v['player_id'];
             $votes[$gid][$pid] = ($votes[$gid][$pid] ?? 0) + 1;
@@ -239,8 +240,12 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
         $s->execute([$user['player_id']]); $myTickets = normalizeRows($s->fetchAll());
     }
     $publicUser = array_intersect_key($user, array_flip(['id','email','display_name','role','player_id','avatar_path','phone','contact_email']));
+    $publicUser['favorite_club']=$favorites[hash('sha256',strtolower($user['email']))]??null;
+    $playerFavorites=[];
+    foreach($pdo->query('SELECT email,player_id FROM access_profiles WHERE active=1 AND player_id IS NOT NULL')->fetchAll() as $profile)$playerFavorites[$profile['player_id']]=$favorites[hash('sha256',strtolower($profile['email']))]??null;
+    foreach($players as &$p)$p['favorite_club']=$playerFavorites[$p['id']]??null;unset($p);
     $memberAccounts=[];
-    if($user['role']==='super_admin')foreach($pdo->query('SELECT email,display_name,role,active,player_id FROM access_profiles ORDER BY display_name')->fetchAll() as $member){$member['active']=(bool)$member['active'];$member['preview_key']=previewMemberKey($member['email']);$memberAccounts[]=$member;}
+    if($user['role']==='super_admin')foreach($pdo->query('SELECT email,display_name,role,active,player_id FROM access_profiles ORDER BY display_name')->fetchAll() as $member){$member['active']=(bool)$member['active'];$member['preview_key']=previewMemberKey($member['email']);$member['favorite_club']=$favorites[hash('sha256',strtolower($member['email']))]??null;$memberAccounts[]=$member;}
     return ['user' => $publicUser, 'preview' => $user['_preview'] ?? null, 'permissions' => $permissions, 'players' => $players, 'games' => $games, 'signups' => $rows,
         'seasons' => $seasons, 'my_tickets' => $myTickets, 'announcements' => $permissions['clubhouse.view'] ? array_slice($announcements, 0, 30) : [], 'matches' => (object) $matches,
         'votes' => (object) $votes, 'my_votes' => (object) $myVotes, 'player_cards' => (object) $cards, 'waiting' => $waiting, 'payment_reports' => $reports, 'lineup_players'=>$lineupPlayers,
