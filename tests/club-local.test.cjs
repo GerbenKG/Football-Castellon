@@ -17,9 +17,27 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
  await admin.request('/api/club.php',undefined,400,{'X-FC-Preview':'invalid'});
  await admin.request('/api/club.php',undefined,404,{'X-FC-Preview':'0'.repeat(64)});
  const ownPreview={'X-FC-Preview':accessBefore.members.find(m=>m.email===accessBefore.profile.email).preview_key};
- for(const path of ['/api/club.php','/api/data.php?table=players','/api/auth/access.php','/api/auth/game-signup.php','/api/auth/member-profile.php','/api/avatars.php','/api/auth/logout.php','/api/auth/email-code.php','/api/auth/email-settings.php'])await admin.request(path,{},403,ownPreview);
+ for(const path of ['/api/club.php','/api/data.php?table=players','/api/auth/access.php','/api/auth/game-signup.php','/api/auth/member-profile.php','/api/avatars.php','/api/auth/logout.php','/api/auth/email-code.php','/api/auth/email-settings.php','/api/auth/presence.php'])await admin.request(path,{},403,ownPreview);
  const normalOwner=await admin.request('/api/auth/me.php');assert.equal(normalOwner.user.role,'super_admin');assert.equal(normalOwner.user.player_id,accessBefore.profile.player_id);assert.equal(normalOwner.preview,null);
  console.log('PASS owner-only preview uses exact member data and permissions, blocks server writes and logout, and preserves owner session');
+ await anonymous.request('/api/auth/presence.php',{},401);
+ await member.request('/api/auth/presence.php',undefined,405);
+ const presenceClient='c'.repeat(32),viewerClient='d'.repeat(32);
+ const initialPresence=await member.request('/api/auth/presence.php',{client_id:presenceClient});
+ const memberPresence=initialPresence.members.find(p=>p.id===realMember.user.id);assert.ok(memberPresence);assert.match(memberPresence.online_key,/^[a-f0-9]{32}$/);
+ assert.deepEqual(Object.keys(memberPresence).sort(),['avatar_path','display_name','id','online_key','player_id']);
+ const againPresence=await member.request('/api/auth/presence.php',{client_id:presenceClient,user_id:normalOwner.user.id});
+ assert.equal(againPresence.members.find(p=>p.id===realMember.user.id).online_key,memberPresence.online_key);
+ assert.equal(againPresence.members.find(p=>p.id===normalOwner.user.id)?.online_key,initialPresence.members.find(p=>p.id===normalOwner.user.id)?.online_key,'Cannot mark a different member online');
+ const viewerPresence=await viewer.request('/api/auth/presence.php',{client_id:viewerClient});
+ assert.ok(viewerPresence.members.some(p=>p.id===realMember.user.id));assert.ok(viewerPresence.members.some(p=>p.display_name==='Local Viewer'));
+ const ownHistory=(await admin.request('/api/auth/access.php')).members.find(m=>m.email===normalOwner.user.email);
+ assert.match(ownHistory.last_signed_in_at,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+ assert.equal((await member.request('/api/auth/access.php')).members.length,0);
+ await member.request('/api/auth/presence.php',{client_id:presenceClient,action:'leave'});
+ await viewer.request('/api/auth/presence.php',{client_id:viewerClient,action:'leave'});
+ console.log('PASS private last-sign-in history, authenticated presence, stable online spells, minimal public fields, spoof prevention and preview write protection');
+
  const emailSettings=(await admin.request('/api/auth/email-settings.php')).template;
  await member.request('/api/auth/email-settings.php',undefined,403);
  await admin.request('/api/auth/email-settings.php',{},403,ownPreview);
