@@ -2,7 +2,7 @@
 const assert=require('node:assert/strict');
 require('node:dns').setDefaultResultOrder('ipv4first');
 const base='http://localhost:3002';
-function session(){const jar=new Map();return {csrf:null,async request(path,body,expected=200,extraHeaders={}){const headers={...extraHeaders,Cookie:[...jar].map(([k,v])=>k+'='+v).join('; ')};if(body!==undefined){headers['Content-Type']='application/json';if(this.csrf)headers['X-CSRF-Token']=this.csrf;}const r=await fetch(base+path,{method:body===undefined?'GET':'POST',headers,body:body===undefined?undefined:JSON.stringify(body),redirect:'manual'});for(const c of r.headers.getSetCookie()){const [k,v]=c.split(';')[0].split('=');jar.set(k,v);}const raw=await r.text();assert.equal(r.status,expected,path+' '+raw.slice(0,250));return r.headers.get('content-type')?.includes('application/json')?JSON.parse(raw):raw;},async login(role){const r=await fetch(base+'/api/auth/google.php',{redirect:'manual'});for(const c of r.headers.getSetCookie()){const [k,v]=c.split(';')[0].split('=');jar.set(k,v);}const html=await r.text();assert.match(html,/Local test sign-in/,'Never run these tests on a live server');const token=html.match(/name="token" value="([^"]+)"/)[1];const login=await fetch(base+'/api/auth/google.php',{method:'POST',headers:{Cookie:[...jar].map(([k,v])=>k+'='+v).join('; '),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({role,token}),redirect:'manual'});assert.equal(login.status,303);for(const c of login.headers.getSetCookie()){const [k,v]=c.split(';')[0].split('=');jar.set(k,v);}this.csrf=(await this.request('/api/auth/csrf.php')).csrf_token;return this;}};}
+function session(){const jar=new Map();return {csrf:null,async request(path,body,expected=200,extraHeaders={}){const headers={...extraHeaders,Cookie:[...jar].map(([k,v])=>k+'='+v).join('; ')};if(body!==undefined){if(!(body instanceof FormData))headers['Content-Type']='application/json';if(this.csrf)headers['X-CSRF-Token']=this.csrf;}const r=await fetch(base+path,{method:body===undefined?'GET':'POST',headers,body:body===undefined?undefined:body instanceof FormData?body:JSON.stringify(body),redirect:'manual'});for(const c of r.headers.getSetCookie()){const [k,v]=c.split(';')[0].split('=');jar.set(k,v);}const raw=await r.text();assert.equal(r.status,expected,path+' '+raw.slice(0,250));return r.headers.get('content-type')?.includes('application/json')?JSON.parse(raw):raw;},async login(role){const r=await fetch(base+'/api/auth/google.php',{redirect:'manual'});for(const c of r.headers.getSetCookie()){const [k,v]=c.split(';')[0].split('=');jar.set(k,v);}const html=await r.text();assert.match(html,/Local test sign-in/,'Never run these tests on a live server');const token=html.match(/name="token" value="([^"]+)"/)[1];const login=await fetch(base+'/api/auth/google.php',{method:'POST',headers:{Cookie:[...jar].map(([k,v])=>k+'='+v).join('; '),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({role,token}),redirect:'manual'});assert.equal(login.status,303);for(const c of login.headers.getSetCookie()){const [k,v]=c.split(';')[0].split('=');jar.set(k,v);}this.csrf=(await this.request('/api/auth/csrf.php')).csrf_token;return this;}};}
 (async()=>{
  const anonymous=session();await anonymous.request('/api/club.php',undefined,401);
  const admin=await session().login('super_admin'),organiser=await session().login('attendance'),finance=await session().login('finance'),member=await session().login('player'),viewer=await session().login('viewer');
@@ -20,6 +20,27 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
  for(const path of ['/api/club.php','/api/data.php?table=players','/api/auth/access.php','/api/auth/game-signup.php','/api/auth/member-profile.php','/api/avatars.php','/api/auth/logout.php'])await admin.request(path,{},403,ownPreview);
  const normalOwner=await admin.request('/api/auth/me.php');assert.equal(normalOwner.user.role,'super_admin');assert.equal(normalOwner.user.player_id,accessBefore.profile.player_id);assert.equal(normalOwner.preview,null);
  console.log('PASS owner-only preview uses exact member data and permissions, blocks server writes and logout, and preserves owner session');
+ const photoProfile=await member.request('/api/auth/member-profile.php'),photoUser=(await member.request('/api/club.php')).user;
+ const photoPath=photoUser.id+'/avatar-'+require('node:crypto').randomBytes(16).toString('hex')+'.png';
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=','base64');
+ const imageForm=(path,bytes=png)=>{const form=new FormData();form.set('path',path);form.set('avatar',new Blob([bytes],{type:'image/png'}),'sample.png');return form;};
+ try{
+  await viewer.request('/api/avatars.php',imageForm(photoPath),403);
+  await member.request('/api/avatars.php',imageForm(photoPath,Buffer.from('not an image')),400);
+  await member.request('/api/avatars.php',imageForm(photoPath));
+  await member.request('/api/auth/member-profile.php',{email:photoProfile.email,phone:photoProfile.phone||'',avatar_path:photoPath});
+  const withPhoto=await member.request('/api/club.php');assert.equal(withPhoto.user.avatar_path,photoPath);assert.equal(withPhoto.players.find(p=>p.id===photoUser.player_id).avatar_path,photoPath);
+  await viewer.request('/api/avatars.php?path='+encodeURIComponent(photoPath));
+  await member.request('/api/auth/member-profile.php',{email:photoProfile.email,phone:photoProfile.phone||'',avatar_path:'../outside.png'},400);
+  await member.request('/api/auth/member-profile.php',{email:photoProfile.email,phone:photoProfile.phone||'',avatar_path:null});
+  assert.equal((await member.request('/api/club.php')).user.avatar_path,null);
+  await viewer.request('/api/avatars.php?path='+encodeURIComponent(photoPath),undefined,404);
+ } finally {
+  await member.request('/api/auth/member-profile.php',{email:photoProfile.email,phone:photoProfile.phone||'',avatar_path:photoProfile.avatar_path||null});
+  require('node:fs').rmSync(require('node:path').join(__dirname,'../.local/avatars',photoPath),{force:true});
+ }
+ console.log('PASS own photo upload, invalid files, cross-account protection, shared profile photos and fallback reset');
+
  const viewerPermissions=accessModel.forRole(accessBefore.rolePermissions,'viewer');
  await member.request('/api/auth/access.php',{action:'admin_set_role_permissions',role:'viewer',permissions:viewerPermissions},403);
  await admin.request('/api/auth/access.php',{action:'admin_set_role_permissions',role:'super_admin',permissions:viewerPermissions},400);

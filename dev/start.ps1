@@ -24,6 +24,10 @@ $phpOptions = @()
 if ($LASTEXITCODE -ne 0) { $phpOptions = @('-d', 'extension=pdo_mysql') }
 & $PhpPath @phpOptions -r "exit(extension_loaded('pdo_mysql') ? 0 : 1);"
 if ($LASTEXITCODE -ne 0) { throw 'This PHP installation needs the pdo_mysql extension.' }
+& $PhpPath -r "exit(extension_loaded('fileinfo') ? 0 : 1);"
+if ($LASTEXITCODE -ne 0) { $phpOptions += @('-d', 'extension=fileinfo') }
+& $PhpPath @phpOptions -r "exit(extension_loaded('fileinfo') ? 0 : 1);"
+if ($LASTEXITCODE -ne 0) { throw 'This PHP installation needs the fileinfo extension for profile pictures.' }
 New-Item -ItemType Directory -Force -Path $runtime | Out-Null
 $passwordFile = Join-Path $runtime 'database-password.txt'
 if (!(Test-Path -LiteralPath $passwordFile)) {

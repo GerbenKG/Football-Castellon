@@ -5,12 +5,12 @@ require_once __DIR__ . '/auth/csrf-lib.php';
 $user = requireUser();
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = $method === 'POST' ? ($_POST['path'] ?? '') : ($_GET['path'] ?? '');
-if (!is_string($path) || !preg_match('~^[a-f0-9-]{36}/avatar\.(jpg|jpeg|png|webp)$~i', $path)) jsonResponse(['error' => 'Invalid avatar path'], 400);
+if (!is_string($path) || !preg_match('~^[a-f0-9-]{36}/avatar(?:-[a-f0-9]{32})?\.(jpg|jpeg|png|webp)$~i', $path)) jsonResponse(['error' => 'Invalid avatar path'], 400);
 $directory = avatarStorageDirectory();
 $target = $directory . '/' . $path;
 if ($method === 'GET') {
-    $stmt = db()->prepare('SELECT email FROM access_profiles WHERE avatar_path = :path AND active = TRUE LIMIT 1');
-    $stmt->execute(['path' => $path]);
+    $stmt = db()->prepare('SELECT ap.email FROM access_profiles ap LEFT JOIN users u ON u.id=ap.user_id WHERE COALESCE(ap.avatar_path,u.avatar_path)=? AND ap.active=TRUE LIMIT 1');
+    $stmt->execute([$path]);
     if (!$stmt->fetch() || !is_file($target)) jsonResponse(['error' => 'Avatar not found'], 404);
     $mime = (new finfo(FILEINFO_MIME_TYPE))->file($target);
     if (!in_array($mime, ['image/jpeg','image/png','image/webp'], true)) jsonResponse(['error' => 'Invalid avatar'], 404);

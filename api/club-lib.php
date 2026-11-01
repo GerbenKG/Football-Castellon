@@ -199,7 +199,7 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
     foreach (clubPermissionNames() as $p) $permissions[$p] = hasPermission($user['role'], $p);
     $permissions['access.manage'] = $user['role'] === 'super_admin';
     // Deliberately exclude contacts, skills, payment flags and access records from the shared squad.
-    $players = $pdo->query('SELECT p.id,p.name,p.archived_at,ap.avatar_path FROM players p LEFT JOIN access_profiles ap ON ap.player_id=p.id AND ap.active=1 ORDER BY p.name')->fetchAll();
+    $players = $pdo->query('SELECT p.id,p.name,p.archived_at,COALESCE(ap.avatar_path,u.avatar_path) AS avatar_path FROM players p LEFT JOIN access_profiles ap ON ap.player_id=p.id AND ap.active=1 LEFT JOIN users u ON u.id=ap.user_id ORDER BY p.name')->fetchAll();
     $games = $pdo->query('SELECT id,game_date,start_time,end_time,location FROM games ORDER BY game_date,start_time')->fetchAll();
     $rows = normalizeRows($pdo->query('SELECT id,game_id,player_id,guest_name,took_bibs FROM game_players WHERE playing=1')->fetchAll());
     $records = $pdo->query('SELECT record_key,kind,payload,created_at,updated_at FROM club_records ORDER BY created_at DESC')->fetchAll();

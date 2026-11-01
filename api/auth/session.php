@@ -67,7 +67,7 @@ function currentUser(): ?array
             ap.player_id,
             ap.phone,
             ap.contact_email,
-            ap.avatar_path
+            COALESCE(ap.avatar_path,u.avatar_path) AS avatar_path
          FROM sessions s
          INNER JOIN users u ON u.id = s.user_id
          INNER JOIN access_profiles ap ON ap.user_id = u.id

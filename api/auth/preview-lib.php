@@ -27,7 +27,7 @@ function previewUser(PDO $pdo, array $owner): array
     $key = $_SERVER['HTTP_X_FC_PREVIEW'] ?? ($_GET['view_as'] ?? null);
     if (!is_string($key) || !preg_match('/^[a-f0-9]{64}$/', $key)) jsonResponse(['error'=>'Invalid member preview'],400);
     if (isset($_SERVER['HTTP_X_FC_PREVIEW'],$_GET['view_as']) && $_GET['view_as'] !== $key) jsonResponse(['error'=>'Conflicting member preview'],400);
-    $s = $pdo->prepare('SELECT ap.email,ap.user_id,ap.role,ap.player_id,ap.phone,ap.contact_email,ap.avatar_path,
+    $s = $pdo->prepare('SELECT ap.email,ap.user_id,ap.role,ap.player_id,ap.phone,ap.contact_email,COALESCE(ap.avatar_path,u.avatar_path) AS avatar_path,
         COALESCE(u.display_name,ap.display_name,p.name) AS display_name,p.name AS player_name
         FROM access_profiles ap LEFT JOIN users u ON u.id=ap.user_id LEFT JOIN players p ON p.id=ap.player_id
         WHERE SHA2(LOWER(ap.email),256)=? AND ap.active=1 LIMIT 1');

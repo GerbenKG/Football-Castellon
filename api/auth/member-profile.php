@@ -77,10 +77,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (strlen($phone) > 64 || strlen($email) > 254) jsonResponse(['error' => 'Contact details are too long'], 422);
-    if (isset($body['avatar_path'])) {
+    if (array_key_exists('avatar_path',$body)) {
         $avatar = $body['avatar_path'];
-        if (!is_string($avatar) || !preg_match('~^' . preg_quote($user['id'], '~') . '/avatar\.(jpg|jpeg|png|webp)$~i', $avatar) || !is_file(avatarStorageDirectory() . '/' . $avatar)) jsonResponse(['error' => 'Upload the profile picture first'], 400);
+        if ($avatar!==null && (!is_string($avatar) || !preg_match('~^' . preg_quote($user['id'], '~') . '/avatar(?:-[a-f0-9]{32})?\.(jpg|jpeg|png|webp)$~i', $avatar) || !is_file(avatarStorageDirectory() . '/' . $avatar))) jsonResponse(['error' => 'Upload the profile picture first'], 400);
         $pdo->prepare('UPDATE access_profiles SET avatar_path = :path WHERE email = :email')->execute(['path' => $avatar, 'email' => $user['email']]);
+        $pdo->prepare('UPDATE users SET avatar_path=? WHERE id=?')->execute([$avatar,$user['id']]);
     }
 
     $stmt = $pdo->prepare(
