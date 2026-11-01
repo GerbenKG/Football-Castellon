@@ -28,7 +28,7 @@
   }
 
   async function init() {
-    const sb = window.supabaseClient;
+    const sb = window.footballClient;
     if (!sb) return;
 
     const result = await sb.rpc("get_my_access");
@@ -56,6 +56,6 @@
     observer.observe(document.body, { childList: true, subtree: true });
   }
 
-  if (window.supabaseClient) init();
+  if (window.footballClient) init();
   else window.addEventListener("load", init, { once: true });
 })();

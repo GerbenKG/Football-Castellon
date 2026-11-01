@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const sb = window.supabaseClient;
+  const sb = window.footballClient;
   if (!sb) return;
 
   let busy = false;
@@ -13,11 +13,6 @@
 
   function isPlayerPreview() {
     return /Viewing the site as\s+.+?\s*\(player\)/i.test(previewBannerText());
-  }
-
-  function previewName() {
-    const match = previewBannerText().match(/Viewing the site as\s+(.+?)\s*\(player\)/i);
-    return match?.[1]?.trim() || null;
   }
 
   async function loadAccess() {
@@ -32,44 +27,19 @@
     const result = await sb
       .from("games")
       .select("id,game_date,start_time")
-      .gte("game_date", new Date().toISOString().slice(0, 10))
-      .order("game_date")
-      .order("start_time")
-      .limit(1);
+      .order("game_date");
     if (result.error) throw result.error;
-    return result.data?.[0] || null;
+    const today = new Date().toISOString().slice(0, 10);
+    return (result.data || [])
+      .filter(game => game.game_date >= today)
+      .sort((a, b) => a.game_date.localeCompare(b.game_date) || String(a.start_time).localeCompare(String(b.start_time)))[0] || null;
   }
 
   async function getSignup(gameId, playerId) {
     if (!playerId) return null;
-    const result = await sb
-      .from("game_players")
-      .select("id,playing")
-      .eq("game_id", gameId)
-      .eq("player_id", playerId)
-      .limit(1);
+    const result = await sb.rpc("player_list_games");
     if (result.error) throw result.error;
-    return result.data?.[0] || null;
-  }
-
-  async function getPreviewPlayerId(name) {
-    if (!name) return null;
-    const access = await loadAccess();
-    if (access?.members?.length) {
-      const member = access.members.find(m =>
-        String(m.display_name || m.name || "").trim().toLowerCase() === name.trim().toLowerCase() &&
-        m.role === "player" && m.active !== false
-      );
-      if (member?.player_id) return member.player_id;
-    }
-
-    const result = await sb.rpc("admin_list_access");
-    if (result.error) return null;
-    const member = (result.data || []).find(m =>
-      String(m.display_name || m.name || "").trim().toLowerCase() === name.trim().toLowerCase() &&
-      m.role === "player" && m.active !== false
-    );
-    return member?.player_id || null;
+    return result.data?.find(game => game.id === gameId) || null;
   }
 
   function findNextGameCard() {
@@ -116,13 +86,17 @@
       return;
     }
 
+    if (preview) {
+      renderButton(card, false, true);
+      const button = card.querySelector("[data-self-game-signup-button]");
+      button.textContent = "Preview is read-only";
+      return;
+    }
+
     const nextGame = await getNextGame();
     if (!nextGame) return;
 
-    const playerId = preview
-      ? await getPreviewPlayerId(previewName())
-      : access.profile.player_id;
-    const existing = await getSignup(nextGame.id, playerId);
+    const existing = await getSignup(nextGame.id, access.profile.player_id);
     renderButton(card, !!existing?.playing);
   }
 
@@ -134,6 +108,7 @@
     if (!card) return;
 
     const preview = isPlayerPreview();
+    if (preview) return;
     const access = await loadAccess();
     const isRealPlayer = access?.profile?.role === "player" && access.profile.active === true;
     if (!preview && !isRealPlayer) return;
@@ -147,17 +122,7 @@
       const nextGame = await getNextGame();
       if (!nextGame) throw new Error("No upcoming game found");
 
-      let result;
-      if (preview) {
-        const name = previewName();
-        if (!name) throw new Error("Could not determine the Player being previewed");
-        result = await sb.rpc("admin_preview_toggle_game", {
-          p_game_id: nextGame.id,
-          p_member_name: name
-        });
-      } else {
-        result = await sb.rpc("member_toggle_game", { p_game_id: nextGame.id });
-      }
+      const result = await sb.rpc("member_toggle_game", { p_game_id: nextGame.id });
 
       if (result.error) throw result.error;
 

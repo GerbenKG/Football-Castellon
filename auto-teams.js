@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const sb = window.supabaseClient;
+  const sb = window.footballClient;
   if (!sb) return;
 
   let busy = false;
@@ -115,7 +115,8 @@
     const { data: squad, error: squadError } = await sb
       .from("game_players")
       .select("id,player_id,guest_name,players(id,name,skill_level)")
-      .eq("game_id", game.id);
+      .eq("game_id", game.id)
+      .eq("playing", true);
     if (squadError) throw squadError;
 
     const players = (squad || [])

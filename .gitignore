@@ -1,0 +1,7 @@
+# Local secrets and uploaded files must never be committed.
+db-config.php
+google-config.php
+football-avatars/
+*.log
+.local/
+db-config.dev.php

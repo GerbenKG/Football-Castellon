@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const sb = window.supabaseClient;
+  const sb = window.footballClient;
   if (!sb) return;
 
   let cachedAccess = null;
@@ -43,7 +43,7 @@
         const key = String(row.player_name).trim().toLowerCase();
         if (next.has(key)) return;
 
-        const signed = await sb.storage.from("player-avatars").createSignedUrl(row.avatar_path, 3600);
+        const signed = await sb.storage.from("player-avatars").getUrl(row.avatar_path, 3600);
         if (!signed.error && signed.data?.signedUrl) {
           next.set(key, signed.data.signedUrl);
         }
