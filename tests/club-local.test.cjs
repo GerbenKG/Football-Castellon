@@ -17,9 +17,21 @@ function session(){const jar=new Map();return {csrf:null,async request(path,body
  await admin.request('/api/club.php',undefined,400,{'X-FC-Preview':'invalid'});
  await admin.request('/api/club.php',undefined,404,{'X-FC-Preview':'0'.repeat(64)});
  const ownPreview={'X-FC-Preview':accessBefore.members.find(m=>m.email===accessBefore.profile.email).preview_key};
- for(const path of ['/api/club.php','/api/data.php?table=players','/api/auth/access.php','/api/auth/game-signup.php','/api/auth/member-profile.php','/api/avatars.php','/api/auth/logout.php'])await admin.request(path,{},403,ownPreview);
+ for(const path of ['/api/club.php','/api/data.php?table=players','/api/auth/access.php','/api/auth/game-signup.php','/api/auth/member-profile.php','/api/avatars.php','/api/auth/logout.php','/api/auth/email-code.php','/api/auth/email-settings.php'])await admin.request(path,{},403,ownPreview);
  const normalOwner=await admin.request('/api/auth/me.php');assert.equal(normalOwner.user.role,'super_admin');assert.equal(normalOwner.user.player_id,accessBefore.profile.player_id);assert.equal(normalOwner.preview,null);
  console.log('PASS owner-only preview uses exact member data and permissions, blocks server writes and logout, and preserves owner session');
+ const emailSettings=(await admin.request('/api/auth/email-settings.php')).template;
+ await member.request('/api/auth/email-settings.php',undefined,403);
+ await admin.request('/api/auth/email-settings.php',{},403,ownPreview);
+ await anonymous.request('/api/auth/email-settings.php',undefined,401);
+ await admin.request('/api/auth/email-settings.php',{...emailSettings,subject:'bad\r\nBcc: other@example.test'},422);
+ await admin.request('/api/auth/email-settings.php',{...emailSettings,body:'No required placeholders'},422);
+ try {
+  await admin.request('/api/auth/email-settings.php',{...emailSettings,subject:'Local email template test'});
+  assert.equal((await admin.request('/api/auth/email-settings.php')).template.subject,'Local email template test');
+ } finally {await admin.request('/api/auth/email-settings.php',emailSettings);}
+ console.log('PASS owner-only email settings persist, enforce placeholders and reject header injection and preview writes');
+
  const photoProfile=await member.request('/api/auth/member-profile.php'),photoUser=(await member.request('/api/club.php')).user;
  const photoPath=photoUser.id+'/avatar-'+require('node:crypto').randomBytes(16).toString('hex')+'.png';
  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=','base64');

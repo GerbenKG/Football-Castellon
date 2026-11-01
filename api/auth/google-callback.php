@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/session.php';
+require_once __DIR__ . '/member-identity.php';
 
 ini_set('session.use_strict_mode', '1');
 ini_set('session.use_only_cookies', '1');
@@ -111,78 +112,7 @@ $pdo = db();
 try {
     $pdo->beginTransaction();
 
-    $profileStmt = $pdo->prepare(
-        'SELECT email, user_id, display_name, role, active, player_id
-         FROM access_profiles
-         WHERE email = :email
-         LIMIT 1'
-    );
-    $profileStmt->execute(['email' => $email]);
-    $profile = $profileStmt->fetch();
-
-    if (!$profile || !(bool) $profile['active']) {
-        $pdo->rollBack();
-        authError('This Google account is not authorized for Football Castellón.', 403);
-    }
-
-    $userStmt = $pdo->prepare(
-        'SELECT id, google_subject, email
-         FROM users
-         WHERE google_subject = :google_subject
-         LIMIT 1'
-    );
-    $userStmt->execute(['google_subject' => $googleSubject]);
-    $user = $userStmt->fetch();
-
-    if ($user && strtolower((string) $user['email']) !== $email) {
-        $pdo->rollBack();
-        authError('The Google account does not match the authorized account.', 403);
-    }
-
-    if ($profile['user_id'] !== null && (!$user || $profile['user_id'] !== $user['id'])) {
-        $pdo->rollBack();
-        authError('This access profile is linked to a different account.', 403);
-    }
-
-    if (!$user) {
-        $userId = uuidV4();
-        $insertUser = $pdo->prepare(
-            'INSERT INTO users (id, google_subject, email, display_name, last_login_at)
-             VALUES (:id, :google_subject, :email, :display_name, UTC_TIMESTAMP())'
-        );
-        $insertUser->execute([
-            'id' => $userId,
-            'google_subject' => $googleSubject,
-            'email' => $email,
-            'display_name' => $displayName !== '' ? $displayName : $email,
-        ]);
-        $user = [
-            'id' => $userId,
-            'google_subject' => $googleSubject,
-            'email' => $email,
-        ];
-    } else {
-        $pdo->prepare(
-            'UPDATE users
-             SET display_name = :display_name, last_login_at = UTC_TIMESTAMP()
-             WHERE id = :id'
-        )->execute([
-            'display_name' => $displayName !== '' ? $displayName : $email,
-            'id' => $user['id'],
-        ]);
-    }
-
-    $pdo->prepare(
-        'UPDATE access_profiles
-         SET user_id = :user_id,
-             display_name = CASE WHEN :profile_name <> \'\' THEN :display_name ELSE display_name END
-         WHERE email = :email'
-    )->execute([
-        'user_id' => $user['id'],
-        'profile_name' => $displayName,
-        'display_name' => $displayName,
-        'email' => $email,
-    ]);
+    $userId = verifiedMemberAccount($pdo, $email, $googleSubject, $displayName);
 
     $pdo->commit();
 
@@ -190,7 +120,7 @@ try {
     $_SESSION = [];
     session_destroy();
 
-    setApplicationSession((string) $user['id']);
+    setApplicationSession($userId);
 
     header('Location: /');
     exit;
@@ -199,5 +129,5 @@ try {
         $pdo->rollBack();
     }
 
-    authError('Login could not be completed. Please try again.', 500);
+    authError($e instanceof DomainException ? $e->getMessage() : 'Login could not be completed. Please try again.', $e instanceof DomainException ? 403 : 500);
 }

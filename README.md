@@ -250,3 +250,38 @@ locally). Keep that directory writable by PHP and include it in hosting backups.
 No database credentials or provider secrets are exposed to the browser.
 Checks: `node tests/favorite-club.test.cjs`, `php tests/clubs.test.php` and the
 isolated local integration suite.
+
+## Email-code sign-in
+
+Google and email-code sign-in both resolve the same active, invited
+`access_profiles.email` membership and reuse its user and player identities.
+Email sign-in never creates an invitation or grants a role. Use the registered
+membership email, which can differ from a player's optional contact email.
+
+The sender is **FC Castellon Clubhouse <login@castellon.futbol>**. Hosting uses
+PHP's local mail transport with that fixed envelope sender; no mailbox password
+is needed in Git or the browser. Enable the site's hosting mail service and
+verify actual inbox delivery before rolling this branch into production.
+A successful mail hand-off alone does not prove inbox delivery. Transport
+failures are logged without codes or recipient addresses.
+
+Owners can edit the sender display name, subject and plain-text message in
+**Club Office → People → Members & permissions → Email sign-in settings**.
+Keep `{code}`, `{minutes}` and `{site}` in the message. Settings are separate per
+hostname, so dev changes do not edit the production template. The sender address
+is fixed to prevent misuse. Default wording includes expiry and safety guidance.
+
+Six-digit cryptographically random codes expire in 10 minutes, are single use,
+allow five attempts and are bound to a secure HttpOnly browser cookie. Only a
+HMAC of each code and a hash of its browser token are stored. Requests have an
+email cooldown and per-email/per-IP limits; verification has an IP limit.
+Resending invalidates previous codes for that member on the same host. Codes are
+never returned to clients, included in URLs, or written to production logs.
+Anonymous requests require a same-origin JSON POST. Membership is checked again
+when a code is redeemed. Shared-table storage is additive; no records are reset.
+
+For the isolated local sample server, email goes only to the ignored
+`.local/email-outbox` folder and is never delivered externally. The local router
+blocks access to that folder. Test with `node tests/email-code-local.test.cjs`
+(set `PHP_BIN` to the PHP executable if needed) and `node tests/club-local.test.cjs`.
+The helper refuses any database except the named local sample database.
