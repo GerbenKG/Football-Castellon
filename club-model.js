@@ -16,7 +16,7 @@
     for(const g of [...games].reverse()){if(squad(data,g.id).some(r=>r.player_id===pid))streak++;else break;}
     return {appearances:appearances.length,possible:games.length,rate:games.length?Math.round(appearances.length/games.length*100):0,wins,draws,losses,goals,results,streak};
   }
-  function signupState(data,gid,pid=data.user.player_id){if(squad(data,gid).some(r=>r.player_id===pid))return 'playing';if(data.waiting.some(r=>r.game_id===gid&&r.player_id===pid))return 'waiting';return 'out';}
+  function signupState(data,gid,pid=data.user.player_id){if(squad(data,gid).some(r=>r.player_id===pid))return 'playing';if(data.waiting.some(r=>r.game_id===gid&&r.player_id===pid))return 'waiting';if((data.declined||[]).some(r=>r.game_id===gid&&r.player_id===pid))return 'out';return 'none';}
   function bibs(data,gid,now=madridNow()){
     const current=(data.bibs_assignments||[]).filter(r=>r.game_id===gid);
     const game=data.games.find(g=>g.id===gid);
