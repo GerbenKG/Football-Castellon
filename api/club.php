@@ -56,9 +56,12 @@ try {
                 else {
                     $s=$pdo->prepare('SELECT id FROM players WHERE id=? AND archived_at IS NULL');$s->execute([$pid]);if(!$s->fetchColumn())throw new InvalidArgumentException('Select an active player');
                     $s=$pdo->prepare('SELECT id FROM game_players WHERE game_id=? AND player_id=? FOR UPDATE');$s->execute([$id,$pid]);$existing=$s->fetchColumn();
-                    if($existing)$pdo->prepare('UPDATE game_players SET playing=1 WHERE id=?')->execute([$existing]);
-                    clubDelete($pdo,'declined:'.$id.':'.$pid);
-                    else $pdo->prepare('INSERT INTO game_players (id,game_id,player_id,playing) VALUES (?,?,?,1)')->execute([uuidV4(),$id,$pid]);
+                    if($existing) {
+                        $pdo->prepare('UPDATE game_players SET playing=1 WHERE id=?')->execute([$existing]);
+                        clubDelete($pdo,'declined:'.$id.':'.$pid);
+                    } else {
+                        $pdo->prepare('INSERT INTO game_players (id,game_id,player_id,playing) VALUES (?,?,?,1)')->execute([uuidV4(),$id,$pid]);
+                    }
                 }
             } else {
                 $settings=clubRecord($pdo,'match:'.$id)??[];
