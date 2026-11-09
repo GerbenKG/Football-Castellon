@@ -167,6 +167,17 @@ try {
             if (!in_array($pid, $eligible, true) || !in_array($user['player_id'], $eligible, true)) throw new DomainException('Only match participants can vote for a teammate who played');
             clubPut($pdo, 'vote:' . $id . ':' . $user['id'], 'vote', ['game_id'=>$id,'player_id'=>$pid], $user);
             break;
+        case 'player_birthday':
+            if (!$user['player_id']) throw new DomainException('Ask the board to link your player profile');
+            $month = $body['month'] ?? null;
+            $day = $body['day'] ?? null;
+            if ($month === '' || $day === '') { $month = null; $day = null; }
+            if ($month !== null && (!is_int($month) || $month < 1 || $month > 12 || !is_int($day) || !checkdate($month, $day, 2000))) throw new InvalidArgumentException('Choose a valid birthday day and month.');
+            $s = $pdo->prepare('UPDATE players SET birthday_month=?,birthday_day=? WHERE id=? AND archived_at IS NULL');
+            $s->execute([$month,$day,$user['player_id']]);
+            if ($s->rowCount() === 0) { $s=$pdo->prepare('SELECT id FROM players WHERE id=? AND archived_at IS NULL'); $s->execute([$user['player_id']]); if (!$s->fetchColumn()) throw new DomainException('Your active player profile could not be found.'); }
+            clubAudit($pdo,$user,'Birthday details updated',['player_id'=>$user['player_id'],'birthday_set'=>$month!==null]);
+            break;
         case 'player_card':
             if (!$user['player_id']) throw new DomainException('Ask the board to link your player profile');
             $position = clubText($body['position'] ?? '', 30, false);

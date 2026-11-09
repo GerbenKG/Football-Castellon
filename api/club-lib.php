@@ -8,6 +8,8 @@ function ensureClubSchema(PDO $pdo): void
 {
     ensureClubPagePermissions($pdo);
     if (!$pdo->query("SHOW COLUMNS FROM game_players LIKE 'team_name'")->fetch()) $pdo->exec('ALTER TABLE game_players ADD COLUMN IF NOT EXISTS team_name VARCHAR(80) NULL');
+    if (!$pdo->query("SHOW COLUMNS FROM players LIKE 'birthday_month'")->fetch()) $pdo->exec('ALTER TABLE players ADD COLUMN birthday_month TINYINT UNSIGNED NULL');
+    if (!$pdo->query("SHOW COLUMNS FROM players LIKE 'birthday_day'")->fetch()) $pdo->exec('ALTER TABLE players ADD COLUMN birthday_day TINYINT UNSIGNED NULL');
     $pdo->exec("CREATE TABLE IF NOT EXISTS club_records (
         record_key VARCHAR(150) PRIMARY KEY, kind VARCHAR(32) NOT NULL,
         payload LONGTEXT NOT NULL, actor_id CHAR(36) NOT NULL,
@@ -201,7 +203,7 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
     foreach (clubPermissionNames() as $p) $permissions[$p] = hasPermission($user['role'], $p);
     $permissions['access.manage'] = $user['role'] === 'super_admin';
     // Deliberately exclude contacts, skills, payment flags and access records from the shared squad.
-    $players = $pdo->query('SELECT p.id,p.name,p.archived_at,p.bibs_taken_count,COALESCE(ap.avatar_path,u.avatar_path) AS avatar_path FROM players p LEFT JOIN access_profiles ap ON ap.player_id=p.id AND ap.active=1 LEFT JOIN users u ON u.id=ap.user_id ORDER BY p.name')->fetchAll();
+    $players = $pdo->query('SELECT p.id,p.name,p.archived_at,p.bibs_taken_count,p.birthday_month,p.birthday_day,COALESCE(ap.avatar_path,u.avatar_path) AS avatar_path FROM players p LEFT JOIN access_profiles ap ON ap.player_id=p.id AND ap.active=1 LEFT JOIN users u ON u.id=ap.user_id ORDER BY p.name')->fetchAll();
     foreach($players as &$p)$p['bibs_taken_count']=(int)$p['bibs_taken_count'];unset($p);
     $games = $pdo->query('SELECT id,game_date,start_time,end_time,location FROM games ORDER BY game_date,start_time')->fetchAll();
     $rows = normalizeRows($pdo->query('SELECT id,game_id,player_id,guest_name,took_bibs FROM game_players WHERE playing=1')->fetchAll());

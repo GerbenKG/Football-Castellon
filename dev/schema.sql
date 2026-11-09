@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS players (
   phone VARCHAR(254) NULL,
   email VARCHAR(254) NULL,
   bibs_taken_count INT NOT NULL DEFAULT 0,
+  birthday_month TINYINT UNSIGNED NULL,
+  birthday_day TINYINT UNSIGNED NULL,
   start_date DATE NULL,
   archived_at DATETIME NULL,
   skill_level TINYINT UNSIGNED NULL,
