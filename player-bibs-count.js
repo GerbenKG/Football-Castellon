@@ -15,17 +15,16 @@
 
     busy = true;
     try {
+      // Display the persisted counter; do not reconstruct it from match history.
       const { data, error } = await sb
-        .from("game_players")
-        .select("player_id")
-        .eq("took_bibs", true);
+        .from("players")
+        .select("id,bibs_taken_count");
       if (error) throw error;
 
-      const counts = new Map();
-      (data || []).forEach(row => {
-        if (!row.player_id) return;
-        counts.set(row.player_id, (counts.get(row.player_id) || 0) + 1);
-      });
+      const counts = new Map((data || []).map(player => [
+        player.id,
+        Math.max(0, Number(player.bibs_taken_count) || 0)
+      ]));
 
       const headerRow = table.querySelector("thead tr");
       if (!headerRow) return;
@@ -54,10 +53,7 @@
     subtree: true
   });
 
-  // The app renders asynchronously on first load. Retry briefly so the
-  // column appears immediately without requiring navigation/tab switching.
   const startup = setInterval(() => render(), 100);
   setTimeout(() => clearInterval(startup), 5000);
-
   render();
 })();
