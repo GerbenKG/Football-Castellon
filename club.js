@@ -204,7 +204,14 @@
     const b=e.target.closest('[data-action]');if(!b||b.disabled)return;
     b.disabled=true;try{await handleAction(b.dataset.action,b.dataset.id,b);}catch(e){if(e.status===401)login('Your session ended. Please sign in again.');else toast(e.message||'Something went wrong. Please try again.');}finally{if(b.isConnected)b.disabled=false;}
   });
-  document.addEventListener('input',e=>{if(e.target.id==='squad-search'){search=e.target.value;document.getElementById('player-grid').innerHTML=playerCards();}});
+  document.addEventListener('input',e=>{
+    if(e.target.name==='birthday'){
+      const input=e.target;
+      const digits=input.value.replace(/\\D/g,'').slice(0,4);
+      input.value=digits.length>2?digits.slice(0,2)+'/'+digits.slice(2):digits;
+    }
+    if(e.target.id==='squad-search'){search=e.target.value;document.getElementById('player-grid').innerHTML=playerCards();}
+  });
   document.addEventListener('change',e=>{if(e.target.id==='squad-sort'){sort=e.target.value;document.getElementById('player-grid').innerHTML=playerCards();}if(e.target.id==='archive-season'){archiveSeason=e.target.value;render();}});
   window.addEventListener('hashchange',()=>{if(dialog.open)closeDialog();render();window.scrollTo(0,0);document.querySelector('h1')?.focus({preventScroll:true});});
   dialog.addEventListener('click',e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog();}});
