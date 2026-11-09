@@ -41,7 +41,8 @@
     if(M.started(g))return pill(M.ended(g)?'Full time':'In progress');
     if(!data.user.player_id)return pill('Ask the board to link your player','neutral');
     const status=M.signupState(data,g.id),capacity=data.matches[g.id]?.capacity,full=capacity&&M.squad(data,g.id).length>=capacity;
-    return btn(status==='playing'?`${icon('check',15)} I'm playing`:status==='waiting'?'Leave waiting list':full?'Join waiting list':"I’m playing",'signup',g.id,status==='out'?style:'outline');
+    const label=status==='playing'||status==='waiting'?"I’m out":full?'I’m playing · Join waiting list':"I’m playing";
+    return btn(label,'signup',g.id,style);
   }
   function bibsStatus(g){
     const info=M.bibs(data,g.id),names=items=>items.map(r=>memberLabel(player(r.player_id)?.name||'Former player',r.player_id)).join(', ');
@@ -141,9 +142,9 @@
     if(action==='refresh'){await refresh();toast('Club data refreshed.');return;}
     if(action==='logout'){await window.ClubActivity.depart();await api.post('/api/auth/logout.php',{});window.ClubActivity.stop();location.href='/';return;}
     if(action==='signup'){
-      const status=M.signupState(data,id);
-      const update=async()=>{const r=await post({action:'signup',game_id:id,join:status==='out'});await refresh();toast(r.waiting?'You’re on the waiting list.':r.playing?'You’re in. See you on the pitch!':'Your place has been released.');};
-      if(status!=='out'){showDialog(status==='waiting'?'Leave the waiting list?':'Release your place?',fullDate(g.game_date),'<p class="muted" style="font-size:13px">Your place may be given to another player. Any confirmed payment stays recorded; ask the treasurer about a credit or refund.</p>',update,'Yes, leave this match');return;}
+      const status=M.signupState(data,id),joining=status==='out';
+      const update=async()=>{const r=await post({action:'signup',game_id:id,join:joining});await refresh();toast(r.waiting?'You’re on the waiting list.':r.playing?'You’re in. See you on the pitch!':'You’re out for this match.');};
+      if(!joining){showDialog(status==='waiting'?'Confirm you’re out?':'Confirm you’re not playing?',fullDate(g.game_date),'<p class="muted" style="font-size:13px">Your place will be released and may be offered to someone on the waiting list. Any confirmed payment stays recorded; ask the treasurer about a credit or refund.</p>',update,'Yes, I’m out');return;}
       await update();return;
     }
     if(action==='announcement'){showDialog('A word from the board','Share something with the whole club.',field('Title','title','','text','required maxlength="100"')+textarea('Club update','body','',2000),f=>post({action,title:f.get('title'),body:f.get('body')}),'Publish update');return;}
