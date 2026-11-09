@@ -4,7 +4,7 @@
   const sb = window.footballClient;
   if (!sb) return;
 
-  const esc = value => String(value ?? "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const esc = value => String(value ?? "").replace(/[&<>\\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   let refreshTimer = null;
   let lastGameKey = "";
   let lastPreviousGameKey = "";
@@ -37,18 +37,24 @@
       try {
         const currentGame = await findCurrentGame();
         if (!currentGame) return;
-        const { data: currentPlayers, error: currentError } = await sb.from("game_players").select("id,player_id,guest_name,players(name)").eq("game_id", currentGame.id);
+        const { data: currentPlayers, error: currentError } = await sb.from("game_players").select("id,player_id,playing,players(name)").eq("game_id", currentGame.id);
         if (currentError) throw currentError;
-        const candidates = (currentPlayers || []).filter(x => x.player_id);
-        if (!candidates.length) { alert("No players are available for bib selection."); return; }
-        const { data: history, error: historyError } = await sb.from("game_players").select("game_id,player_id,took_bibs").eq("took_bibs", true).not("player_id", "is", null).neq("game_id", currentGame.id);
-        if (historyError) throw historyError;
-        const counts = new Map();
-        (history || []).forEach(row => counts.set(row.player_id, (counts.get(row.player_id) || 0) + 1));
-        const minCount = Math.min(...candidates.map(x => counts.get(x.player_id) || 0));
-        const eligible = candidates.filter(x => (counts.get(x.player_id) || 0) === minCount);
-        const selected = eligible[Math.floor(Math.random() * eligible.length)];
-        const selectedName = selected.players?.name || selected.guest_name || "Player";
+        const candidates = (currentPlayers || []).filter(x => x.player_id && x.playing);
+        const playerIds = [...new Set(candidates.map(x => x.player_id))];
+        if (!playerIds.length) { alert("No active players are available for bib selection."); return; }
+
+        // Use the Players table as the single source of truth for assignment counts.
+        const { data: playerCounts, error: countsError } = await sb.from("players").select("id,bibs_taken_count,archived_at").in("id", playerIds);
+        if (countsError) throw countsError;
+        const counts = new Map((playerCounts || [])
+          .filter(player => player.archived_at == null)
+          .map(player => [player.id, Number(player.bibs_taken_count) || 0]));
+        const eligible = candidates.filter(player => counts.has(player.player_id));
+        if (!eligible.length) { alert("No active players are available for bib selection."); return; }
+        const minCount = Math.min(...eligible.map(player => counts.get(player.player_id)));
+        const leastAssigned = eligible.filter(player => counts.get(player.player_id) === minCount);
+        const selected = leastAssigned[Math.floor(Math.random() * leastAssigned.length)];
+        const selectedName = selected.players?.name || "Player";
         const result = await sb.rpc("set_game_bib_taker", { p_game_player_id: selected.id });
         if (result.error) throw result.error;
         document.querySelectorAll("[data-bibs-row]").forEach(input => { input.checked = input.dataset.bibsRow === selected.id; });
