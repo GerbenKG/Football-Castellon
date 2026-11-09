@@ -133,9 +133,11 @@ function clubSignup(PDO $pdo, array $user, string $id, ?bool $join = null): arra
         if($row&&$row['took_bibs'])clubAssignBibs($pdo,$id);
         if ($row) $pdo->prepare('UPDATE game_players SET playing=0 WHERE id=?')->execute([$row['id']]);
         clubDelete($pdo, $key);
+        clubPut($pdo, 'declined:' . $id . ':' . $user['player_id'], 'signup_declined', ['game_id'=>$id,'player_id'=>$user['player_id']], $user);
         clubPromote($pdo, $game, $user);
         return ['game_id' => $id, 'playing' => false, 'waiting' => false];
     }
+    clubDelete($pdo, 'declined:' . $id . ':' . $user['player_id']);
     if ($row && $row['playing']) return ['game_id' => $id, 'playing' => true, 'waiting' => false];
     // Honour the existing queue before admitting another player.
     clubPromote($pdo, $game, $user);
@@ -208,7 +210,7 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
     $games = $pdo->query('SELECT id,game_date,start_time,end_time,location FROM games ORDER BY game_date,start_time')->fetchAll();
     $rows = normalizeRows($pdo->query('SELECT id,game_id,player_id,guest_name,took_bibs FROM game_players WHERE playing=1')->fetchAll());
     $records = $pdo->query('SELECT record_key,kind,payload,created_at,updated_at FROM club_records ORDER BY created_at DESC')->fetchAll();
-    $announcements = []; $matches = []; $votes = []; $waiting = []; $reports = []; $myVotes = []; $cards = []; $favorites=[];
+    $announcements = []; $matches = []; $votes = []; $waiting = []; $declined = []; $reports = []; $myVotes = []; $cards = []; $favorites=[];
     foreach ($records as $record) {
         $v = json_decode($record['payload'], true, 64, JSON_THROW_ON_ERROR);
         if ($record['kind'] === 'announcement') $announcements[] = $v + ['id' => $record['record_key'], 'created_at' => $record['created_at']];
@@ -221,6 +223,7 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
             if ($record['record_key'] === 'vote:' . $gid . ':' . $user['id']) $myVotes[$gid] = $pid;
         }
         if ($record['kind'] === 'waiting') $waiting[] = ['game_id' => $v['game_id'], 'player_id' => $v['player_id'], 'joined_at' => $record['created_at']];
+        if ($record['kind'] === 'signup_declined') $declined[] = ['game_id' => $v['game_id'], 'player_id' => $v['player_id'], 'updated_at' => $record['updated_at']];
         if ($record['kind'] === 'payment_report' && ($permissions['payments.view'] || ($v['player_id'] ?? null) === $user['player_id'])) $reports[] = $v + ['key' => $record['record_key']];
     }
     // Recover saved membership from the original match-player records, never infer old teams.
@@ -250,7 +253,7 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
     if($user['role']==='super_admin')foreach($pdo->query('SELECT email,display_name,role,active,player_id FROM access_profiles ORDER BY display_name')->fetchAll() as $member){$member['active']=(bool)$member['active'];$member['preview_key']=previewMemberKey($member['email']);$member['favorite_club']=$favorites[hash('sha256',strtolower($member['email']))]??null;$memberAccounts[]=$member;}
     return ['user' => $publicUser, 'preview' => $user['_preview'] ?? null, 'permissions' => $permissions, 'players' => $players, 'games' => $games, 'signups' => $rows,
         'seasons' => $seasons, 'my_tickets' => $myTickets, 'announcements' => $permissions['clubhouse.view'] ? array_slice($announcements, 0, 30) : [], 'matches' => (object) $matches,
-        'votes' => (object) $votes, 'my_votes' => (object) $myVotes, 'player_cards' => (object) $cards, 'waiting' => $waiting, 'payment_reports' => $reports, 'lineup_players'=>$lineupPlayers,
+        'votes' => (object) $votes, 'my_votes' => (object) $myVotes,  'player_cards' => (object) $cards, 'waiting' => $waiting, 'declined' => $declined, 'payment_reports' => $reports, 'lineup_players'=>$lineupPlayers,
         'bibs_assignments'=>$pdo->query('SELECT id,game_id,player_id FROM game_players WHERE took_bibs=1 AND player_id IS NOT NULL')->fetchAll(),
         'finance' => $permissions['payments.view'] ? clubFinance($pdo,$financeSeason) : null,
         'player_records' => $permissions['players.view'] ? $pdo->query('SELECT id,name,phone,email,archived_at,skill_level FROM players ORDER BY name')->fetchAll() : [],
