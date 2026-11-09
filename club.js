@@ -40,8 +40,8 @@
   function signupButton(g,style='primary'){
     if(M.started(g))return pill(M.ended(g)?'Full time':'In progress');
     if(!data.user.player_id)return pill('Ask the board to link your player','neutral');
-    const status=M.signupState(data,g.id),capacity=data.matches[g.id]?.capacity,full=capacity&&M.squad(data,g.id).length>=capacity;
-    const label=status==='playing'||status==='waiting'?"I’m out":full?'I’m playing · Join waiting list':"I’m playing";
+    const status=M.signupState(data,g.id);
+    const label=status==='playing'||status==='waiting'?"I’m out":"I’m playing";
     return btn(label,'signup',g.id,style);
   }
   function bibsStatus(g){
