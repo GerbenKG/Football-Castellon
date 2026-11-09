@@ -41,8 +41,11 @@
     if(M.started(g))return pill(M.ended(g)?'Full time':'In progress');
     if(!data.user.player_id)return pill('Ask the board to link your player','neutral');
     const status=M.signupState(data,g.id);
-    const label=status==='playing'||status==='waiting'?"I’m out":"I’m playing";
-    return btn(label,'signup',g.id,style);
+    const choice=(label,join)=>`<button class="btn btn-${style}" data-action="signup" data-id="${esc(g.id)}" data-join="${join?'true':'false'}">${label}</button>`;
+    if(status==='playing')return `<div class="signup-actions"><span class="pill success">✓ You’re signed up to play</span>${choice("I’m out",false)}</div>`;
+    if(status==='waiting')return `<div class="signup-actions"><span class="pill amber">You’re on the waiting list</span>${choice("I’m out",false)}</div>`;
+    if(status==='out')return `<div class="signup-actions"><span class="pill neutral">You’ve opted out</span>${choice("I’m playing",true)}</div>`;
+    return `<div class="signup-actions">${choice("I’m playing",true)}${choice("I’m out",false)}</div>`;
   }
   function bibsStatus(g){
     const info=M.bibs(data,g.id),names=items=>items.map(r=>memberLabel(player(r.player_id)?.name||'Former player',r.player_id)).join(', ');
@@ -72,10 +75,10 @@
   }
 
   function matches(){
-    let games=data.games.filter(g=>filter==='archive'?M.started(g):filter==='mine'?M.signupState(data,g.id)!=='out'&&!M.started(g):!M.started(g));
+    let games=data.games.filter(g=>filter==='archive'?M.started(g):filter==='mine'?['playing','waiting'].includes(M.signupState(data,g.id))&&!M.started(g):!M.started(g));
     if(filter==='archive')games=games.filter(g=>!archiveSeason||(g.game_date>=data.seasons.find(s=>s.id===archiveSeason)?.starts_on&&g.game_date<=data.seasons.find(s=>s.id===archiveSeason)?.ends_on)).reverse();
     let month='';
-    const items=games.map(g=>{const label=date(g.game_date,{month:'long',year:'numeric'}),newMonth=month!==label;month=label;const m=data.matches[g.id]||{},status=M.signupState(data,g.id);return `${newMonth?`<h2 class="month-label">${esc(label)}</h2>`:''}<div class="panel" style="margin-bottom:10px"><article class="fixture"><div class="fixture-date"><span>${date(g.game_date,{weekday:'short'})}</span><b>${date(g.game_date,{day:'numeric'})}</b></div><div class="fixture-main"><h3>${esc(g.location)}</h3><p>${esc(time(g))} · ${M.squad(data,g.id).length}${m.capacity?' / '+m.capacity:''} players${status==='playing'?' · You’re in':status==='waiting'?' · You’re on the waiting list':''}</p></div><div class="fixture-actions">${m.score_a!==undefined&&m.teams?.length!==3?pill(m.score_a+' : '+m.score_b):signupButton(g,'outline')}${link('Match centre '+icon('arrow',13),'#match/'+g.id,'outline')}</div></article></div>`;}).join('');
+    const items=games.map(g=>{const label=date(g.game_date,{month:'long',year:'numeric'}),newMonth=month!==label;month=label;const m=data.matches[g.id]||{},status=M.signupState(data,g.id);return `${newMonth?`<h2 class="month-label">${esc(label)}</h2>`:''}<div class="panel" style="margin-bottom:10px"><article class="fixture"><div class="fixture-date"><span>${date(g.game_date,{weekday:'short'})}</span><b>${date(g.game_date,{day:'numeric'})}</b></div><div class="fixture-main"><h3>${esc(g.location)}</h3><p>${esc(time(g))} · ${M.squad(data,g.id).length}${m.capacity?' / '+m.capacity:''} players${status==='playing'?' · You’re signed up':status==='waiting'?' · You’re on the waiting list':status==='out'?' · You’ve opted out':''}</p></div><div class="fixture-actions">${m.score_a!==undefined&&m.teams?.length!==3?pill(m.score_a+' : '+m.score_b):signupButton(g,'outline')}${link('Match centre '+icon('arrow',13),'#match/'+g.id,'outline')}</div></article></div>`;}).join('');
     return heading('Fixtures & results','The football comes first.','Find your next game, claim your place and relive the last one.',can('games.manage')?btn(icon('plus',15)+' New match','fixture'):'')+`<div class="filters" aria-label="Match filters">${[['upcoming','Upcoming'],['mine','My matches'],['archive','Season archive']].map(([v,t])=>`<button data-filter="${v}" class="${filter===v?'active':''}" aria-pressed="${filter===v}">${t}</button>`).join('')}</div>${filter==='archive'?`<label class="field" style="max-width:240px">Season<select id="archive-season"><option value="">All seasons</option>${data.seasons.map(s=>`<option value="${s.id}" ${archiveSeason===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label>`:''}${items||`<div class="panel">${empty('No matches here yet',filter==='mine'?'Join an upcoming match to see it here.':'The next fixtures will appear here when they’re available.','calendar')}</div>`}`;
   }
 
@@ -142,9 +145,9 @@
     if(action==='refresh'){await refresh();toast('Club data refreshed.');return;}
     if(action==='logout'){await window.ClubActivity.depart();await api.post('/api/auth/logout.php',{});window.ClubActivity.stop();location.href='/';return;}
     if(action==='signup'){
-      const status=M.signupState(data,id),joining=status==='out';
-      const update=async()=>{const r=await post({action:'signup',game_id:id,join:joining});await refresh();toast(r.waiting?'You’re on the waiting list.':r.playing?'You’re in. See you on the pitch!':'You’re out for this match.');};
-      if(!joining){showDialog(status==='waiting'?'Confirm you’re out?':'Confirm you’re not playing?',fullDate(g.game_date),'<p class="muted" style="font-size:13px">Your place will be released and may be offered to someone on the waiting list. Any confirmed payment stays recorded; ask the treasurer about a credit or refund.</p>',update,'Yes, I’m out');return;}
+      const status=M.signupState(data,id),joining=button.dataset.join==='true';
+      const update=async()=>{const r=await post({action:'signup',game_id:id,join:joining});await refresh();toast(r.waiting?'You’re on the waiting list.':r.playing?'You’re signed up to play.':'You’ve opted out of this match.');};
+      if(!joining){showDialog('Confirm you’re not playing?',fullDate(g.game_date),'<p class="muted" style="font-size:13px">You’ll be marked as not playing for this match. If you’re currently signed up, your place will be released and may be offered to someone on the waiting list.</p>',update,'Yes, I’m out');return;}
       await update();return;
     }
     if(action==='announcement'){showDialog('A word from the board','Share something with the whole club.',field('Title','title','','text','required maxlength="100"')+textarea('Club update','body','',2000),f=>post({action,title:f.get('title'),body:f.get('body')}),'Publish update');return;}
