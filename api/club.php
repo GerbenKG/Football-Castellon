@@ -171,8 +171,10 @@ try {
             if (!$user['player_id']) throw new DomainException('Ask the board to link your player profile');
             $month = $body['month'] ?? null;
             $day = $body['day'] ?? null;
-            if ($month === '' || $day === '') { $month = null; $day = null; }
-            if ($month !== null && (!is_int($month) || $month < 1 || $month > 12 || !is_int($day) || !checkdate($month, $day, 2000))) throw new InvalidArgumentException('Choose a valid birthday day and month.');
+            $hasMonth = $month !== null && $month !== '';
+            $hasDay = $day !== null && $day !== '';
+            if (!$hasMonth && !$hasDay) { $month = null; $day = null; }
+            elseif (!$hasMonth || !$hasDay || !is_int($month) || $month < 1 || $month > 12 || !is_int($day) || !checkdate($month, $day, 2000)) throw new InvalidArgumentException('Choose a valid birthday day and month.');
             $s = $pdo->prepare('UPDATE players SET birthday_month=?,birthday_day=? WHERE id=? AND archived_at IS NULL');
             $s->execute([$month,$day,$user['player_id']]);
             if ($s->rowCount() === 0) { $s=$pdo->prepare('SELECT id FROM players WHERE id=? AND archived_at IS NULL'); $s->execute([$user['player_id']]); if (!$s->fetchColumn()) throw new DomainException('Your active player profile could not be found.'); }
