@@ -20,9 +20,9 @@ test("birthday is stored as month and day only and added to the shared club snap
 
 test("members can edit their birthday and clubhouse lists the next five", () => {
   const ui = read("club.js");
-  assert.match(ui, /Birthday month/);
-  assert.match(ui, /Birthday day/);
-  assert.match(ui, /action:'player_birthday'/);
+  assert.match(ui, /Birthday \(DD\/MM\)/);
+  assert.match(ui, /placeholder="DD\/MM"/);
+  assert.match(ui, /action:'player_birthday'/);\n  assert.match(ui, /<br>\\$\\{section\\('Upcoming birthdays'/);
   assert.match(ui, /slice\(0,5\)/);
   assert.match(ui, /Upcoming birthdays/);
   assert.match(ui, /Your birthday will appear to club members/);
