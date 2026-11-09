@@ -38,11 +38,11 @@ test("finance forecast averages pay-per-game attendance, including guests, and p
   assert.equal(forecast.remainingGames, 2);
   assert.equal(forecast.payPerGameAppearances, 4);
   assert.equal(forecast.averagePlayersPerGame, 4 / 3);
-  assert.equal(forecast.projectedFutureIncome, 13.35);
+  assert.equal(forecast.projectedFutureIncome, 13.33);
   assert.equal(forecast.openFees, 5);
-  assert.equal(forecast.predictedOpenFees, 18.35);
+  assert.equal(forecast.predictedOpenFees, 18.33);
   assert.equal(forecast.unpaidExpenses, 3);
-  assert.equal(forecast.seasonEnd, 35.35);
+  assert.equal(forecast.seasonEnd, 35.33);
 });
 
 test("finance forecast returns zero projected income when no completed games exist", () => {
