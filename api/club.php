@@ -143,6 +143,28 @@ try {
             if ($action === 'match_settings') clubPromote($pdo, $game, $user);
             clubAudit($pdo, $user, ['result'=>'Result recorded','lineup'=>'Teams published','match_settings'=>'Match details updated'][$action], ['game_id'=>$id]);
             break;
+        case 'delete_fixture':
+            clubRequire($user, 'games.manage');
+            $id = clubId($body['game_id'] ?? null);
+            $game = clubLockGame($pdo, $id);
+            if (clubDateTime($game) <= new DateTimeImmutable('now')) throw new InvalidArgumentException('Only upcoming matches can be deleted');
+            $paid = $pdo->prepare('SELECT COUNT(*) FROM game_players WHERE game_id=? AND paid=1');
+            $paid->execute([$id]);
+            $recordedPayments = $pdo->prepare('SELECT COUNT(*) FROM payments WHERE game_id=? AND paid=1');
+            $recordedPayments->execute([$id]);
+            if ((int)$paid->fetchColumn() > 0 || (int)$recordedPayments->fetchColumn() > 0) throw new InvalidArgumentException('This match has recorded payments. Resolve or refund those payments before deleting the fixture.');
+            $playerRows = $pdo->prepare('SELECT id FROM game_players WHERE game_id=?');
+            $playerRows->execute([$id]);
+            $playerIds = $playerRows->fetchAll(PDO::FETCH_COLUMN);
+            foreach ($playerIds as $playerRowId) clubDelete($pdo, 'payment:game:' . $playerRowId);
+            foreach (['waiting:', 'declined:', 'vote:'] as $prefix) {
+                $s = $pdo->prepare('DELETE FROM club_records WHERE record_key LIKE ?');
+                $s->execute([$prefix . $id . ':%']);
+            }
+            clubDelete($pdo, 'match:' . $id);
+            $pdo->prepare('DELETE FROM games WHERE id=?')->execute([$id]);
+            clubAudit($pdo, $user, 'Upcoming match deleted', ['game_id'=>$id,'date'=>$game['game_date'],'location'=>$game['location']]);
+            break;
         case 'fixture':
             clubRequire($user, 'games.manage');
             $id = isset($body['id']) ? clubId($body['id']) : uuidV4();
