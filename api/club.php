@@ -157,6 +157,7 @@ try {
             $playerRows->execute([$id]);
             $playerIds = $playerRows->fetchAll(PDO::FETCH_COLUMN);
             foreach ($playerIds as $playerRowId) clubDelete($pdo, 'payment:game:' . $playerRowId);
+            $pdo->prepare('DELETE FROM payments WHERE game_id=?')->execute([$id]);
             foreach (['waiting:', 'declined:', 'vote:'] as $prefix) {
                 $s = $pdo->prepare('DELETE FROM club_records WHERE record_key LIKE ?');
                 $s->execute([$prefix . $id . ':%']);
