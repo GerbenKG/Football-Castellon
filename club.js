@@ -208,12 +208,39 @@
     const b=e.target.closest('[data-action]');if(!b||b.disabled)return;
     b.disabled=true;try{await handleAction(b.dataset.action,b.dataset.id,b);}catch(e){if(e.status===401)login('Your session ended. Please sign in again.');else toast(e.message||'Something went wrong. Please try again.');}finally{if(b.isConnected)b.disabled=false;}
   });
+  // Handle deletion before the browser/mobile keyboard mutates the value.
+  // This lets Backspace/Delete skip the separator instead of repeatedly
+  // triggering the formatter to put it back under the user's cursor.
+  document.addEventListener('beforeinput',e=>{
+    const input=e.target;
+    if(input.name!=='birthday'||!e.inputType?.startsWith('delete'))return;
+    const value=input.value,start=input.selectionStart??value.length,end=input.selectionEnd??start;
+    let next=value,caretDigits=0;
+    if(start!==end){
+      next=value.slice(0,start)+value.slice(end);
+      caretDigits=value.slice(0,start).replace(/\D/g,'').length;
+    }else if(e.inputType==='deleteContentBackward'){
+      let at=start-1;
+      if(value[at]==='/')at--;
+      if(at>=0)next=value.slice(0,at)+value.slice(at+1);
+      caretDigits=value.slice(0,Math.max(0,at)).replace(/\D/g,'').length;
+    }else{
+      let at=start;
+      if(value[at]==='/')at++;
+      if(at<value.length)next=value.slice(0,at)+value.slice(at+1);
+      caretDigits=value.slice(0,start).replace(/\D/g,'').length;
+    }
+    e.preventDefault();
+    const digits=next.replace(/\D/g,'').slice(0,4);
+    const formatted=digits.length>2?digits.slice(0,2)+'/'+digits.slice(2):digits;
+    input.value=formatted;
+    const nextCaret=Math.min(formatted.length,caretDigits+(caretDigits>2?1:0));
+    try{input.setSelectionRange(nextCaret,nextCaret);}catch(_){}
+  });
   document.addEventListener('input',e=>{
     if(e.target.name==='birthday'){
       const input=e.target;
-      // Keep only four digits and insert the DD/MM separator ourselves.
-      // Restore the caret by digit position so typing works consistently
-      // with physical keyboards, touch keyboards and pasted values.
+      // Format typed or pasted digits; deletion is handled in beforeinput.
       const raw=input.value;
       const caret=input.selectionStart??raw.length;
       const digitsBeforeCaret=raw.slice(0,caret).replace(/\D/g,'').length;
