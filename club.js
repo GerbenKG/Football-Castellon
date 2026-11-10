@@ -216,8 +216,8 @@
       // with physical keyboards, touch keyboards and pasted values.
       const raw=input.value;
       const caret=input.selectionStart??raw.length;
-      const digitsBeforeCaret=raw.slice(0,caret).replace(/\\D/g,'').length;
-      const digits=raw.replace(/\\D/g,'').slice(0,4);
+      const digitsBeforeCaret=raw.slice(0,caret).replace(/\D/g,'').length;
+      const digits=raw.replace(/\D/g,'').slice(0,4);
       const formatted=digits.length>2?digits.slice(0,2)+'/'+digits.slice(2):digits;
       if(input.value!==formatted){
         input.value=formatted;
