@@ -211,8 +211,19 @@
   document.addEventListener('input',e=>{
     if(e.target.name==='birthday'){
       const input=e.target;
-      const digits=input.value.replace(/\\D/g,'').slice(0,4);
-      input.value=digits.length>2?digits.slice(0,2)+'/'+digits.slice(2):digits;
+      // Keep only four digits and insert the DD/MM separator ourselves.
+      // Restore the caret by digit position so typing works consistently
+      // with physical keyboards, touch keyboards and pasted values.
+      const raw=input.value;
+      const caret=input.selectionStart??raw.length;
+      const digitsBeforeCaret=raw.slice(0,caret).replace(/\\D/g,'').length;
+      const digits=raw.replace(/\\D/g,'').slice(0,4);
+      const formatted=digits.length>2?digits.slice(0,2)+'/'+digits.slice(2):digits;
+      if(input.value!==formatted){
+        input.value=formatted;
+        const nextCaret=Math.min(formatted.length,digitsBeforeCaret+(digitsBeforeCaret>2?1:0));
+        try{input.setSelectionRange(nextCaret,nextCaret);}catch(_){}
+      }
     }
     if(e.target.id==='squad-search'){search=e.target.value;document.getElementById('player-grid').innerHTML=playerCards();}
   });
