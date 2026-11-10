@@ -78,7 +78,7 @@
     let games=data.games.filter(g=>filter==='archive'?M.started(g):filter==='mine'?['playing','waiting'].includes(M.signupState(data,g.id))&&!M.started(g):!M.started(g));
     if(filter==='archive')games=games.filter(g=>!archiveSeason||(g.game_date>=data.seasons.find(s=>s.id===archiveSeason)?.starts_on&&g.game_date<=data.seasons.find(s=>s.id===archiveSeason)?.ends_on)).reverse();
     let month='';
-    const items=games.map(g=>{const label=date(g.game_date,{month:'long',year:'numeric'}),newMonth=month!==label;month=label;const m=data.matches[g.id]||{},status=M.signupState(data,g.id);return `${newMonth?`<h2 class="month-label">${esc(label)}</h2>`:''}<div class="panel" style="margin-bottom:10px"><article class="fixture"><div class="fixture-date"><span>${date(g.game_date,{weekday:'short'})}</span><b>${date(g.game_date,{day:'numeric'})}</b></div><div class="fixture-main"><h3>${esc(g.location)}</h3><p>${esc(time(g))} · ${M.squad(data,g.id).length}${m.capacity?' / '+m.capacity:''} players${status==='playing'?' · You’re signed up':status==='waiting'?' · You’re on the waiting list':status==='out'?' · You’ve opted out':''}</p></div><div class="fixture-actions">${m.score_a!==undefined&&m.teams?.length!==3?pill(m.score_a+' : '+m.score_b):signupButton(g,'outline')}${link('Match centre '+icon('arrow',13),'#match/'+g.id,'outline')}</div></article></div>`;}).join('');
+    const items=games.map(g=>{const label=date(g.game_date,{month:'long',year:'numeric'}),newMonth=month!==label;month=label;const m=data.matches[g.id]||{},status=M.signupState(data,g.id);return `${newMonth?`<h2 class="month-label">${esc(label)}</h2>`:''}<div class="panel" style="margin-bottom:10px"><article class="fixture"><div class="fixture-date"><span>${date(g.game_date,{weekday:'short'})}</span><b>${date(g.game_date,{day:'numeric'})}</b></div><div class="fixture-main"><h3>${esc(g.location)}</h3><p>${esc(time(g))} · ${M.squad(data,g.id).length}${m.capacity?' / '+m.capacity:''} players${status==='playing'?' · You’re signed up':status==='waiting'?' · You’re on the waiting list':status==='out'?' · You’ve opted out':''}</p></div><div class="fixture-actions">${m.score_a!==undefined&&m.teams?.length!==3?pill(m.score_a+' : '+m.score_b):signupButton(g,'outline')}${link('Match centre '+icon('arrow',13),'#match/'+g.id,'outline')}${can('games.manage')&&!M.started(g)?btn('Delete match','delete-fixture',g.id,'outline'):''}</div></article></div>`;}).join('');
     return heading('Fixtures & results','The football comes first.','Find your next game, claim your place and relive the last one.',can('games.manage')?btn(icon('plus',15)+' New match','fixture'):'')+`<div class="filters" aria-label="Match filters">${[['upcoming','Upcoming'],['mine','My matches'],['archive','Season archive']].map(([v,t])=>`<button data-filter="${v}" class="${filter===v?'active':''}" aria-pressed="${filter===v}">${t}</button>`).join('')}</div>${filter==='archive'?`<label class="field" style="max-width:240px">Season<select id="archive-season"><option value="">All seasons</option>${data.seasons.map(s=>`<option value="${s.id}" ${archiveSeason===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label>`:''}${items||`<div class="panel">${empty('No matches here yet',filter==='mine'?'Join an upcoming match to see it here.':'The next fixtures will appear here when they’re available.','calendar')}</div>`}`;
   }
 
@@ -153,6 +153,10 @@
     if(action==='announcement'){showDialog('A word from the board','Share something with the whole club.',field('Title','title','','text','required maxlength="100"')+textarea('Club update','body','',2000),f=>post({action,title:f.get('title'),body:f.get('body')}),'Publish update');return;}
     if(action==='remove-post'){showDialog('Remove this update?','It will disappear from the club noticeboard.','',()=>post({action:'remove_announcement',id:id.replace('announcement:','')}),'Remove update');return;}
     if(action==='settings'){showDialog('Match settings','Set the capacity and what your players need to know.',field('Player capacity (leave empty for no limit)','capacity',m.capacity??'','number','min="2" max="100"')+textarea('Match notes','notes',m.notes||'',1500)+'<p class="notice">A full match gets a waiting list. When a player withdraws or you increase capacity, waiting players are added automatically in order.</p>',f=>post({action:'match_settings',game_id:id,capacity:f.get('capacity')===''?null:Number(f.get('capacity')),notes:f.get('notes')}));return;}
+    if(action==='delete-fixture'){
+      showDialog('Delete this upcoming match?',fullDate(g.game_date),'<p class="notice amber">This permanently removes the fixture, its sign-ups, waiting list and match details. Players will no longer see it in the schedule. This action cannot be undone.</p><p class="muted" style="font-size:13px">Matches with recorded payments cannot be deleted. Resolve or refund those payments first.</p>',()=>post({action:'delete_fixture',game_id:id}),'Delete match');
+      return;
+    }
     if(action==='fixture'){
       showDialog(g?'Edit fixture':'A new date for the diary','All match times are in Castellón time.',field('Match date','date',g?.game_date||data.server_date,'date','required')+`<div class="form-grid">${field('Kick-off','start',g?.start_time.slice(0,5)||'19:30','time','required')}${field('Full time','end',g?.end_time.slice(0,5)||'21:30','time','required')}</div>`+field('Venue','location',g?.location||'Castellón','text','required maxlength="255"'),async f=>{const r=await post({action:'fixture',...(g?{id}:{}),date:f.get('date'),start:f.get('start'),end:f.get('end'),location:f.get('location')});location.hash='match/'+r.id;},'Save fixture');return;
     }
@@ -204,7 +208,52 @@
     const b=e.target.closest('[data-action]');if(!b||b.disabled)return;
     b.disabled=true;try{await handleAction(b.dataset.action,b.dataset.id,b);}catch(e){if(e.status===401)login('Your session ended. Please sign in again.');else toast(e.message||'Something went wrong. Please try again.');}finally{if(b.isConnected)b.disabled=false;}
   });
-  document.addEventListener('input',e=>{if(e.target.id==='squad-search'){search=e.target.value;document.getElementById('player-grid').innerHTML=playerCards();}});
+  // Handle deletion before the browser/mobile keyboard mutates the value.
+  // This lets Backspace/Delete skip the separator instead of repeatedly
+  // triggering the formatter to put it back under the user's cursor.
+  document.addEventListener('beforeinput',e=>{
+    const input=e.target;
+    if(input.name!=='birthday'||!e.inputType?.startsWith('delete'))return;
+    const value=input.value,start=input.selectionStart??value.length,end=input.selectionEnd??start;
+    let next=value,caretDigits=0;
+    if(start!==end){
+      next=value.slice(0,start)+value.slice(end);
+      caretDigits=value.slice(0,start).replace(/\D/g,'').length;
+    }else if(e.inputType==='deleteContentBackward'){
+      let at=start-1;
+      if(value[at]==='/')at--;
+      if(at>=0)next=value.slice(0,at)+value.slice(at+1);
+      caretDigits=value.slice(0,Math.max(0,at)).replace(/\D/g,'').length;
+    }else{
+      let at=start;
+      if(value[at]==='/')at++;
+      if(at<value.length)next=value.slice(0,at)+value.slice(at+1);
+      caretDigits=value.slice(0,start).replace(/\D/g,'').length;
+    }
+    e.preventDefault();
+    const digits=next.replace(/\D/g,'').slice(0,4);
+    const formatted=digits.length>2?digits.slice(0,2)+'/'+digits.slice(2):digits;
+    input.value=formatted;
+    const nextCaret=Math.min(formatted.length,caretDigits+(caretDigits>2?1:0));
+    try{input.setSelectionRange(nextCaret,nextCaret);}catch(_){}
+  });
+  document.addEventListener('input',e=>{
+    if(e.target.name==='birthday'){
+      const input=e.target;
+      // Format typed or pasted digits; deletion is handled in beforeinput.
+      const raw=input.value;
+      const caret=input.selectionStart??raw.length;
+      const digitsBeforeCaret=raw.slice(0,caret).replace(/\D/g,'').length;
+      const digits=raw.replace(/\D/g,'').slice(0,4);
+      const formatted=digits.length>2?digits.slice(0,2)+'/'+digits.slice(2):digits;
+      if(input.value!==formatted){
+        input.value=formatted;
+        const nextCaret=Math.min(formatted.length,digitsBeforeCaret+(digitsBeforeCaret>2?1:0));
+        try{input.setSelectionRange(nextCaret,nextCaret);}catch(_){}
+      }
+    }
+    if(e.target.id==='squad-search'){search=e.target.value;document.getElementById('player-grid').innerHTML=playerCards();}
+  });
   document.addEventListener('change',e=>{if(e.target.id==='squad-sort'){sort=e.target.value;document.getElementById('player-grid').innerHTML=playerCards();}if(e.target.id==='archive-season'){archiveSeason=e.target.value;render();}});
   window.addEventListener('hashchange',()=>{if(dialog.open)closeDialog();render();window.scrollTo(0,0);document.querySelector('h1')?.focus({preventScroll:true});});
   dialog.addEventListener('click',e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog();}});
