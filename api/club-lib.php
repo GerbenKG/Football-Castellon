@@ -207,13 +207,25 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
     // Deliberately exclude contacts, skills, payment flags and access records from the shared squad.
     $players = $pdo->query('SELECT p.id,p.name,p.archived_at,p.bibs_taken_count,p.birthday_month,p.birthday_day,COALESCE(ap.avatar_path,u.avatar_path) AS avatar_path FROM players p LEFT JOIN access_profiles ap ON ap.player_id=p.id AND ap.active=1 LEFT JOIN users u ON u.id=ap.user_id ORDER BY p.name')->fetchAll();
     foreach($players as &$p)$p['bibs_taken_count']=(int)$p['bibs_taken_count'];unset($p);
+    $playerNames=array_column($players,'name','id');
     $games = $pdo->query('SELECT id,game_date,start_time,end_time,location FROM games ORDER BY game_date,start_time')->fetchAll();
     $rows = normalizeRows($pdo->query('SELECT id,game_id,player_id,guest_name,took_bibs FROM game_players WHERE playing=1')->fetchAll());
     $records = $pdo->query('SELECT record_key,kind,payload,created_at,updated_at FROM club_records ORDER BY created_at DESC')->fetchAll();
-    $announcements = []; $matches = []; $votes = []; $waiting = []; $declined = []; $reports = []; $myVotes = []; $cards = []; $favorites=[];
+    $announcements = []; $matches = []; $votes = []; $waiting = []; $declined = []; $reports = []; $myVotes = []; $cards = []; $favorites=[]; $gameVotes=[]; $gameVoteLog=[];
     foreach ($records as $record) {
         $v = json_decode($record['payload'], true, 64, JSON_THROW_ON_ERROR);
         if ($record['kind'] === 'announcement') $announcements[] = $v + ['id' => $record['record_key'], 'created_at' => $record['created_at']];
+        if ($record['kind'] === 'game_vote') {
+            foreach (($v['effective_votes'] ?? []) as $entry) {
+                $clubKey = strtolower($entry['club']);
+                if (!isset($gameVotes[$clubKey])) $gameVotes[$clubKey] = ['club'=>$entry['club'],'likes'=>0,'dislikes'=>0];
+                if (($entry['choice'] ?? '') === 'like') $gameVotes[$clubKey]['likes']++;
+                if (($entry['choice'] ?? '') === 'dislike') $gameVotes[$clubKey]['dislikes']++;
+            }
+            foreach (($v['effective_votes'] ?? []) as $entry) {
+                $gameVoteLog[] = ['player_id'=>$v['player_id'] ?? null,'player_name'=>$playerNames[$v['player_id'] ?? ''] ?? ($v['player_name'] ?? 'Former player'),'club'=>$entry['club'],'choice'=>$entry['choice'],'voted_at'=>$v['voted_at'] ?? $record['created_at']];
+            }
+        }
         if ($record['kind'] === 'match') $matches[$v['game_id']] = $v;
         if ($record['kind'] === 'player_card') $cards[$v['player_id']] = $v;
         if ($record['kind'] === 'favorite_club') $favorites[substr($record['record_key'],9)]=$v['club'];
@@ -255,6 +267,7 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
         'seasons' => $seasons, 'my_tickets' => $myTickets, 'announcements' => $permissions['clubhouse.view'] ? array_slice($announcements, 0, 30) : [], 'matches' => (object) $matches,
         'votes' => (object) $votes, 'my_votes' => (object) $myVotes,  'player_cards' => (object) $cards, 'waiting' => $waiting, 'declined' => $declined, 'payment_reports' => $reports, 'lineup_players'=>$lineupPlayers,
         'bibs_assignments'=>$pdo->query('SELECT id,game_id,player_id FROM game_players WHERE took_bibs=1 AND player_id IS NOT NULL')->fetchAll(),
+        'game_votes'=>(object)$gameVotes, 'game_vote_log'=>$gameVoteLog,
         'finance' => $permissions['payments.view'] ? clubFinance($pdo,$financeSeason) : null,
         'player_records' => $permissions['players.view'] ? $pdo->query('SELECT id,name,phone,email,archived_at,skill_level FROM players ORDER BY name')->fetchAll() : [],
         'member_accounts' => $memberAccounts,

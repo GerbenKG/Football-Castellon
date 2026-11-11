@@ -20,6 +20,35 @@ try {
     $pdo->beginTransaction();
     $result = ['ok' => true];
     switch ($action) {
+        case 'game_vote':
+            if (!$user['player_id']) throw new DomainException('Your account must be linked to a player profile before you can vote');
+            $source = clubText($body['club_name'] ?? null, 160);
+            $choice = $body['choice'] ?? '';
+            if (!in_array($choice, ['like','dislike'], true)) throw new InvalidArgumentException('Choose like or dislike');
+            $sourceKey = strtolower(trim(preg_replace('/\\s+/', ' ', $source)));
+            $allowedClubs = ['tottenham hotspur'=>true,'west ham united'=>true];
+            foreach ($pdo->query("SELECT payload FROM club_records WHERE kind='favorite_club'")->fetchAll(PDO::FETCH_COLUMN) as $favoritePayload) {
+                $favorite = json_decode($favoritePayload, true);
+                if (is_array($favorite) && is_string($favorite['club']['name'] ?? null)) $allowedClubs[strtolower($favorite['club']['name'])] = true;
+            }
+            if (!isset($allowedClubs[$sourceKey])) throw new InvalidArgumentException('This club is not available in the game');
+            $playerQuery = $pdo->prepare('SELECT name FROM players WHERE id=? AND archived_at IS NULL');
+            $playerQuery->execute([$user['player_id']]);
+            $playerName = $playerQuery->fetchColumn();
+            if (!is_string($playerName) || $playerName === '') throw new DomainException('Your active player profile could not be found');
+            $voteKey = 'game_vote:' . bin2hex(random_bytes(16));
+            if (strcasecmp($source, 'Tottenham Hotspur') === 0 && $choice === 'dislike') {
+                $effective = [['club'=>'West Ham United','choice'=>'dislike']];
+            } elseif (strcasecmp($source, 'West Ham United') === 0 && $choice === 'like') {
+                $effective = [['club'=>'Tottenham Hotspur','choice'=>'like']];
+            } else {
+                $effective = [['club'=>$source,'choice'=>$choice]];
+            }
+            clubPut($pdo, $voteKey, 'game_vote', ['player_id'=>$user['player_id'],'player_name'=>$playerName,'source_club'=>$source,'choice'=>$choice,'effective_votes'=>$effective,'voted_at'=>gmdate('c')], $user);
+            clubAudit($pdo, $user, 'Play a Game vote', ['source_club'=>$source,'choice'=>$choice,'effective_votes'=>$effective]);
+            $result['effective_votes'] = $effective;
+            $result['message'] = 'Your vote has been counted.';
+            break;
         case 'favorite_club':
             $choice=clubChosenFavorite($body['club_id']??null,$user);
             $key='favorite:'.hash('sha256',strtolower($user['email']));
