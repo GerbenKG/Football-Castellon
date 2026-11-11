@@ -26,6 +26,16 @@ try {
             $choice = $body['choice'] ?? '';
             if (!in_array($choice, ['like','dislike'], true)) throw new InvalidArgumentException('Choose like or dislike');
             $sourceKey = strtolower(trim(preg_replace('/\\s+/', ' ', $source)));
+            $allowedClubs = ['tottenham hotspur'=>true,'west ham united'=>true];
+            foreach ($pdo->query("SELECT payload FROM club_records WHERE kind='favorite_club'")->fetchAll(PDO::FETCH_COLUMN) as $favoritePayload) {
+                $favorite = json_decode($favoritePayload, true);
+                if (is_array($favorite) && is_string($favorite['club']['name'] ?? null)) $allowedClubs[strtolower($favorite['club']['name'])] = true;
+            }
+            if (!isset($allowedClubs[$sourceKey])) throw new InvalidArgumentException('This club is not available in the game');
+            $playerQuery = $pdo->prepare('SELECT name FROM players WHERE id=? AND archived_at IS NULL');
+            $playerQuery->execute([$user['player_id']]);
+            $playerName = $playerQuery->fetchColumn();
+            if (!is_string($playerName) || $playerName === '') throw new DomainException('Your active player profile could not be found');
             $voteKey = 'game_vote:' . hash('sha256', strtolower($user['email'])) . ':' . hash('sha256', $sourceKey);
             if (clubRecord($pdo, $voteKey) !== null) throw new InvalidArgumentException('You have already voted for this club');
             $effective = $choice === 'dislike'
@@ -33,7 +43,7 @@ try {
                 : (strcasecmp($source, 'West Ham United') === 0
                     ? [['club'=>'Tottenham Hotspur','choice'=>'like'],['club'=>'West Ham United','choice'=>'dislike']]
                     : [['club'=>$source,'choice'=>'like']]);
-            clubPut($pdo, $voteKey, 'game_vote', ['player_id'=>$user['player_id'],'player_name'=>$user['display_name'] ?: 'Club member','source_club'=>$source,'choice'=>$choice,'effective_votes'=>$effective,'voted_at'=>gmdate('c')], $user);
+            clubPut($pdo, $voteKey, 'game_vote', ['player_id'=>$user['player_id'],'player_name'=>$playerName,'source_club'=>$source,'choice'=>$choice,'effective_votes'=>$effective,'voted_at'=>gmdate('c')], $user);
             clubAudit($pdo, $user, 'Play a Game vote', ['source_club'=>$source,'choice'=>$choice,'effective_votes'=>$effective]);
             $result['message'] = $choice === 'dislike' ? 'Thank you for disliking The Hammers.' : (strcasecmp($source, 'West Ham United') === 0 ? 'Thank you for liking The Spurs!' : 'Thanks for your vote.');
             break;
