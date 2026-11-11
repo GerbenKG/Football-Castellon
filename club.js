@@ -142,7 +142,15 @@
     return heading('Games & challenges','Play a Game','A little friendly competition away from the pitch.')+'<div class="play-game-tiles">'+games.map(g=>'<a class="play-game-tile" href="#playgame/'+g.id+'"><div class="play-game-tile-art"><span>'+esc(g.symbol)+'</span><small>FC CASTELLÓN</small></div><div class="play-game-tile-copy"><span class="eyebrow">CLUB GAME</span><h2>'+esc(g.title)+'</h2><p>'+esc(g.description)+'</p><span class="play-game-tile-link">Play now '+icon('arrow',14)+'</span></div></a>').join('')+'</div>';
   }
   function leaguePredictions(){
-    loadPredictions().then(()=>{if(route().page==='playgame'&&route().id==='league-predictions')render();}).catch(()=>{if(route().page==='playgame'&&route().id==='league-predictions')render();});
+    // Start one request only. Once data is loaded, do not schedule another render
+    // from every subsequent render (which would create an infinite render loop).
+    if(!predictionsData&&!predictionsLoading){
+      loadPredictions().then(()=>{
+        if(route().page==='playgame'&&route().id==='league-predictions')render();
+      }).catch(()=>{
+        if(route().page==='playgame'&&route().id==='league-predictions')render();
+      });
+    }
     const payload=predictionsData,fixtures=payload?.fixtures||[],mine=payload?.my_predictions||{},now=Date.now();
     const cards=fixtures.map(f=>{
       const kick=new Date(f.kickoff_utc.replace(' ','T')+'Z'),locked=now>=kick.getTime()-60000||Number(f.result_confirmed)===1,p=mine[String(f.id)]||{},played=p.predicted_home_score!==undefined,finished=Number(f.result_confirmed)===1;
