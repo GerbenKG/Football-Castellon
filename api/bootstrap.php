@@ -26,7 +26,20 @@ function avatarStorageDirectory(): string
 function databaseConfigPath(?string $requestHost = null): string
 {
     if (isLocalDevelopment()) return dirname(__DIR__) . '/.local/db-config.php';
-    $host = strtolower(preg_replace('/:\d+$/', '', $requestHost ?? ($_SERVER['HTTP_HOST'] ?? '')));
+
+    // Plesk scheduled tasks run under PHP CLI and have no HTTP_HOST.
+    // Require an explicit environment so development jobs cannot silently
+    // fall back to the production database.
+    if (PHP_SAPI === 'cli') {
+        $environment = strtolower(trim((string) getenv('FOOTBALL_ENV')));
+        if (!in_array($environment, ['dev', 'production'], true)) {
+            throw new RuntimeException('Set FOOTBALL_ENV=dev or FOOTBALL_ENV=production for CLI execution');
+        }
+        $name = $environment === 'dev' ? 'db-config.dev.php' : 'db-config.php';
+        return dirname(__DIR__, 2) . '/' . $name;
+    }
+
+    $host = strtolower(preg_replace('/:\\d+$/', '', $requestHost ?? ($_SERVER['HTTP_HOST'] ?? '')));
     $name = $host === 'dev.castellon.futbol' ? 'db-config.dev.php' : 'db-config.php';
     return dirname(__DIR__, 2) . '/' . $name;
 }
