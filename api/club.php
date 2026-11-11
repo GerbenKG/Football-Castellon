@@ -36,8 +36,7 @@ try {
             $playerQuery->execute([$user['player_id']]);
             $playerName = $playerQuery->fetchColumn();
             if (!is_string($playerName) || $playerName === '') throw new DomainException('Your active player profile could not be found');
-            $voteKey = 'game_vote:' . hash('sha256', $user['player_id']) . ':' . hash('sha256', $sourceKey);
-            if (clubRecord($pdo, $voteKey) !== null) throw new InvalidArgumentException('You have already voted for this club');
+            $voteKey = 'game_vote:' . bin2hex(random_bytes(16));
             $effective = $choice === 'dislike'
                 ? [['club'=>'West Ham United','choice'=>'dislike']]
                 : (strcasecmp($source, 'West Ham United') === 0
@@ -45,7 +44,8 @@ try {
                     : [['club'=>$source,'choice'=>'like']]);
             clubPut($pdo, $voteKey, 'game_vote', ['player_id'=>$user['player_id'],'player_name'=>$playerName,'source_club'=>$source,'choice'=>$choice,'effective_votes'=>$effective,'voted_at'=>gmdate('c')], $user);
             clubAudit($pdo, $user, 'Play a Game vote', ['source_club'=>$source,'choice'=>$choice,'effective_votes'=>$effective]);
-            $result['message'] = $choice === 'dislike' ? 'Thank you for disliking The Hammers.' : (strcasecmp($source, 'West Ham United') === 0 ? 'Thank you for liking The Spurs!' : 'Thanks for your vote.');
+            $result['effective_votes'] = $effective;
+            $result['message'] = 'Your vote has been counted.';
             break;
         case 'favorite_club':
             $choice=clubChosenFavorite($body['club_id']??null,$user);
