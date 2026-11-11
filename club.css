@@ -44,3 +44,14 @@
 .prediction-club-empty{font-size:17px;opacity:.45}
 .prediction-leaderboard .prediction-leader>span:last-child{grid-column:3/-1;text-align:left;margin-top:-5px}
 @media(max-width:700px){.prediction-leaderboard .prediction-leader{grid-template-columns:25px 36px minmax(0,1fr) 58px}.prediction-leaderboard .prediction-leader>span:last-child{grid-column:3/-1;text-align:left;margin-top:-5px}}
+
+/* Per-fixture predictions from other players */
+.prediction-others{border-top:1px solid var(--line);margin-top:13px;padding-top:11px;display:grid;gap:7px}
+.prediction-others-heading{display:flex;align-items:center;justify-content:space-between;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px}
+.prediction-others-heading span{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border-radius:20px;background:#eef2e8;color:var(--green)}
+.prediction-other{display:grid;grid-template-columns:27px minmax(0,1fr) auto auto;align-items:center;gap:8px;font-size:11px}
+.prediction-other .club-avatar{width:25px;height:25px}
+.prediction-other>strong{overflow-wrap:anywhere}
+.prediction-other>b{font-size:12px;color:var(--green);font-variant-numeric:tabular-nums}
+.prediction-other>small{font-size:9px;color:var(--muted)}
+.prediction-others-empty{font-size:10px;color:var(--muted)}
