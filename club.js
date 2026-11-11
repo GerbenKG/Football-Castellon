@@ -128,7 +128,13 @@
   }
   async function loadPredictions(){
     if(predictionsData)return predictionsData;
-    if(!predictionsLoading)predictionsError='';predictionsLoading=api.get('/api/predictions.php').then(r=>(predictionsData=r)).catch(e=>{predictionsError=e.message||'Unable to load predictions';throw e;}).finally(()=>{predictionsLoading=null;});
+    if(!predictionsLoading){
+      predictionsError='';
+      predictionsLoading=api.get('/api/predictions.php')
+        .then(r=>(predictionsData=r))
+        .catch(e=>{predictionsError=e.message||'Unable to load predictions';throw e;})
+        .finally(()=>{predictionsLoading=null;});
+    }
     return predictionsLoading;
   }
   function playGame(){
