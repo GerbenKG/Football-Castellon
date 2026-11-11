@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "FC Castellón",
+  "short_name": "FC Castellón",
+  "description": "Your matches, your teammates, your club.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f5ef",
+  "theme_color": "#123e34",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
