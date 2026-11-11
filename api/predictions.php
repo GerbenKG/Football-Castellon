@@ -8,7 +8,7 @@ $user=requireUser(); $pdo=db();
 try {
     $method=$_SERVER['REQUEST_METHOD']??'GET';
     if($method==='GET') {
-        $fixtures=$pdo->query("SELECT id,api_fixture_id,league_name,country,home_team_name,home_team_logo,away_team_name,away_team_logo,kickoff_utc,fixture_status,home_score,away_score,result_confirmed FROM prediction_fixtures WHERE kickoff_utc >= UTC_TIMESTAMP() - INTERVAL 14 DAY ORDER BY kickoff_utc LIMIT 200")->fetchAll();
+        $fixtures=$pdo->query("SELECT id,api_fixture_id,league_name,country,home_team_name,home_team_logo,away_team_name,away_team_logo,kickoff_utc,fixture_status,home_score,away_score,result_confirmed FROM prediction_fixtures f WHERE (f.kickoff_utc >= UTC_TIMESTAMP() - INTERVAL 14 DAY) AND (EXISTS (SELECT 1 FROM prediction_team_map tm WHERE tm.api_team_id=f.home_team_id AND tm.season=f.season) OR EXISTS (SELECT 1 FROM prediction_team_map tm WHERE tm.api_team_id=f.away_team_id AND tm.season=f.season)) ORDER BY f.kickoff_utc LIMIT 200")->fetchAll();
         $mine=[];
         if($user['player_id']) {
             $s=$pdo->prepare('SELECT fixture_id,predicted_home_score,predicted_away_score,points_awarded,scored_at FROM game_predictions WHERE player_id=?');$s->execute([$user['player_id']]);
