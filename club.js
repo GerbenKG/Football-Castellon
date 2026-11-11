@@ -119,11 +119,12 @@
   function gameClubBadge(club){
     const key=String(club||'').toLowerCase();
     const favorite=data.players.map(p=>p.favorite_club).find(c=>c?.name?.toLowerCase()===key)||gameClubBadges[key];
-    return favorite?.badge_id?'<img class="play-game-team-badge" src="/api/clubs.php?badge='+esc(favorite.badge_id)+'" alt="'+esc(club)+' badge">':'<span class="play-game-team-placeholder">⚽</span>';
+    return favorite?.badge_id?'<img class="play-game-team-badge" src="/api/clubs.php?badge='+esc(favorite.badge_id)+'" alt="'+esc(club)+' badge" onerror="this.hidden=true">':'<span class="play-game-team-placeholder">⚽</span>';
   }
   function loadGameClubBadges(){
     if(gameBadgeLoad)return;
     gameBadgeLoad=Promise.all(['Tottenham Hotspur','West Ham United'].map(async name=>{try{const result=await api.get('/api/clubs.php?q='+encodeURIComponent(name));const club=(result.clubs||[]).find(c=>c.name.toLowerCase()===name.toLowerCase());if(club)gameClubBadges[name.toLowerCase()]=club;}catch(_){}})).then(()=>{if(route().page==='playgame'&&route().id==='love-or-hate')render();});
+    return gameBadgeLoad;
   }
   function playGame(){
     const games=[{id:'love-or-hate',title:'Love or Hate?',description:'Choose the clubs you love, and the ones you love to hate.',detail:'A little football rivalry. Your votes shape the club leaderboard.',symbol:'♥'}];
@@ -199,7 +200,7 @@
     if(action==='club-vote'){
       const club=button.dataset.club,choice=button.dataset.choice;
       if(!['like','dislike'].includes(choice)||!club)throw new Error('Choose a valid vote');
-      const result=await post({action:'game_vote',club_name:club,choice});await refresh();
+      const result=await post({action:'game_vote',club_name:club,choice});await refresh();await loadGameClubBadges();
       const outcome=result.effective_votes?.[0]||{club,choice};
       const verb=outcome.choice==='like'?'liking':'disliking';
       showDialog('Thank you for '+verb+' '+outcome.club,'Your vote has been counted.', '<div class="game-vote-confirmation"><div class="game-vote-confirmation-badge">'+gameClubBadge(outcome.club)+'</div><p>Thank you for '+verb+' <strong>'+esc(outcome.club)+'</strong>.</p><small>Your vote has been added to the club totals.</small><button type="button" class="btn btn-primary" data-close-dialog>Continue</button></div>');
