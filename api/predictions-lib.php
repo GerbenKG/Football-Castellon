@@ -133,7 +133,11 @@ function predictionSync(PDO $pdo, bool $discover=true): array {
         // Rescan when the saved favourite-club set changes; otherwise cache discovery for seven days.
         $favoriteKeys=array_map('predictionNormalizeTeamName',$favorites);
         sort($favoriteKeys);
-        $favoriteHash=hash('sha256',implode('|',$favoriteKeys));
+        // Include competition configuration so newly added leagues trigger discovery immediately.
+        $competitionKeys=[];
+        foreach($competitions as $code=>$competition) $competitionKeys[]=$code.':'.(int)$competition['id'];
+        sort($competitionKeys);
+        $favoriteHash=hash('sha256',implode('|',$favoriteKeys).'||'.implode('|',$competitionKeys));
         $pdo->exec("CREATE TABLE IF NOT EXISTS prediction_discovery_cache (
             season SMALLINT NOT NULL PRIMARY KEY,
             favourites_hash CHAR(64) NOT NULL,
