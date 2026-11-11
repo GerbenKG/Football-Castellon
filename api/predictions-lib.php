@@ -38,36 +38,76 @@ function predictionReserveApiRequest(PDO $pdo): void {
     if($s->rowCount()!==1) throw new RuntimeException('Football-data.org local safety limit reached (80 requests today UTC). Sync deferred until 00:00 UTC.');
 }
 function predictionApi(string $endpoint, array $params = []): array {
+    static $lastRequestAt = 0.0;
     $config=predictionApiConfig();
     $pdo=db();
-    predictionReserveApiRequest($pdo);
     $url='https://api.football-data.org/v4/'.ltrim($endpoint,'/');
     if($params) $url.='?'.http_build_query($params);
-    $ch=curl_init($url);
-    curl_setopt_array($ch,[
-        CURLOPT_RETURNTRANSFER=>true,
-        CURLOPT_TIMEOUT=>25,
-        CURLOPT_CONNECTTIMEOUT=>10,
-        CURLOPT_HTTPHEADER=>['X-Auth-Token: '.$config['api_key'],'Accept: application/json'],
-    ]);
-    $raw=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);$error=curl_error($ch);curl_close($ch);
-    if($raw===false) throw new RuntimeException('football-data.org connection failed: '.$error);
-    $json=json_decode($raw,true);
-    if(!is_array($json)) throw new RuntimeException('football-data.org returned invalid JSON (HTTP '.$status.')');
-    if($status<200||$status>=300) {
-        $message=is_string($json['message']??null)?$json['message']:(is_string($json['error']??null)?$json['error']:'HTTP '.$status);
-        throw new RuntimeException('football-data.org rejected the request (HTTP '.$status.'): '.mb_substr($message,0,500));
+    for($attempt=0;$attempt<3;$attempt++) {
+        // Stay comfortably below the provider's 10 requests/minute free-tier limit.
+        $wait=max(0.0,6.1-(microtime(true)-$lastRequestAt));
+        if($wait>0) usleep((int)ceil($wait*1000000));
+        predictionReserveApiRequest($pdo);
+        $retryAfter=0;
+        $ch=curl_init($url);
+        curl_setopt_array($ch,[
+            CURLOPT_RETURNTRANSFER=>true,
+            CURLOPT_TIMEOUT=>25,
+            CURLOPT_CONNECTTIMEOUT=>10,
+            CURLOPT_HTTPHEADER=>['X-Auth-Token: '.$config['api_key'],'Accept: application/json'],
+            CURLOPT_HEADERFUNCTION=>static function($curl,string $header) use (&$retryAfter): int {
+                if(preg_match('/^Retry-After:\\s*(\\d+)/i',$header,$m)) $retryAfter=(int)$m[1];
+                return strlen($header);
+            },
+        ]);
+        $raw=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);$error=curl_error($ch);curl_close($ch);
+        $lastRequestAt=microtime(true);
+        if($raw===false) throw new RuntimeException('football-data.org connection failed: '.$error);
+        $json=json_decode($raw,true);
+        if(!is_array($json)) throw new RuntimeException('football-data.org returned invalid JSON (HTTP '.$status.')');
+        if($status===429 && $attempt<2) {
+            $message=is_string($json['message']??null)?$json['message']:'';
+            if($retryAfter<=0 && preg_match('/wait\\s+(\\d+)\\s+seconds?/i',$message,$m)) $retryAfter=(int)$m[1];
+            sleep(max(7,min(60,$retryAfter?:7)));
+            continue;
+        }
+        if($status<200||$status>=300) {
+            $message=is_string($json['message']??null)?$json['message']:(is_string($json['error']??null)?$json['error']:'HTTP '.$status);
+            throw new RuntimeException('football-data.org rejected the request (HTTP '.$status.'): '.mb_substr($message,0,500));
+        }
+        return $json;
     }
-    return $json;
+    throw new RuntimeException('football-data.org rate limit remained active after retries. Sync can be run again later.');
 }
 
 function predictionCurrentSeason(): int { return (int)(new DateTimeImmutable('now',new DateTimeZone('Europe/Madrid')))->format('Y'); }
+function predictionNormalizeTeamName(string $name): string {
+    $name=trim($name);
+    if(function_exists('iconv')) {
+        $ascii=iconv('UTF-8','ASCII//TRANSLIT//IGNORE',$name);
+        if(is_string($ascii)) $name=$ascii;
+    }
+    $name=strtolower($name);
+    $name=preg_replace('/\\b(football club|futbol club|club de futbol|club football|calcio)\\b/i',' ',$name);
+    $name=preg_replace('/\\b(afc|fc|cf|ssc|ac|as|sc|sv|fk|sk|bk|ks)\\b/i',' ',$name);
+    $name=preg_replace('/[^a-z0-9]+/',' ',$name);
+    $name=trim(preg_replace('/\\s+/',' ',$name));
+    $aliases=[
+        'inter milan'=>'internazionale',
+        'inter'=>'internazionale',
+        'internazionale'=>'internazionale',
+    ];
+    return $aliases[$name]??$name;
+}
 function predictionFavouriteNames(PDO $pdo): array {
     $names=[];
     $stmt=$pdo->query("SELECT payload FROM club_records WHERE kind='favorite_club'");
     foreach($stmt->fetchAll(PDO::FETCH_COLUMN) as $payload) {
         $row=json_decode($payload,true); $name=$row['club']['name']??null;
-        if(is_string($name)&&trim($name)!=='') $names[mb_strtolower(trim($name))]=trim($name);
+        if(is_string($name)&&trim($name)!=='') {
+            $key=predictionNormalizeTeamName($name);
+            if($key!=='') $names[$key]=trim($name);
+        }
     }
     return array_values($names);
 }
@@ -77,7 +117,7 @@ function predictionDomesticLeague(array $league): bool {
     return $type==='league' && $country!=='' && !in_array($country,['world','international'],true);
 }
 function predictionSync(PDO $pdo, bool $discover=true): array {
-    // All five requested domestic competitions are included in the provider's free tier.
+    // Domestic competitions available in the provider's free tier.
     $competitions=[
         'PL'=>['id'=>2021,'name'=>'Premier League','country'=>'England'],
         'PD'=>['id'=>2014,'name'=>'La Liga','country'=>'Spain'],
@@ -86,22 +126,38 @@ function predictionSync(PDO $pdo, bool $discover=true): array {
         'SA'=>['id'=>2019,'name'=>'Serie A','country'=>'Italy'],
     ];
     $season=predictionCurrentSeason();$mapped=0;$fixtures=0;$scored=0;
-    if($discover) {
-        $favorites=predictionFavouriteNames($pdo);
-        foreach($competitions as $code=>$competition) {
-            $cache=$pdo->prepare('SELECT COUNT(*) FROM prediction_team_map WHERE api_league_id=? AND season=? AND updated_at>UTC_TIMESTAMP()-INTERVAL 7 DAY');
-            $cache->execute([$competition['id'],$season]);
-            if((int)$cache->fetchColumn()>0) continue;
-            $payload=predictionApi('competitions/'.$code.'/teams');
-            foreach(($payload['teams']??[]) as $team) {
-                $teamName=trim((string)($team['name']??''));
-                if($teamName==='') continue;
-                foreach($favorites as $favorite) {
-                    if(mb_strtolower(trim($favorite))!==mb_strtolower($teamName)) continue;
-                    $s=$pdo->prepare('INSERT INTO prediction_team_map (favourite_club,api_team_id,api_team_name,api_league_id,league_name,country,season) VALUES (?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE api_team_id=VALUES(api_team_id),api_team_name=VALUES(api_team_name),api_league_id=VALUES(api_league_id),league_name=VALUES(league_name),country=VALUES(country),updated_at=CURRENT_TIMESTAMP');
-                    $s->execute([$favorite,(int)$team['id'],$teamName,$competition['id'],$competition['name'],$competition['country'],$season]);$mapped++;
+    $favorites=predictionFavouriteNames($pdo);
+    if($discover && $favorites) {
+        // Rescan when the saved favourite-club set changes; otherwise cache discovery for seven days.
+        $favoriteKeys=array_map('predictionNormalizeTeamName',$favorites);
+        sort($favoriteKeys);
+        $favoriteHash=hash('sha256',implode('|',$favoriteKeys));
+        $pdo->exec("CREATE TABLE IF NOT EXISTS prediction_discovery_cache (
+            season SMALLINT NOT NULL PRIMARY KEY,
+            favourites_hash CHAR(64) NOT NULL,
+            last_checked_at DATETIME NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $cache=$pdo->prepare('SELECT favourites_hash,last_checked_at FROM prediction_discovery_cache WHERE season=?');
+        $cache->execute([$season]);$cached=$cache->fetch(PDO::FETCH_ASSOC);
+        $needsDiscovery=!$cached || !hash_equals((string)$cached['favourites_hash'],$favoriteHash)
+            || strtotime((string)$cached['last_checked_at']) < time()-7*86400;
+        if($needsDiscovery) {
+            foreach($competitions as $code=>$competition) {
+                $payload=predictionApi('competitions/'.$code.'/teams');
+                foreach(($payload['teams']??[]) as $team) {
+                    $teamName=trim((string)($team['name']??''));
+                    if($teamName==='') continue;
+                    $teamKey=predictionNormalizeTeamName($teamName);
+                    foreach($favorites as $favorite) {
+                        if(predictionNormalizeTeamName($favorite)!==$teamKey) continue;
+                        $s=$pdo->prepare('INSERT INTO prediction_team_map (favourite_club,api_team_id,api_team_name,api_league_id,league_name,country,season) VALUES (?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE api_team_id=VALUES(api_team_id),api_team_name=VALUES(api_team_name),api_league_id=VALUES(api_league_id),league_name=VALUES(league_name),country=VALUES(country),updated_at=CURRENT_TIMESTAMP');
+                        $s->execute([$favorite,(int)$team['id'],$teamName,$competition['id'],$competition['name'],$competition['country'],$season]);
+                        if($s->rowCount()>0) $mapped++;
+                    }
                 }
             }
+            $save=$pdo->prepare('INSERT INTO prediction_discovery_cache (season,favourites_hash,last_checked_at) VALUES (?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE favourites_hash=VALUES(favourites_hash),last_checked_at=UTC_TIMESTAMP()');
+            $save->execute([$season,$favoriteHash]);
         }
     }
     $from=(new DateTimeImmutable('now',new DateTimeZone('UTC')))->modify('-14 days')->format('Y-m-d');
@@ -136,5 +192,9 @@ function predictionSync(PDO $pdo, bool $discover=true): array {
         }
         $pdo->commit();
     } catch(Throwable $e) { if($pdo->inTransaction())$pdo->rollBack();throw $e; }
-    return ['teams_mapped'=>$mapped,'fixtures_synced'=>$fixtures,'predictions_scored'=>$scored];
+    $mappedRows=$pdo->prepare('SELECT favourite_club FROM prediction_team_map WHERE season=?');
+    $mappedRows->execute([$season]);
+    $mappedKeys=array_fill_keys(array_map('predictionNormalizeTeamName',$mappedRows->fetchAll(PDO::FETCH_COLUMN)),true);
+    $unmapped=array_values(array_filter($favorites,static fn($name)=>!isset($mappedKeys[predictionNormalizeTeamName($name)])));
+    return ['teams_mapped'=>$mapped,'fixtures_synced'=>$fixtures,'predictions_scored'=>$scored,'favourites_unmapped'=>$unmapped];
 }
