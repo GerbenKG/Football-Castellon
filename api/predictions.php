@@ -14,7 +14,28 @@ try {
             $s=$pdo->prepare('SELECT fixture_id,predicted_home_score,predicted_away_score,points_awarded,scored_at FROM game_predictions WHERE player_id=?');$s->execute([$user['player_id']]);
             foreach($s->fetchAll() as $r)$mine[(string)$r['fixture_id']]=$r;
         }
-        $board=$pdo->query("SELECT p.player_id,pl.name,SUM(p.points_awarded) points,SUM(CASE WHEN p.points_awarded>0 THEN 1 ELSE 0 END) correct_games,COUNT(p.scored_at) scored_games FROM game_predictions p JOIN players pl ON pl.id=p.player_id WHERE p.scored_at IS NOT NULL AND pl.archived_at IS NULL GROUP BY p.player_id,pl.name ORDER BY points DESC,correct_games DESC,pl.name")->fetchAll();
+        // Include every player who has submitted at least one prediction, even before results are scored.
+        $board=$pdo->query("SELECT p.player_id,pl.name,COALESCE(SUM(p.points_awarded),0) points,SUM(CASE WHEN p.scored_at IS NOT NULL AND p.points_awarded>0 THEN 1 ELSE 0 END) correct_games,COUNT(p.scored_at) scored_games,COALESCE(ap.avatar_path,u.avatar_path) avatar_path,ap.email
+            FROM game_predictions p
+            JOIN players pl ON pl.id=p.player_id
+            LEFT JOIN access_profiles ap ON ap.player_id=pl.id AND ap.active=1
+            LEFT JOIN users u ON u.id=ap.user_id
+            WHERE pl.archived_at IS NULL
+            GROUP BY p.player_id,pl.name,ap.avatar_path,u.avatar_path,ap.email
+            ORDER BY points DESC,correct_games DESC,pl.name")->fetchAll();
+        $favoriteByEmail=[];
+        foreach($pdo->query("SELECT record_key,payload FROM club_records WHERE kind='favorite_club'")->fetchAll(PDO::FETCH_ASSOC) as $favoriteRow) {
+            $payload=json_decode($favoriteRow['payload'],true);
+            if(!is_array($payload)) continue;
+            $key=substr((string)$favoriteRow['record_key'],13);
+            if(preg_match('/^[a-f0-9]{64}$/',$key)) $favoriteByEmail[$key]=$payload['club']??null;
+        }
+        foreach($board as &$entry) {
+            $email=strtolower(trim((string)($entry['email']??'')));
+            $entry['favorite_club']=$email!==''?($favoriteByEmail[hash('sha256',$email)]??null):null;
+            unset($entry['email']);
+        }
+        unset($entry);
         jsonResponse(['fixtures'=>$fixtures,'my_predictions'=>(object)$mine,'leaderboard'=>$board,'player_id'=>$user['player_id']]);
     }
     if($method!=='POST')jsonResponse(['error'=>'Method not allowed'],405);
