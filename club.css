@@ -33,3 +33,14 @@
 
 /* League predictions: fixture tabs and desktop leaderboard rail */
 .prediction-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,320px);align-items:start;gap:22px;margin-top:22px}.prediction-main{min-width:0}.prediction-tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:14px}.prediction-tabs button{appearance:none;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);padding:12px 16px;margin-bottom:-1px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}.prediction-tabs button.active{color:var(--green);border-bottom-color:var(--green)}.prediction-tabs button span{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;margin-left:5px;border-radius:20px;background:#eef2e8;color:var(--green);font-size:10px}.prediction-sidebar{position:sticky;top:18px;min-width:0}.prediction-leaderboard .section-title{margin-bottom:12px}.prediction-leaderboard .section-title h2{font-size:17px}.prediction-leaderboard .section-title p{font-size:10px}.prediction-leaderboard .prediction-leader{grid-template-columns:24px minmax(0,1fr) 58px;gap:7px;padding:12px 10px}.prediction-leaderboard .prediction-leader>span:last-child{grid-column:2/-1;text-align:left;margin-top:-5px}.prediction-leaderboard .prediction-leader>b{text-align:right}@media(max-width:900px){.prediction-layout{grid-template-columns:minmax(0,1fr) 250px;gap:14px}}@media(max-width:700px){.prediction-layout{grid-template-columns:1fr}.prediction-sidebar{position:static;grid-row:2}.prediction-leaderboard .prediction-leader{grid-template-columns:28px minmax(0,1fr) 65px 70px}.prediction-leaderboard .prediction-leader>span:last-child{grid-column:auto;text-align:right;margin-top:0}}
+
+/* League predictions leaderboard player identity */
+.prediction-leaderboard .prediction-leader{grid-template-columns:22px 36px minmax(0,1fr) 54px;gap:9px}
+.prediction-leaderboard .prediction-leader>.club-avatar{width:34px;height:34px}
+.prediction-leader-person{display:flex;align-items:center;justify-content:space-between;gap:7px;min-width:0}
+.prediction-leader-person>strong{min-width:0;overflow-wrap:anywhere}
+.prediction-leader-club{display:grid;place-items:center;flex:0 0 25px;width:25px;height:25px}
+.prediction-leader-club .favorite-club-badge{width:24px;height:24px;object-fit:contain}
+.prediction-club-empty{font-size:17px;opacity:.45}
+.prediction-leaderboard .prediction-leader>span:last-child{grid-column:3/-1;text-align:left;margin-top:-5px}
+@media(max-width:700px){.prediction-leaderboard .prediction-leader{grid-template-columns:25px 36px minmax(0,1fr) 58px}.prediction-leaderboard .prediction-leader>span:last-child{grid-column:3/-1;text-align:left;margin-top:-5px}}
