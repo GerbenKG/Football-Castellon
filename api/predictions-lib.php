@@ -149,12 +149,20 @@ function predictionSync(PDO $pdo, bool $discover=true): array {
     }
     $leagues=$pdo->query('SELECT DISTINCT api_league_id,league_name,country,season FROM prediction_team_map')->fetchAll();
     foreach($leagues as $league) {
+        // Only persist fixtures involving at least one club currently selected
+        // by a player. This also keeps the prediction feed focused and small.
+        $selected=$pdo->prepare('SELECT DISTINCT api_team_id FROM prediction_team_map WHERE api_league_id=? AND season=?');
+        $selected->execute([(int)$league['api_league_id'],(int)$league['season']]);
+        $selectedTeamIds=array_fill_keys(array_map('intval',$selected->fetchAll(PDO::FETCH_COLUMN)),true);
+        if (!$selectedTeamIds) continue;
+
         $from=(new DateTimeImmutable('now',new DateTimeZone('UTC')))->modify('-14 days')->format('Y-m-d');
         $to=(new DateTimeImmutable('now',new DateTimeZone('UTC')))->modify('+45 days')->format('Y-m-d');
         $response=predictionApi('fixtures',['league'=>(int)$league['api_league_id'],'season'=>(int)$league['season'],'from'=>$from,'to'=>$to]);
         foreach($response as $item) {
             $f=$item['fixture']??[];$teams=$item['teams']??[];$goals=$item['goals']??[];$status=$f['status']['short']??'NS';
             if(empty($f['id'])||empty($teams['home']['id'])||empty($teams['away']['id'])||empty($f['date'])) continue;
+            if (!isset($selectedTeamIds[(int)$teams['home']['id']]) && !isset($selectedTeamIds[(int)$teams['away']['id']])) continue;
             $kickoff=(new DateTimeImmutable($f['date']))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
             $finished=in_array($status,['FT','AET','PEN'],true)&&is_numeric($goals['home']??null)&&is_numeric($goals['away']??null);
             $s=$pdo->prepare('INSERT INTO prediction_fixtures (api_fixture_id,api_league_id,league_name,country,season,home_team_id,home_team_name,home_team_logo,away_team_id,away_team_name,away_team_logo,kickoff_utc,fixture_status,home_score,away_score,result_confirmed,last_synced_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE kickoff_utc=VALUES(kickoff_utc),fixture_status=VALUES(fixture_status),home_score=VALUES(home_score),away_score=VALUES(away_score),result_confirmed=VALUES(result_confirmed),last_synced_at=UTC_TIMESTAMP(),home_team_name=VALUES(home_team_name),away_team_name=VALUES(away_team_name),home_team_logo=VALUES(home_team_logo),away_team_logo=VALUES(away_team_logo)');
