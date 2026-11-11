@@ -78,6 +78,7 @@ function predictionStoreApiQuota(PDO $pdo, array $headers): void {
 }
 
 function predictionApi(string $endpoint, array $params = []): array {
+    $config = predictionApiConfig();
     $pdo = db();
     predictionReserveApiRequest($pdo);
 
@@ -88,7 +89,7 @@ function predictionApi(string $endpoint, array $params = []): array {
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 20,
         CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_HTTPHEADER => ['x-apisports-key: ' . predictionApiConfig()['api_key'], 'Accept: application/json'],
+        CURLOPT_HTTPHEADER => ['x-apisports-key: ' . $config['api_key'], 'Accept: application/json'],
         CURLOPT_HEADERFUNCTION => static function ($curl, string $line) use (&$headers): int {
             $length = strlen($line);
             $parts = explode(':', $line, 2);
