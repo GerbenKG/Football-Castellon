@@ -20,6 +20,23 @@ try {
     $pdo->beginTransaction();
     $result = ['ok' => true];
     switch ($action) {
+        case 'game_vote':
+            if (!$user['player_id']) throw new DomainException('Your account must be linked to a player profile before you can vote');
+            $source = clubText($body['club_name'] ?? null, 160);
+            $choice = $body['choice'] ?? '';
+            if (!in_array($choice, ['like','dislike'], true)) throw new InvalidArgumentException('Choose like or dislike');
+            $sourceKey = strtolower(trim(preg_replace('/\\s+/', ' ', $source)));
+            $voteKey = 'game_vote:' . hash('sha256', strtolower($user['email'])) . ':' . hash('sha256', $sourceKey);
+            if (clubRecord($pdo, $voteKey) !== null) throw new InvalidArgumentException('You have already voted for this club');
+            $effective = $choice === 'dislike'
+                ? [['club'=>'West Ham United','choice'=>'dislike']]
+                : (strcasecmp($source, 'West Ham United') === 0
+                    ? [['club'=>'Tottenham Hotspur','choice'=>'like'],['club'=>'West Ham United','choice'=>'dislike']]
+                    : [['club'=>$source,'choice'=>'like']]);
+            clubPut($pdo, $voteKey, 'game_vote', ['player_id'=>$user['player_id'],'player_name'=>$user['display_name'] ?: 'Club member','source_club'=>$source,'choice'=>$choice,'effective_votes'=>$effective,'voted_at'=>gmdate('c')], $user);
+            clubAudit($pdo, $user, 'Play a Game vote', ['source_club'=>$source,'choice'=>$choice,'effective_votes'=>$effective]);
+            $result['message'] = $choice === 'dislike' ? 'Thank you for disliking The Hammers.' : (strcasecmp($source, 'West Ham United') === 0 ? 'Thank you for liking The Spurs!' : 'Thanks for your vote.');
+            break;
         case 'favorite_club':
             $choice=clubChosenFavorite($body['club_id']??null,$user);
             $key='favorite:'.hash('sha256',strtolower($user['email']));
