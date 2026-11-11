@@ -39,6 +39,7 @@ function predictionSync(PDO $pdo, bool $discover=true): array {
     $season=predictionCurrentSeason(); $mapped=0; $fixtures=0; $scored=0;
     if($discover) {
         foreach(predictionFavouriteNames($pdo) as $club) {
+            $cached=$pdo->prepare('SELECT COUNT(*) FROM prediction_team_map WHERE favourite_club=? AND season=? AND updated_at>UTC_TIMESTAMP()-INTERVAL 7 DAY');$cached->execute([$club,$season]);if((int)$cached->fetchColumn()>0)continue;
             $matches=predictionApi('teams',['search'=>$club]);
             $team=null;
             foreach($matches as $candidate) if(mb_strtolower(trim($candidate['team']['name']??''))===mb_strtolower($club)) {$team=$candidate['team'];break;}
@@ -54,7 +55,9 @@ function predictionSync(PDO $pdo, bool $discover=true): array {
     }
     $leagues=$pdo->query('SELECT DISTINCT api_league_id,league_name,country,season FROM prediction_team_map')->fetchAll();
     foreach($leagues as $league) {
-        $response=predictionApi('fixtures',['league'=>(int)$league['api_league_id'],'season'=>(int)$league['season']]);
+        $from=(new DateTimeImmutable('now',new DateTimeZone('UTC')))->modify('-14 days')->format('Y-m-d');
+        $to=(new DateTimeImmutable('now',new DateTimeZone('UTC')))->modify('+45 days')->format('Y-m-d');
+        $response=predictionApi('fixtures',['league'=>(int)$league['api_league_id'],'season'=>(int)$league['season'],'from'=>$from,'to'=>$to]);
         foreach($response as $item) {
             $f=$item['fixture']??[];$teams=$item['teams']??[];$goals=$item['goals']??[];$status=$f['status']['short']??'NS';
             if(empty($f['id'])||empty($teams['home']['id'])||empty($teams['away']['id'])||empty($f['date'])) continue;
