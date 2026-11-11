@@ -243,7 +243,7 @@
     if(action==='save-prediction'){
       const card=button.closest('.prediction-fixture'),homeRaw=card?.querySelector('[data-home-score]')?.value,awayRaw=card?.querySelector('[data-away-score]')?.value,home=Number(homeRaw),away=Number(awayRaw);
       if(!card||homeRaw===''||awayRaw===''||!Number.isInteger(home)||!Number.isInteger(away)||home<0||away<0||home>20||away>20)throw new Error('Enter a whole-number score from 0 to 20.');
-      await post({action:'save_prediction',fixture_id:Number(id),home_score:home,away_score:away});predictionsData=null;await loadPredictions();render();toast('Your prediction has been saved.');return;
+      await api.post('/api/predictions.php',{action:'save_prediction',fixture_id:Number(id),home_score:home,away_score:away});predictionsData=null;await loadPredictions();render();toast('Your prediction has been saved.');return;
     }
     if(action==='club-vote'){
       const club=button.dataset.club,choice=button.dataset.choice;
