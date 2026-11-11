@@ -14,6 +14,24 @@ try {
             $s=$pdo->prepare('SELECT fixture_id,predicted_home_score,predicted_away_score,points_awarded,scored_at FROM game_predictions WHERE player_id=?');$s->execute([$user['player_id']]);
             foreach($s->fetchAll() as $r)$mine[(string)$r['fixture_id']]=$r;
         }
+        // Return submitted predictions per fixture so players can compare picks.
+        $otherPredictions=[];
+        $fixtureIds=array_map('intval',array_column($fixtures,'id'));
+        if($fixtureIds) {
+            $placeholders=implode(',',array_fill(0,count($fixtureIds),'?'));
+            $s=$pdo->prepare("SELECT gp.fixture_id,gp.player_id,pl.name,gp.predicted_home_score,gp.predicted_away_score,gp.points_awarded,gp.scored_at,COALESCE(ap.avatar_path,u.avatar_path) avatar_path
+                FROM game_predictions gp
+                JOIN players pl ON pl.id=gp.player_id
+                LEFT JOIN access_profiles ap ON ap.player_id=pl.id AND ap.active=1
+                LEFT JOIN users u ON u.id=ap.user_id
+                WHERE gp.fixture_id IN ($placeholders) AND pl.archived_at IS NULL
+                ORDER BY pl.name");
+            $s->execute($fixtureIds);
+            foreach($s->fetchAll(PDO::FETCH_ASSOC) as $prediction) {
+                $key=(string)$prediction['fixture_id'];
+                $otherPredictions[$key][]=$prediction;
+            }
+        }
         // Include every player who has submitted at least one prediction, even before results are scored.
         $board=$pdo->query("SELECT p.player_id,pl.name,COALESCE(SUM(p.points_awarded),0) points,SUM(CASE WHEN p.scored_at IS NOT NULL AND p.points_awarded>0 THEN 1 ELSE 0 END) correct_games,COUNT(p.scored_at) scored_games,COALESCE(ap.avatar_path,u.avatar_path) avatar_path,ap.email
             FROM game_predictions p
@@ -36,7 +54,7 @@ try {
             unset($entry['email']);
         }
         unset($entry);
-        jsonResponse(['fixtures'=>$fixtures,'my_predictions'=>(object)$mine,'leaderboard'=>$board,'player_id'=>$user['player_id']]);
+        jsonResponse(['fixtures'=>$fixtures,'my_predictions'=>(object)$mine,'fixture_predictions'=>(object)$otherPredictions,'leaderboard'=>$board,'player_id'=>$user['player_id']]);
     }
     if($method!=='POST')jsonResponse(['error'=>'Method not allowed'],405);
     requireCsrfToken();
