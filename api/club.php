@@ -37,11 +37,13 @@ try {
             $playerName = $playerQuery->fetchColumn();
             if (!is_string($playerName) || $playerName === '') throw new DomainException('Your active player profile could not be found');
             $voteKey = 'game_vote:' . bin2hex(random_bytes(16));
-            $effective = $choice === 'dislike'
-                ? [['club'=>'West Ham United','choice'=>'dislike']]
-                : (strcasecmp($source, 'West Ham United') === 0
-                    ? [['club'=>'Tottenham Hotspur','choice'=>'like'],['club'=>'West Ham United','choice'=>'dislike']]
-                    : [['club'=>$source,'choice'=>'like']]);
+            if (strcasecmp($source, 'Tottenham Hotspur') === 0 && $choice === 'dislike') {
+                $effective = [['club'=>'West Ham United','choice'=>'dislike']];
+            } elseif (strcasecmp($source, 'West Ham United') === 0 && $choice === 'like') {
+                $effective = [['club'=>'Tottenham Hotspur','choice'=>'like']];
+            } else {
+                $effective = [['club'=>$source,'choice'=>$choice]];
+            }
             clubPut($pdo, $voteKey, 'game_vote', ['player_id'=>$user['player_id'],'player_name'=>$playerName,'source_club'=>$source,'choice'=>$choice,'effective_votes'=>$effective,'voted_at'=>gmdate('c')], $user);
             clubAudit($pdo, $user, 'Play a Game vote', ['source_club'=>$source,'choice'=>$choice,'effective_votes'=>$effective]);
             $result['effective_votes'] = $effective;
