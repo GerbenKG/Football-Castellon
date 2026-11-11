@@ -36,7 +36,7 @@ try {
             $playerQuery->execute([$user['player_id']]);
             $playerName = $playerQuery->fetchColumn();
             if (!is_string($playerName) || $playerName === '') throw new DomainException('Your active player profile could not be found');
-            $voteKey = 'game_vote:' . hash('sha256', strtolower($user['email'])) . ':' . hash('sha256', $sourceKey);
+            $voteKey = 'game_vote:' . hash('sha256', $user['player_id']) . ':' . hash('sha256', $sourceKey);
             if (clubRecord($pdo, $voteKey) !== null) throw new InvalidArgumentException('You have already voted for this club');
             $effective = $choice === 'dislike'
                 ? [['club'=>'West Ham United','choice'=>'dislike']]
