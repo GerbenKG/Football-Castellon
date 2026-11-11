@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const api=window.api,M=window.ClubModel,root=document.getElementById('club-app'),dialog=document.getElementById('club-dialog');
-  let data=null,payments=null,predictionsData=null,predictionsLoading=null,paymentError='',filter='upcoming',archiveSeason='',search='',sort='appearances',busy=false,lastFocus=null,refreshing=false,gameBadgeLoad=null;
+  let data=null,payments=null,predictionsData=null,predictionsLoading=null,predictionsError='',paymentError='',filter='upcoming',archiveSeason='',search='',sort='appearances',busy=false,lastFocus=null,refreshing=false,gameBadgeLoad=null;
   const gameClubBadges={};
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money=v=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'EUR'}).format(Number(v||0));
@@ -128,7 +128,7 @@
   }
   async function loadPredictions(){
     if(predictionsData)return predictionsData;
-    if(!predictionsLoading)predictionsLoading=api.get('/api/predictions.php').then(r=>(predictionsData=r)).finally(()=>{predictionsLoading=null;});
+    if(!predictionsLoading)predictionsError='';predictionsLoading=api.get('/api/predictions.php').then(r=>(predictionsData=r)).catch(e=>{predictionsError=e.message||'Unable to load predictions';throw e;}).finally(()=>{predictionsLoading=null;});
     return predictionsLoading;
   }
   function playGame(){
@@ -136,7 +136,7 @@
     return heading('Games & challenges','Play a Game','A little friendly competition away from the pitch.')+'<div class="play-game-tiles">'+games.map(g=>'<a class="play-game-tile" href="#playgame/'+g.id+'"><div class="play-game-tile-art"><span>'+esc(g.symbol)+'</span><small>FC CASTELLÓN</small></div><div class="play-game-tile-copy"><span class="eyebrow">CLUB GAME</span><h2>'+esc(g.title)+'</h2><p>'+esc(g.description)+'</p><span class="play-game-tile-link">Play now '+icon('arrow',14)+'</span></div></a>').join('')+'</div>';
   }
   function leaguePredictions(){
-    loadPredictions().then(()=>{if(route().page==='playgame'&&route().id==='league-predictions')render();}).catch(()=>{});
+    loadPredictions().then(()=>{if(route().page==='playgame'&&route().id==='league-predictions')render();}).catch(()=>{if(route().page==='playgame'&&route().id==='league-predictions')render();});
     const payload=predictionsData,fixtures=payload?.fixtures||[],mine=payload?.my_predictions||{},now=Date.now();
     const cards=fixtures.map(f=>{
       const kick=new Date(f.kickoff_utc.replace(' ','T')+'Z'),locked=now>=kick.getTime()-60000||Number(f.result_confirmed)===1,p=mine[String(f.id)]||{},played=p.predicted_home_score!==undefined,finished=Number(f.result_confirmed)===1;
@@ -146,7 +146,7 @@
       return '<article class="prediction-fixture"><div class="prediction-meta"><span>'+esc(f.league_name)+' · '+esc(f.country)+'</span><span>'+esc(kickoff)+'</span></div><div class="prediction-teams"><div><img src="'+esc(f.home_team_logo||'')+'" alt="" onerror="this.hidden=true"><strong>'+esc(f.home_team_name)+'</strong></div><div class="prediction-score">'+score+'</div><div><img src="'+esc(f.away_team_logo||'')+'" alt="" onerror="this.hidden=true"><strong>'+esc(f.away_team_name)+'</strong></div></div><div class="prediction-entry">'+(played?'<span class="pill success">Your prediction: '+p.predicted_home_score+' – '+p.predicted_away_score+(p.scored_at?' · '+p.points_awarded+' pts':'')+'</span>':'<span class="muted">No prediction saved · 0 points if left blank</span>')+entry+'</div></article>';
     }).join('');
     const board=(payload?.leaderboard||[]).map((p,i)=>'<div class="prediction-leader"><span class="rank">'+(i+1)+'</span><strong>'+esc(p.name)+'</strong><b>'+Number(p.points||0)+' pts</b><span>'+Number(p.correct_games||0)+' correct</span></div>').join('');
-    return heading('League predictions','League Games Predictions','Predict domestic league fixtures involving clubs selected in My Club. Change your score until one minute before kick-off.','<a class="btn btn-outline" href="#playgame">'+icon('arrow',13)+' All games</a>')+'<div class="play-game-intro"><div class="eyebrow" style="color:#d7e8ac">HOW TO SCORE</div><h2>Know your football?</h2><p>Exact score: 3 points. Correct result (win, draw or loss): 1 point. Wrong prediction or no prediction: 0 points. Only domestic league matches are included.</p></div>'+(!payload?'<div class="panel">'+empty('Loading fixtures','League fixtures and your predictions are being loaded.','clock')+'</div>':!fixtures.length?'<div class="panel">'+empty('No league fixtures available yet','Fixtures appear here after the scheduled club sync has run.','calendar')+'</div>':'<div class="prediction-fixtures">'+cards+'</div>')+'<section style="margin-top:30px"><div class="section-title"><div><h2>Leaderboard</h2><p>Points and correctly predicted games from completed fixtures.</p></div></div><div class="panel prediction-board">'+(board||'<div class="prediction-leader">No predictions scored yet.</div>')+'</div></section>';
+    return heading('League predictions','League Games Predictions','Predict domestic league fixtures involving clubs selected in My Club. Change your score until one minute before kick-off.','<a class="btn btn-outline" href="#playgame">'+icon('arrow',13)+' All games</a>')+'<div class="play-game-intro"><div class="eyebrow" style="color:#d7e8ac">HOW TO SCORE</div><h2>Know your football?</h2><p>Exact score: 3 points. Correct result (win, draw or loss): 1 point. Wrong prediction or no prediction: 0 points. Only domestic league matches are included.</p></div>'+(!payload?(predictionsError?'<div class="panel panel-pad"><strong>Predictions could not be loaded</strong><p class="muted">'+esc(predictionsError)+'</p><button class="btn btn-outline" data-action="retry-predictions">Try again</button></div>':'<div class="panel">'+empty('Loading fixtures','League fixtures and your predictions are being loaded.','clock')+'</div>'):!fixtures.length?'<div class="panel">'+empty('No league fixtures available yet','Fixtures appear here after the scheduled club sync has run.','calendar')+'</div>':'<div class="prediction-fixtures">'+cards+'</div>')+'<section style="margin-top:30px"><div class="section-title"><div><h2>Leaderboard</h2><p>Points and correctly predicted games from completed fixtures.</p></div></div><div class="panel prediction-board">'+(board||'<div class="prediction-leader">No predictions scored yet.</div>')+'</div></section>';
   }
   function playLoveHate(){
     loadGameClubBadges();
@@ -215,6 +215,7 @@
       const appearances=M.recordedGames(data,true).filter(g=>M.squad(data,g.id).some(r=>r.player_id===id)).reverse();
       showDialog(p?.name||'Player',`${card.position||'Club player'}${card.number?' · Shirt '+card.number:''}`,`<div class="player-dialog-avatar">${initials(p?.name||'Player',true,id)}${window.ClubFavorites.badge(window.ClubFavorites.choice(p?.name,id),true)}</div><div class="stats-grid" style="grid-template-columns:1fr 1fr;margin-top:0">${metric('This season',st.appearances,'Recorded appearances','shirt')}${metric('All time',all.appearances,'Recorded appearances','trophy')}${metric('Recorded goals',st.goals,'This season','chart')}${metric('W / D / L',st.wins+' / '+st.draws+' / '+st.losses,st.results+' matches with teams & results','calendar')}</div><p class="notice">${st.streak} consecutive matches · ${st.rate}% of recorded matches this season. Historical signups are used as recorded appearances.</p><h3 style="margin:22px 0 12px">Recent appearances</h3>${appearances.slice(0,8).map(g=>`<a class="leader" href="#match/${g.id}" data-close-dialog style="text-decoration:none"><span class="leader-name">${esc(fullDate(g.game_date))}<small>${esc(g.location)}</small></span>${icon('arrow',13)}</a>`).join('')||'<p class="muted" style="font-size:12px">Your football story starts here.</p>'}`);return;
     }
+    if(action==='retry-predictions'){predictionsData=null;predictionsError='';await loadPredictions();render();return;}
     if(action==='save-prediction'){
       const card=button.closest('.prediction-fixture'),homeRaw=card?.querySelector('[data-home-score]')?.value,awayRaw=card?.querySelector('[data-away-score]')?.value,home=Number(homeRaw),away=Number(awayRaw);
       if(!card||homeRaw===''||awayRaw===''||!Number.isInteger(home)||!Number.isInteger(away)||home<0||away<0||home>20||away>20)throw new Error('Enter a whole-number score from 0 to 20.');
