@@ -122,7 +122,7 @@
     return favorite?.badge_id?'<img class="play-game-team-badge" src="/api/clubs.php?badge='+esc(favorite.badge_id)+'" alt="'+esc(club)+' badge" onerror="this.hidden=true">':'<span class="play-game-team-placeholder">⚽</span>';
   }
   function loadGameClubBadges(){
-    if(gameBadgeLoad)return;
+    if(gameBadgeLoad)return gameBadgeLoad;
     gameBadgeLoad=Promise.all(['Tottenham Hotspur','West Ham United'].map(async name=>{try{const result=await api.get('/api/clubs.php?q='+encodeURIComponent(name));const club=(result.clubs||[]).find(c=>c.name.toLowerCase()===name.toLowerCase());if(club)gameClubBadges[name.toLowerCase()]=club;}catch(_){}})).then(()=>{if(route().page==='playgame'&&route().id==='love-or-hate')render();});
     return gameBadgeLoad;
   }
