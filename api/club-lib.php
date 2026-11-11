@@ -207,6 +207,7 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
     // Deliberately exclude contacts, skills, payment flags and access records from the shared squad.
     $players = $pdo->query('SELECT p.id,p.name,p.archived_at,p.bibs_taken_count,p.birthday_month,p.birthday_day,COALESCE(ap.avatar_path,u.avatar_path) AS avatar_path FROM players p LEFT JOIN access_profiles ap ON ap.player_id=p.id AND ap.active=1 LEFT JOIN users u ON u.id=ap.user_id ORDER BY p.name')->fetchAll();
     foreach($players as &$p)$p['bibs_taken_count']=(int)$p['bibs_taken_count'];unset($p);
+    $playerNames=array_column($players,'name','id');
     $games = $pdo->query('SELECT id,game_date,start_time,end_time,location FROM games ORDER BY game_date,start_time')->fetchAll();
     $rows = normalizeRows($pdo->query('SELECT id,game_id,player_id,guest_name,took_bibs FROM game_players WHERE playing=1')->fetchAll());
     $records = $pdo->query('SELECT record_key,kind,payload,created_at,updated_at FROM club_records ORDER BY created_at DESC')->fetchAll();
@@ -221,7 +222,7 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
                 if (($entry['choice'] ?? '') === 'like') $gameVotes[$clubKey]['likes']++;
                 if (($entry['choice'] ?? '') === 'dislike') $gameVotes[$clubKey]['dislikes']++;
             }
-            $gameVoteLog[] = ['player_id'=>$v['player_id'] ?? null,'player_name'=>$v['player_name'] ?? 'Club member','source_club'=>$v['source_club'] ?? '','choice'=>$v['choice'] ?? '', 'effective_votes'=>$v['effective_votes'] ?? [],'voted_at'=>$v['voted_at'] ?? $record['created_at']];
+            $gameVoteLog[] = ['player_id'=>$v['player_id'] ?? null,'player_name'=>$playerNames[$v['player_id'] ?? ''] ?? ($v['player_name'] ?? 'Former player'),'source_club'=>$v['source_club'] ?? '','choice'=>$v['choice'] ?? '', 'effective_votes'=>$v['effective_votes'] ?? [],'voted_at'=>$v['voted_at'] ?? $record['created_at']];
         }
         if ($record['kind'] === 'match') $matches[$v['game_id']] = $v;
         if ($record['kind'] === 'player_card') $cards[$v['player_id']] = $v;
