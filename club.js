@@ -1,7 +1,8 @@
 (() => {
   'use strict';
   const api=window.api,M=window.ClubModel,root=document.getElementById('club-app'),dialog=document.getElementById('club-dialog');
-  let data=null,payments=null,paymentError='',filter='upcoming',archiveSeason='',search='',sort='appearances',busy=false,lastFocus=null,refreshing=false;
+  let data=null,payments=null,paymentError='',filter='upcoming',archiveSeason='',search='',sort='appearances',busy=false,lastFocus=null,refreshing=false,gameBadgeLoad=null;
+  const gameClubBadges={};
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money=v=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'EUR'}).format(Number(v||0));
   const date=(v,options={day:'numeric',month:'short'})=>new Date(v+'T12:00:00').toLocaleDateString('en-GB',options);
@@ -115,15 +116,29 @@
     return heading('Your membership','My Club','Your football, your season ticket and your payments.')+`<div class="profile-banner">${window.ClubAvatar.render(data.user,true)}<div><h2>${memberLabel(me(),data.user.player_id,data.user)}</h2><p>${esc(c.position||'FC Castellón member')}${c.number?' · Shirt '+c.number:''} · ${esc(role())}</p></div>${btn('Edit my details','profile','','lime')}</div>${window.ClubFavorites.card(data.user)}${!pid?'<div class="notice amber">Your account isn’t linked to a player yet. Ask a board member to link your existing squad record before signing up.</div>':''}<div class="stats-grid">${metric('Your appearances',st?.appearances??'—',s?.name||'This season','shirt')}${metric('Attendance streak',st?.streak??'—','Consecutive recorded matches','chart')}${metric('Recorded goals',st?.goals??'—','From board match reports','trophy')}${metric('Outstanding',payments?money(payments.summary.outstanding):'—',M.openPayments(payments).length+' open items','wallet')}</div><div class="club-grid"><div>${section('Your payments',`<div class="panel">${personalPaymentRows()}</div>`,'','Only you and authorised board members can see these details.')}<div class="notice" style="margin-top:17px">Sending payment and confirming payment are separate steps. Use “I’ve sent payment” after making a transfer; the treasurer will check it before clearing your balance.</div></div><aside class="stack"><div class="panel panel-pad"><div class="eyebrow">Your season ticket</div><h3 style="margin:13px 0">${esc(s?.name||'No current season')}</h3>${pill(t?(t.paid?'Confirmed':'Awaiting payment'):'Pay per game',t&&!t.paid?'amber':'')}<p class="muted" style="font-size:12px;margin-top:13px">${t?'Your ticket covers match fees for this season.':"Your match fees are tracked individually. Contact the treasurer if you’d like a season ticket."}</p>${s?`<p class="muted" style="font-size:11px;margin-top:13px">${esc(date(s.starts_on))} – ${esc(date(s.ends_on,{day:'numeric',month:'short',year:'numeric'}))}</p>`:''}</div>${section('Your upcoming football',`<div class="panel">${data.games.filter(g=>!M.started(g)&&M.signupState(data,g.id)!=='out').slice(0,5).map(g=>`<a class="leader" href="#match/${g.id}" style="text-decoration:none"><span class="leader-name">${esc(date(g.game_date,{weekday:'short',day:'numeric',month:'short'}))}<small>${esc(time(g))} · ${M.signupState(data,g.id)==='waiting'?'Waiting list':'You’re playing'}</small></span>${icon('chevron',14)}</a>`).join('')||empty('Your next match is waiting','Put your name down in Matches.','calendar')}</div>`)}</aside></div>`;
   }
 
+  function gameClubBadge(club){
+    const key=String(club||'').toLowerCase();
+    const favorite=data.players.map(p=>p.favorite_club).find(c=>c?.name?.toLowerCase()===key)||gameClubBadges[key];
+    return favorite?.badge_id?'<img class="play-game-team-badge" src="/api/clubs.php?badge='+esc(favorite.badge_id)+'" alt="'+esc(club)+' badge">':'<span class="play-game-team-placeholder">⚽</span>';
+  }
+  function loadGameClubBadges(){
+    if(gameBadgeLoad)return;
+    gameBadgeLoad=Promise.all(['Tottenham Hotspur','West Ham United'].map(async name=>{try{const result=await api.get('/api/clubs.php?q='+encodeURIComponent(name));const club=(result.clubs||[]).find(c=>c.name.toLowerCase()===name.toLowerCase());if(club)gameClubBadges[name.toLowerCase()]=club;}catch(_){}})).then(()=>{if(route().page==='playgame'&&route().id==='love-or-hate')render();});
+  }
   function playGame(){
+    const games=[{id:'love-or-hate',title:'Love or Hate?',description:'Choose the clubs you love, and the ones you love to hate.',detail:'A little football rivalry. Your votes shape the club leaderboard.',symbol:'♥'}];
+    return heading('Games & challenges','Play a Game','A little friendly competition away from the pitch.')+'<div class="play-game-tiles">'+games.map(g=>'<a class="play-game-tile" href="#playgame/'+g.id+'"><div class="play-game-tile-art"><span>'+esc(g.symbol)+'</span><small>FC CASTELLÓN</small></div><div class="play-game-tile-copy"><span class="eyebrow">CLUB GAME</span><h2>'+esc(g.title)+'</h2><p>'+esc(g.description)+'</p><span class="play-game-tile-link">Play now '+icon('arrow',14)+'</span></div></a>').join('')+'</div>';
+  }
+  function playLoveHate(){
+    loadGameClubBadges();
     const clubs=new Map();
     for(const p of data.players){const c=p.favorite_club;if(c?.name)clubs.set(c.name.toLowerCase(),c.name);}
     ['Tottenham Hotspur','West Ham United'].forEach(n=>clubs.set(n.toLowerCase(),n));
     const rows=[...clubs.values()].sort((a,b)=>a.localeCompare(b));
-    const counts=data.game_votes||{},myVotes=new Set((data.game_vote_log||[]).filter(v=>v.player_id===data.user.player_id).map(v=>v.source_club.toLowerCase()));
-    const cards=rows.map(club=>{const c=counts[club.toLowerCase()]||{likes:0,dislikes:0};const voted=myVotes.has(club.toLowerCase());return '<article class="play-game-card"><div class="play-game-card-main"><h3>'+esc(club)+'</h3><div class="play-game-counts"><span>👍 <b>'+(c.likes||0)+'</b> likes</span><span>👎 <b>'+(c.dislikes||0)+'</b> dislikes</span></div></div><div class="play-game-actions">'+(voted?'<span class="play-game-voted">Voted</span>':'<button class="btn btn-outline" data-action="club-vote" data-choice="like" data-club="'+esc(club)+'">Like</button><button class="btn btn-outline" data-action="club-vote" data-choice="dislike" data-club="'+esc(club)+'">Dislike</button>')+'</div></article>';}).join('');
-    const log=(data.game_vote_log||[]).map(v=>{const actions=(v.effective_votes||[]).map(x=>(x.choice==='like'?'👍 Liked ':'👎 Disliked ')+x.club).join(' · ');return '<div class="play-game-log-row"><b>'+esc(v.player_name)+'</b> '+(v.choice==='like'?'liked':'disliked')+' <strong>'+esc(v.source_club)+'</strong><small>'+esc(actions)+' · '+esc(new Date(v.voted_at).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'}))+'</small></div>';}).join('');
-    return heading('Club rivalry','Play a Game','A little harmless football rivalry. Pick a club and tell us whether you like or dislike them.')+'<div class="play-game-intro"><div class="eyebrow" style="color:#d7e8ac">THE FIRST GAME</div><h2>Love or Hate?</h2><p>Choose Like or Dislike for the clubs below. Club choices come from players’ My Club profiles, with Tottenham Hotspur and West Ham United always included. You can vote once for each club.</p></div>'+(!data.user.player_id?'<div class="notice amber">Your account needs to be linked to a player profile before you can vote.</div>':'')+'<div class="play-game-grid">'+cards+'</div><section style="margin-top:30px"><div class="section-title"><div><h2>Voting log</h2><p>Every vote and the clubs it counted towards.</p></div></div><div class="panel play-game-log">'+(log||'<div class="play-game-log-row">No votes yet. Be the first to join in.</div>')+'</div></section>';
+    const counts=data.game_votes||{};
+    const cards=rows.map(club=>{const c=counts[club.toLowerCase()]||{likes:0,dislikes:0};return '<article class="play-game-card"><div class="play-game-card-logo">'+gameClubBadge(club)+'</div><div class="play-game-card-main"><h3>'+esc(club)+'</h3><div class="play-game-counts"><span>👍 <b>'+(c.likes||0)+'</b> likes</span><span>👎 <b>'+(c.dislikes||0)+'</b> dislikes</span></div></div><div class="play-game-actions"><button class="btn btn-outline" data-action="club-vote" data-choice="like" data-club="'+esc(club)+'">Like</button><button class="btn btn-outline" data-action="club-vote" data-choice="dislike" data-club="'+esc(club)+'">Dislike</button></div></article>';}).join('');
+    const log=(data.game_vote_log||[]).map(v=>'<div class="play-game-log-row"><b>'+esc(v.player_name)+'</b> '+(v.choice==='like'?'liked':'disliked')+' <strong>'+esc(v.club)+'</strong><small>'+esc(new Date(v.voted_at).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'}))+'</small></div>').join('');
+    return heading('Club rivalry','Love or Hate?','Choose Like or Dislike for the clubs below. Your vote can be cast more than once.','<a class="btn btn-outline" href="#playgame">'+icon('arrow',13)+' All games</a>')+'<div class="play-game-intro"><div class="eyebrow" style="color:#d7e8ac">LOVE OR HATE?</div><h2>Which side are you on?</h2><p>Club choices come from players’ My Club profiles, with Tottenham Hotspur and West Ham United always included. Every vote counts towards the club totals and appears in the voting log.</p></div>'+(!data.user.player_id?'<div class="notice amber">Your account needs to be linked to a player profile before you can vote.</div>':'')+'<div class="play-game-grid">'+cards+'</div><section style="margin-top:30px"><div class="section-title"><div><h2>Voting log</h2><p>Each entry shows the club and outcome that actually received the vote.</p></div></div><div class="panel play-game-log">'+(log||'<div class="play-game-log-row">No votes yet. Be the first to join in.</div>')+'</div></section>';
   }
   function office(){return board()?window.ClubOffice.render():heading('Club Office','Your club','Your membership is available in My Club.');}
 
@@ -133,13 +148,13 @@
     window.ClubOffice.setContext(data,{esc,icon,money,date,fullDate,initials,heading,section,metric,pill,btn,memberLabel,showDialog,toast,refresh,render,matchDetail});
     const r=route(),permission={clubhouse:'clubhouse.view',matches:'games.view',match:'games.view',squad:'squad.view'}[r.page];
     const denied=permission&&!can(permission);
-    shell(denied?heading('Your club','This page isn’t in your profile','A Club owner can update your page access. Your own membership and payments remain available.','<a class="btn btn-primary" href="#myclub">Go to My Club</a>'):r.page==='matches'?matches():r.page==='match'?matchDetail(r.id):r.page==='squad'?squad():r.page==='playgame'?playGame():r.page==='myclub'?myclub():r.page==='office'?office():clubhouse());
+    shell(denied?heading('Your club','This page isn’t in your profile','A Club owner can update your page access. Your own membership and payments remain available.','<a class="btn btn-primary" href="#myclub">Go to My Club</a>'):r.page==='matches'?matches():r.page==='match'?matchDetail(r.id):r.page==='squad'?squad():r.page==='playgame'?(r.id==='love-or-hate'?playLoveHate():playGame()):r.page==='myclub'?myclub():r.page==='office'?office():clubhouse());
     document.title=`${r.page==='match'?'Match centre':r.page==='myclub'?'My Club':r.page==='office'?'Club Office':r.page==='squad'?'The squad':r.page==='playgame'?'Play a Game':r.page==='matches'?'Matches':'Clubhouse'} · FC Castellón`;
   }
   function toast(message){const t=document.getElementById('toast');t.textContent=message;t.classList.add('visible');clearTimeout(window.clubToastTimer);window.clubToastTimer=setTimeout(()=>t.classList.remove('visible'),4500);}
   function closeDialog(){dialog.close();lastFocus?.focus?.();}
   function showDialog(title,subtitle,body,onSubmit=null,submitLabel='Save changes'){
-    dialog.classList.remove('lineup-dialog','favorite-dialog');
+    dialog.classList.remove('lineup-dialog','favorite-dialog','game-vote-dialog');
     lastFocus=document.activeElement;
     dialog.innerHTML=`<div class="dialog-head"><div><h2 id="dialog-title">${esc(title)}</h2>${subtitle?`<p>${esc(subtitle)}</p>`:''}</div><button class="icon-button" type="button" data-close-dialog aria-label="Close dialog">${icon('close')}</button></div>${onSubmit?'<form id="club-form">':''}${body}${onSubmit?`<p class="form-error" role="alert" id="form-error"></p><div class="form-actions"><button class="btn btn-outline" type="button" data-close-dialog>Cancel</button><button class="btn btn-primary" type="submit">${esc(submitLabel)}</button></div></form>`:''}`;
     dialog.showModal();
@@ -181,7 +196,15 @@
       const appearances=M.recordedGames(data,true).filter(g=>M.squad(data,g.id).some(r=>r.player_id===id)).reverse();
       showDialog(p?.name||'Player',`${card.position||'Club player'}${card.number?' · Shirt '+card.number:''}`,`<div class="player-dialog-avatar">${initials(p?.name||'Player',true,id)}${window.ClubFavorites.badge(window.ClubFavorites.choice(p?.name,id),true)}</div><div class="stats-grid" style="grid-template-columns:1fr 1fr;margin-top:0">${metric('This season',st.appearances,'Recorded appearances','shirt')}${metric('All time',all.appearances,'Recorded appearances','trophy')}${metric('Recorded goals',st.goals,'This season','chart')}${metric('W / D / L',st.wins+' / '+st.draws+' / '+st.losses,st.results+' matches with teams & results','calendar')}</div><p class="notice">${st.streak} consecutive matches · ${st.rate}% of recorded matches this season. Historical signups are used as recorded appearances.</p><h3 style="margin:22px 0 12px">Recent appearances</h3>${appearances.slice(0,8).map(g=>`<a class="leader" href="#match/${g.id}" data-close-dialog style="text-decoration:none"><span class="leader-name">${esc(fullDate(g.game_date))}<small>${esc(g.location)}</small></span>${icon('arrow',13)}</a>`).join('')||'<p class="muted" style="font-size:12px">Your football story starts here.</p>'}`);return;
     }
-    if(action==='club-vote'){const club=button.dataset.club,choice=button.dataset.choice;if(!['like','dislike'].includes(choice)||!club)throw new Error('Choose a valid vote');const result=await post({action:'game_vote',club_name:club,choice});await refresh();toast(result.message||'Thanks for your vote.');return;}
+    if(action==='club-vote'){
+      const club=button.dataset.club,choice=button.dataset.choice;
+      if(!['like','dislike'].includes(choice)||!club)throw new Error('Choose a valid vote');
+      const result=await post({action:'game_vote',club_name:club,choice});await refresh();
+      const outcome=result.effective_votes?.[0]||{club,choice};
+      const verb=outcome.choice==='like'?'liking':'disliking';
+      showDialog('Thank you for '+verb+' '+outcome.club,'Your vote has been counted.', '<div class="game-vote-confirmation"><div class="game-vote-confirmation-badge">'+gameClubBadge(outcome.club)+'</div><p>Thank you for '+verb+' <strong>'+esc(outcome.club)+'</strong>.</p><small>Your vote has been added to the club totals.</small><button type="button" class="btn btn-primary" data-close-dialog>Continue</button></div>');
+      dialog.classList.add('game-vote-dialog');return;
+    }
     if(action==='favorite-club'){await window.ClubFavorites.open(data,{showDialog});return;}
     if(action==='profile'){
       const c=data.player_cards[data.user.player_id]||{};
