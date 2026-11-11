@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const api=window.api,M=window.ClubModel,root=document.getElementById('club-app'),dialog=document.getElementById('club-dialog');
-  let data=null,payments=null,paymentError='',filter='upcoming',archiveSeason='',search='',sort='appearances',busy=false,lastFocus=null,refreshing=false,gameBadgeLoad=null;
+  let data=null,payments=null,predictionsData=null,predictionsLoading=null,paymentError='',filter='upcoming',archiveSeason='',search='',sort='appearances',busy=false,lastFocus=null,refreshing=false,gameBadgeLoad=null;
   const gameClubBadges={};
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money=v=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'EUR'}).format(Number(v||0));
@@ -126,9 +126,27 @@
     gameBadgeLoad=Promise.all(['Tottenham Hotspur','West Ham United'].map(async name=>{try{const result=await api.get('/api/clubs.php?q='+encodeURIComponent(name));const club=(result.clubs||[]).find(c=>c.name.toLowerCase()===name.toLowerCase());if(club)gameClubBadges[name.toLowerCase()]=club;}catch(_){}})).then(()=>{if(route().page==='playgame'&&route().id==='love-or-hate')render();});
     return gameBadgeLoad;
   }
+  async function loadPredictions(){
+    if(predictionsData)return predictionsData;
+    if(!predictionsLoading)predictionsLoading=api.get('/api/predictions.php').then(r=>(predictionsData=r)).finally(()=>{predictionsLoading=null;});
+    return predictionsLoading;
+  }
   function playGame(){
-    const games=[{id:'love-or-hate',title:'Love or Hate?',description:'Choose the clubs you love, and the ones you love to hate.',detail:'A little football rivalry. Your votes shape the club leaderboard.',symbol:'♥'}];
+    const games=[{id:'love-or-hate',title:'Love or Hate?',description:'Choose the clubs you love, and the ones you love to hate.',symbol:'♥'},{id:'league-predictions',title:'League Games Predictions',description:'Predict the scores of domestic league matches and climb the club leaderboard.',symbol:'⚽'}];
     return heading('Games & challenges','Play a Game','A little friendly competition away from the pitch.')+'<div class="play-game-tiles">'+games.map(g=>'<a class="play-game-tile" href="#playgame/'+g.id+'"><div class="play-game-tile-art"><span>'+esc(g.symbol)+'</span><small>FC CASTELLÓN</small></div><div class="play-game-tile-copy"><span class="eyebrow">CLUB GAME</span><h2>'+esc(g.title)+'</h2><p>'+esc(g.description)+'</p><span class="play-game-tile-link">Play now '+icon('arrow',14)+'</span></div></a>').join('')+'</div>';
+  }
+  function leaguePredictions(){
+    loadPredictions().then(()=>{if(route().page==='playgame'&&route().id==='league-predictions')render();}).catch(()=>{});
+    const payload=predictionsData,fixtures=payload?.fixtures||[],mine=payload?.my_predictions||{},now=Date.now();
+    const cards=fixtures.map(f=>{
+      const kick=new Date(f.kickoff_utc.replace(' ','T')+'Z'),locked=now>=kick.getTime()-60000||Number(f.result_confirmed)===1,p=mine[String(f.id)]||{},played=p.predicted_home_score!==undefined,finished=Number(f.result_confirmed)===1;
+      const kickoff=kick.toLocaleString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Madrid'});
+      const score=finished?'<b>'+f.home_score+' : '+f.away_score+'</b>':'<span>vs</span>';
+      const entry=locked?'<span class="pill neutral">'+(finished?'Full time':'Predictions closed')+'</span>':'<div class="prediction-inputs"><label>Home<input type="number" min="0" max="20" value="'+(played?p.predicted_home_score:'')+'" data-home-score></label><b>:</b><label>Away<input type="number" min="0" max="20" value="'+(played?p.predicted_away_score:'')+'" data-away-score></label><button class="btn btn-primary" data-action="save-prediction" data-id="'+f.id+'">'+(played?'Update':'Save prediction')+'</button></div>';
+      return '<article class="prediction-fixture"><div class="prediction-meta"><span>'+esc(f.league_name)+' · '+esc(f.country)+'</span><span>'+esc(kickoff)+'</span></div><div class="prediction-teams"><div><img src="'+esc(f.home_team_logo||'')+'" alt="" onerror="this.hidden=true"><strong>'+esc(f.home_team_name)+'</strong></div><div class="prediction-score">'+score+'</div><div><img src="'+esc(f.away_team_logo||'')+'" alt="" onerror="this.hidden=true"><strong>'+esc(f.away_team_name)+'</strong></div></div><div class="prediction-entry">'+(played?'<span class="pill success">Your prediction: '+p.predicted_home_score+' – '+p.predicted_away_score+(p.scored_at?' · '+p.points_awarded+' pts':'')+'</span>':'<span class="muted">No prediction saved · 0 points if left blank</span>')+entry+'</div></article>';
+    }).join('');
+    const board=(payload?.leaderboard||[]).map((p,i)=>'<div class="prediction-leader"><span class="rank">'+(i+1)+'</span><strong>'+esc(p.name)+'</strong><b>'+Number(p.points||0)+' pts</b><span>'+Number(p.correct_games||0)+' correct</span></div>').join('');
+    return heading('League predictions','League Games Predictions','Predict domestic league fixtures involving clubs selected in My Club. Change your score until one minute before kick-off.','<a class="btn btn-outline" href="#playgame">'+icon('arrow',13)+' All games</a>')+'<div class="play-game-intro"><div class="eyebrow" style="color:#d7e8ac">HOW TO SCORE</div><h2>Know your football?</h2><p>Exact score: 3 points. Correct result (win, draw or loss): 1 point. Wrong prediction or no prediction: 0 points. Only domestic league matches are included.</p></div>'+(!payload?'<div class="panel">'+empty('Loading fixtures','League fixtures and your predictions are being loaded.','clock')+'</div>':!fixtures.length?'<div class="panel">'+empty('No league fixtures available yet','Fixtures appear here after the scheduled club sync has run.','calendar')+'</div>':'<div class="prediction-fixtures">'+cards+'</div>')+'<section style="margin-top:30px"><div class="section-title"><div><h2>Leaderboard</h2><p>Points and correctly predicted games from completed fixtures.</p></div></div><div class="panel prediction-board">'+(board||'<div class="prediction-leader">No predictions scored yet.</div>')+'</div></section>';
   }
   function playLoveHate(){
     loadGameClubBadges();
@@ -149,7 +167,7 @@
     window.ClubOffice.setContext(data,{esc,icon,money,date,fullDate,initials,heading,section,metric,pill,btn,memberLabel,showDialog,toast,refresh,render,matchDetail});
     const r=route(),permission={clubhouse:'clubhouse.view',matches:'games.view',match:'games.view',squad:'squad.view'}[r.page];
     const denied=permission&&!can(permission);
-    shell(denied?heading('Your club','This page isn’t in your profile','A Club owner can update your page access. Your own membership and payments remain available.','<a class="btn btn-primary" href="#myclub">Go to My Club</a>'):r.page==='matches'?matches():r.page==='match'?matchDetail(r.id):r.page==='squad'?squad():r.page==='playgame'?(r.id==='love-or-hate'?playLoveHate():playGame()):r.page==='myclub'?myclub():r.page==='office'?office():clubhouse());
+    shell(denied?heading('Your club','This page isn’t in your profile','A Club owner can update your page access. Your own membership and payments remain available.','<a class="btn btn-primary" href="#myclub">Go to My Club</a>'):r.page==='matches'?matches():r.page==='match'?matchDetail(r.id):r.page==='squad'?squad():r.page==='playgame'?(r.id==='love-or-hate'?playLoveHate():r.id==='league-predictions'?leaguePredictions():playGame()):r.page==='myclub'?myclub():r.page==='office'?office():clubhouse());
     document.title=`${r.page==='match'?'Match centre':r.page==='myclub'?'My Club':r.page==='office'?'Club Office':r.page==='squad'?'The squad':r.page==='playgame'?'Play a Game':r.page==='matches'?'Matches':'Clubhouse'} · FC Castellón`;
   }
   function toast(message){const t=document.getElementById('toast');t.textContent=message;t.classList.add('visible');clearTimeout(window.clubToastTimer);window.clubToastTimer=setTimeout(()=>t.classList.remove('visible'),4500);}
@@ -196,6 +214,11 @@
       const p=player(id),st=M.stats(data,id),all=M.stats(data,id,true),card=data.player_cards[id]||{};
       const appearances=M.recordedGames(data,true).filter(g=>M.squad(data,g.id).some(r=>r.player_id===id)).reverse();
       showDialog(p?.name||'Player',`${card.position||'Club player'}${card.number?' · Shirt '+card.number:''}`,`<div class="player-dialog-avatar">${initials(p?.name||'Player',true,id)}${window.ClubFavorites.badge(window.ClubFavorites.choice(p?.name,id),true)}</div><div class="stats-grid" style="grid-template-columns:1fr 1fr;margin-top:0">${metric('This season',st.appearances,'Recorded appearances','shirt')}${metric('All time',all.appearances,'Recorded appearances','trophy')}${metric('Recorded goals',st.goals,'This season','chart')}${metric('W / D / L',st.wins+' / '+st.draws+' / '+st.losses,st.results+' matches with teams & results','calendar')}</div><p class="notice">${st.streak} consecutive matches · ${st.rate}% of recorded matches this season. Historical signups are used as recorded appearances.</p><h3 style="margin:22px 0 12px">Recent appearances</h3>${appearances.slice(0,8).map(g=>`<a class="leader" href="#match/${g.id}" data-close-dialog style="text-decoration:none"><span class="leader-name">${esc(fullDate(g.game_date))}<small>${esc(g.location)}</small></span>${icon('arrow',13)}</a>`).join('')||'<p class="muted" style="font-size:12px">Your football story starts here.</p>'}`);return;
+    }
+    if(action==='save-prediction'){
+      const card=button.closest('.prediction-fixture'),home=Number(card?.querySelector('[data-home-score]')?.value),away=Number(card?.querySelector('[data-away-score]')?.value);
+      if(!card||!Number.isInteger(home)||!Number.isInteger(away)||home<0||away<0||home>20||away>20)throw new Error('Enter a whole-number score from 0 to 20.');
+      await post({action:'save_prediction',fixture_id:Number(id),home_score:home,away_score:away});predictionsData=null;await loadPredictions();render();toast('Your prediction has been saved.');return;
     }
     if(action==='club-vote'){
       const club=button.dataset.club,choice=button.dataset.choice;
