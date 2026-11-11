@@ -111,8 +111,23 @@ function predictionApi(string $endpoint, array $params = []): array {
         throw new RuntimeException('API-Football request failed (' . $status . ')' . ($error ? ': ' . $error : ''));
     }
     $json = json_decode($raw, true);
-    if (!is_array($json) || !empty($json['errors'])) throw new RuntimeException('API-Football returned an invalid response');
-    return $json['response'] ?? [];
+    if (!is_array($json)) {
+        throw new RuntimeException('API-Football returned non-JSON data (HTTP ' . $status . ', JSON error: ' . json_last_error_msg() . ')');
+    }
+    if (!empty($json['errors'])) {
+        $providerErrors = $json['errors'];
+        $message = is_array($providerErrors)
+            ? implode('; ', array_map(static function ($key, $value): string {
+                $detail = is_scalar($value) ? (string)$value : json_encode($value, JSON_UNESCAPED_SLASHES);
+                return (string)$key . ': ' . $detail;
+            }, array_keys($providerErrors), array_values($providerErrors)))
+            : (is_scalar($providerErrors) ? (string)$providerErrors : 'unspecified provider error');
+        throw new RuntimeException('API-Football rejected the request (HTTP ' . $status . '): ' . mb_substr($message, 0, 700));
+    }
+    if (!array_key_exists('response', $json) || !is_array($json['response'])) {
+        throw new RuntimeException('API-Football response payload is missing or malformed (HTTP ' . $status . ')');
+    }
+    return $json['response'];
 }
 function predictionCurrentSeason(): int { return (int)(new DateTimeImmutable('now', new DateTimeZone('Europe/Madrid')))->format('Y'); }
 function predictionFavouriteNames(PDO $pdo): array {
