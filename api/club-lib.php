@@ -222,7 +222,9 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
                 if (($entry['choice'] ?? '') === 'like') $gameVotes[$clubKey]['likes']++;
                 if (($entry['choice'] ?? '') === 'dislike') $gameVotes[$clubKey]['dislikes']++;
             }
-            $gameVoteLog[] = ['player_id'=>$v['player_id'] ?? null,'player_name'=>$playerNames[$v['player_id'] ?? ''] ?? ($v['player_name'] ?? 'Former player'),'source_club'=>$v['source_club'] ?? '','choice'=>$v['choice'] ?? '', 'effective_votes'=>$v['effective_votes'] ?? [],'voted_at'=>$v['voted_at'] ?? $record['created_at']];
+            foreach (($v['effective_votes'] ?? []) as $entry) {
+                $gameVoteLog[] = ['player_id'=>$v['player_id'] ?? null,'player_name'=>$playerNames[$v['player_id'] ?? ''] ?? ($v['player_name'] ?? 'Former player'),'club'=>$entry['club'],'choice'=>$entry['choice'],'voted_at'=>$v['voted_at'] ?? $record['created_at']];
+            }
         }
         if ($record['kind'] === 'match') $matches[$v['game_id']] = $v;
         if ($record['kind'] === 'player_card') $cards[$v['player_id']] = $v;
