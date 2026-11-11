@@ -27,7 +27,7 @@ try {
         foreach($pdo->query("SELECT record_key,payload FROM club_records WHERE kind='favorite_club'")->fetchAll(PDO::FETCH_ASSOC) as $favoriteRow) {
             $payload=json_decode($favoriteRow['payload'],true);
             if(!is_array($payload)) continue;
-            $key=substr((string)$favoriteRow['record_key'],13);
+            $key=substr((string)$favoriteRow['record_key'],9);
             if(preg_match('/^[a-f0-9]{64}$/',$key)) $favoriteByEmail[$key]=$payload['club']??null;
         }
         foreach($board as &$entry) {
