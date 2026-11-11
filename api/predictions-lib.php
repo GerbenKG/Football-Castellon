@@ -96,6 +96,7 @@ function predictionNormalizeTeamName(string $name): string {
         'inter milan'=>'internazionale',
         'inter'=>'internazionale',
         'internazionale'=>'internazionale',
+        'internazionale milano'=>'internazionale',
     ];
     return $aliases[$name]??$name;
 }
@@ -120,6 +121,7 @@ function predictionSync(PDO $pdo, bool $discover=true): array {
     // Domestic competitions available in the provider's free tier.
     $competitions=[
         'PL'=>['id'=>2021,'name'=>'Premier League','country'=>'England'],
+        'ELC'=>['id'=>2016,'name'=>'Championship','country'=>'England'],
         'PD'=>['id'=>2014,'name'=>'La Liga','country'=>'Spain'],
         'DED'=>['id'=>2003,'name'=>'Eredivisie','country'=>'Netherlands'],
         'BL1'=>['id'=>2002,'name'=>'Bundesliga','country'=>'Germany'],
