@@ -268,7 +268,7 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
     $memberAccounts=[];
     if($user['role']==='super_admin')foreach($pdo->query('SELECT email,display_name,role,active,player_id FROM access_profiles ORDER BY display_name')->fetchAll() as $member){$member['active']=(bool)$member['active'];$member['preview_key']=previewMemberKey($member['email']);$member['favorite_club']=$favorites[hash('sha256',strtolower($member['email']))]??null;$memberAccounts[]=$member;}
     return ['user' => $publicUser, 'preview' => $user['_preview'] ?? null, 'permissions' => $permissions, 'players' => $players, 'games' => $games, 'signups' => $rows,
-        'seasons' => $seasons, 'my_tickets' => $myTickets, 'announcements' => $permissions['clubhouse.view'] ? array_slice($announcements, 0, 30) : [], 'matches' => (object) $matches,
+        'seasons' => $seasons, 'my_tickets' => $myTickets, 'announcements' => $permissions['clubhouse.view'] ? $announcements : [], 'matches' => (object) $matches,
         'votes' => (object) $votes, 'my_votes' => (object) $myVotes,  'player_cards' => (object) $cards, 'waiting' => $waiting, 'declined' => $declined, 'payment_reports' => $reports, 'lineup_players'=>$lineupPlayers,
         'bibs_assignments'=>$pdo->query('SELECT id,game_id,player_id FROM game_players WHERE took_bibs=1 AND player_id IS NOT NULL')->fetchAll(),
         'game_votes'=>(object)$gameVotes, 'game_vote_log'=>$gameVoteLog,
