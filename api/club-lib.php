@@ -216,13 +216,17 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
         $v = json_decode($record['payload'], true, 64, JSON_THROW_ON_ERROR);
         if ($record['kind'] === 'announcement') $announcements[] = $v + ['id' => $record['record_key'], 'created_at' => $record['created_at']];
         if ($record['kind'] === 'game_vote') {
-            foreach (($v['effective_votes'] ?? []) as $entry) {
+            // Use the exact club and choice submitted by the player. This also corrects historical cross-mapped votes.
+            $effectiveVotes = is_string($v['source_club'] ?? null) && in_array(($v['choice'] ?? ''), ['like','dislike'], true)
+                ? [['club'=>$v['source_club'],'choice'=>$v['choice']]]
+                : ($v['effective_votes'] ?? []);
+            foreach ($effectiveVotes as $entry) {
                 $clubKey = strtolower($entry['club']);
                 if (!isset($gameVotes[$clubKey])) $gameVotes[$clubKey] = ['club'=>$entry['club'],'likes'=>0,'dislikes'=>0];
                 if (($entry['choice'] ?? '') === 'like') $gameVotes[$clubKey]['likes']++;
                 if (($entry['choice'] ?? '') === 'dislike') $gameVotes[$clubKey]['dislikes']++;
             }
-            foreach (($v['effective_votes'] ?? []) as $entry) {
+            foreach ($effectiveVotes as $entry) {
                 $gameVoteLog[] = ['player_id'=>$v['player_id'] ?? null,'player_name'=>$playerNames[$v['player_id'] ?? ''] ?? ($v['player_name'] ?? 'Former player'),'club'=>$entry['club'],'choice'=>$entry['choice'],'voted_at'=>$v['voted_at'] ?? $record['created_at']];
             }
         }
@@ -264,7 +268,7 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
     $memberAccounts=[];
     if($user['role']==='super_admin')foreach($pdo->query('SELECT email,display_name,role,active,player_id FROM access_profiles ORDER BY display_name')->fetchAll() as $member){$member['active']=(bool)$member['active'];$member['preview_key']=previewMemberKey($member['email']);$member['favorite_club']=$favorites[hash('sha256',strtolower($member['email']))]??null;$memberAccounts[]=$member;}
     return ['user' => $publicUser, 'preview' => $user['_preview'] ?? null, 'permissions' => $permissions, 'players' => $players, 'games' => $games, 'signups' => $rows,
-        'seasons' => $seasons, 'my_tickets' => $myTickets, 'announcements' => $permissions['clubhouse.view'] ? array_slice($announcements, 0, 30) : [], 'matches' => (object) $matches,
+        'seasons' => $seasons, 'my_tickets' => $myTickets, 'announcements' => $permissions['clubhouse.view'] ? $announcements : [], 'matches' => (object) $matches,
         'votes' => (object) $votes, 'my_votes' => (object) $myVotes,  'player_cards' => (object) $cards, 'waiting' => $waiting, 'declined' => $declined, 'payment_reports' => $reports, 'lineup_players'=>$lineupPlayers,
         'bibs_assignments'=>$pdo->query('SELECT id,game_id,player_id FROM game_players WHERE took_bibs=1 AND player_id IS NOT NULL')->fetchAll(),
         'game_votes'=>(object)$gameVotes, 'game_vote_log'=>$gameVoteLog,
