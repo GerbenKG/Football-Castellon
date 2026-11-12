@@ -216,13 +216,17 @@ function clubSnapshot(PDO $pdo, array $user, ?string $financeSeason = null): arr
         $v = json_decode($record['payload'], true, 64, JSON_THROW_ON_ERROR);
         if ($record['kind'] === 'announcement') $announcements[] = $v + ['id' => $record['record_key'], 'created_at' => $record['created_at']];
         if ($record['kind'] === 'game_vote') {
-            foreach (($v['effective_votes'] ?? []) as $entry) {
+            // Use the exact club and choice submitted by the player. This also corrects historical cross-mapped votes.
+            $effectiveVotes = is_string($v['source_club'] ?? null) && in_array(($v['choice'] ?? ''), ['like','dislike'], true)
+                ? [['club'=>$v['source_club'],'choice'=>$v['choice']]]
+                : ($v['effective_votes'] ?? []);
+            foreach ($effectiveVotes as $entry) {
                 $clubKey = strtolower($entry['club']);
                 if (!isset($gameVotes[$clubKey])) $gameVotes[$clubKey] = ['club'=>$entry['club'],'likes'=>0,'dislikes'=>0];
                 if (($entry['choice'] ?? '') === 'like') $gameVotes[$clubKey]['likes']++;
                 if (($entry['choice'] ?? '') === 'dislike') $gameVotes[$clubKey]['dislikes']++;
             }
-            foreach (($v['effective_votes'] ?? []) as $entry) {
+            foreach ($effectiveVotes as $entry) {
                 $gameVoteLog[] = ['player_id'=>$v['player_id'] ?? null,'player_name'=>$playerNames[$v['player_id'] ?? ''] ?? ($v['player_name'] ?? 'Former player'),'club'=>$entry['club'],'choice'=>$entry['choice'],'voted_at'=>$v['voted_at'] ?? $record['created_at']];
             }
         }
